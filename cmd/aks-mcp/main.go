@@ -13,6 +13,12 @@ func main() {
 	// Parse command line arguments
 	cfg := config.ParseFlags()
 
+	// Parse resource ID
+	resourceID, err := azure.ParseAzureResourceID(cfg.AKSResourceID)
+	if err != nil {
+		log.Fatalf("Failed to parse resource ID: %v", err)
+	}
+
 	// Initialize Azure client
 	client, err := azure.NewAzureClient()
 	if err != nil {
@@ -21,12 +27,6 @@ func main() {
 
 	// Initialize cache
 	cache := azure.NewAzureCache()
-	
-	// Parse resource ID
-	resourceID, err := azure.ParseAzureResourceID(cfg.AKSResourceID)
-	if err != nil {
-		log.Fatalf("Failed to parse resource ID: %v", err)
-	}
 	
 	// Create Azure provider
 	azureProvider := azure.NewAzureResourceProvider(resourceID, client, cache)
