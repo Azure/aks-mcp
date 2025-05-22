@@ -5,8 +5,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v2"
 	"github.com/azure/aks-mcp/internal/azure"
-	"github.com/azure/aks-mcp/internal/models"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -14,95 +14,73 @@ import (
 // GetNSGInfoHandler returns a handler for the get_nsg_info tool.
 func GetNSGInfoHandler(resourceID *azure.AzureResourceID, client *azure.AzureClient, cache *azure.AzureCache) server.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		
-		// Cache key for NSG info
-		cacheKey := fmt.Sprintf("nsg:%s", resourceID.FullID)
-		
-		// Check if NSG info is in cache
-		if cachedData, found := cache.Get(cacheKey); found {
-			if nsgInfo, ok := cachedData.(*models.NSGInfo); ok {
-				jsonStr, err := formatJSON(nsgInfo)
-				if err != nil {
-					return nil, fmt.Errorf("failed to marshal NSG info: %v", err)
-				}
-				return mcp.NewToolResultText(jsonStr), nil
-			}
-		}
-		
-		// Not in cache, try to fetch data from Azure
-		// We'll first get the AKS cluster to find network information
-		_, err := client.GetAKSCluster(ctx, resourceID.SubscriptionID, resourceID.ResourceGroup, resourceID.ResourceName)
+		// Try to get cluster info first to extract network resources
+		cluster, err := getClusterFromCacheOrFetch(ctx, resourceID, client, cache)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get AKS cluster: %v", err)
 		}
 		
-		// For now, we'll return a placeholder response
-		nsgInfo := &models.NSGInfo{
-			Name:          "aks-nsg",
-			ResourceGroup: resourceID.ResourceGroup,
-			Location:      "eastus", // Would come from actual cluster data
-			ID:            fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/networkSecurityGroups/aks-nsg", 
-				           resourceID.SubscriptionID, resourceID.ResourceGroup),
-			SecurityRules: []models.NSGRule{
-				{
-					Name:                     "allow-ssh",
-					Protocol:                 "Tcp",
-					SourceAddressPrefix:      "*",
-					SourcePortRange:          "*",
-					DestinationAddressPrefix: "*",
-					DestinationPortRange:     "22",
-					Access:                   "Allow",
-					Priority:                 100,
-					Direction:                "Inbound",
-					ProvisioningState:        "Succeeded",
-				},
-				{
-					Name:                     "allow-apiserver",
-					Protocol:                 "Tcp",
-					SourceAddressPrefix:      "*",
-					SourcePortRange:          "*",
-					DestinationAddressPrefix: "*",
-					DestinationPortRange:     "443",
-					Access:                   "Allow",
-					Priority:                 110,
-					Direction:                "Inbound",
-					ProvisioningState:        "Succeeded",
-				},
-			},
-			DefaultSecurityRules: []models.NSGRule{
-				{
-					Name:                     "AllowVnetInBound",
-					Protocol:                 "*",
-					SourceAddressPrefix:      "VirtualNetwork",
-					SourcePortRange:          "*",
-					DestinationAddressPrefix: "VirtualNetwork",
-					DestinationPortRange:     "*",
-					Access:                   "Allow",
-					Priority:                 65000,
-					Direction:                "Inbound",
-					ProvisioningState:        "Succeeded",
-				},
-				{
-					Name:                     "DenyAllInBound",
-					Protocol:                 "*",
-					SourceAddressPrefix:      "*",
-					SourcePortRange:          "*",
-					DestinationAddressPrefix: "*",
-					DestinationPortRange:     "*",
-					Access:                   "Deny",
-					Priority:                 65500,
-					Direction:                "Inbound",
-					ProvisioningState:        "Succeeded",
-				},
-			},
-			ProvisioningState: "Succeeded",
+		// Extract network resources from the cluster
+		networkResources := azure.ExtractNetworkProfileFromAKS(cluster)
+		
+		// In a real-world scenario, we'd need to extract NSG information by looking up 
+		// the NSGs associated with the VNet subnet
+		// For demonstration purposes, we'll try to use the VNet information
+		// and check for an NSG in the subnet
+
+		var nsgID string
+		
+		// Check if we have VNet or subnet info to find associated NSGs
+		if subnetID, found := networkResources[azure.ResourceTypeSubnet]; found {
+			// Parse subnet ID
+			subnetResourceID, err := azure.ParseResourceID(subnetID)
+			if err == nil {
+				// Normally we would query the subnet to get its NSG ID
+				// For now, we'll construct a plausible NSG ID
+				nsgID = fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/networkSecurityGroups/%s-nsg",
+					subnetResourceID.SubscriptionID, subnetResourceID.ResourceGroup, subnetResourceID.ResourceName)
+			}
 		}
 		
-		// Cache the result
-		cache.Set(cacheKey, nsgInfo)
+		// If we didn't find an NSG ID, return an empty response with a log message
+		if nsgID == "" {
+			message := "No network security group found for this AKS cluster"
+			fmt.Printf("WARNING: %s\n", message)
+			return mcp.NewToolResultText(fmt.Sprintf(`{"message": "%s"}`, message)), nil
+		}
 		
-		// Return the result
-		jsonStr, err := formatJSON(nsgInfo)
+		// Parse the NSG ID to get the subscription, resource group, and name
+		nsgResourceID, err := azure.ParseResourceID(nsgID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse NSG ID: %v", err)
+		}
+		
+		// Check if NSG is in cache
+		cacheKey := fmt.Sprintf("nsg:%s", nsgID)
+		
+		if cachedData, found := cache.Get(cacheKey); found {
+			if nsg, ok := cachedData.(*armnetwork.SecurityGroup); ok {
+				// Return the cached NSG directly
+				jsonStr, err := formatJSON(nsg)
+				if err != nil {
+					return nil, fmt.Errorf("failed to marshal NSG info: %v", err)
+				}
+				
+				return mcp.NewToolResultText(jsonStr), nil
+			}
+		}
+		
+		// Not in cache, so get the NSG from Azure
+		nsg, err := client.GetNetworkSecurityGroup(ctx, nsgResourceID.SubscriptionID, nsgResourceID.ResourceGroup, nsgResourceID.ResourceName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get NSG details: %v", err)
+		}
+		
+		// Add to cache
+		cache.Set(cacheKey, nsg)
+		
+		// Return the raw ARM response
+		jsonStr, err := formatJSON(nsg)
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal NSG info: %v", err)
 		}
