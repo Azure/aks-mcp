@@ -13,10 +13,16 @@ func main() {
 	// Parse command line arguments
 	cfg := config.ParseFlags()
 
-	// Parse resource ID
-	resourceID, err := azure.ParseAzureResourceID(cfg.AKSResourceID)
-	if err != nil {
-		log.Fatalf("Failed to parse resource ID: %v", err)
+	// Parse resource ID if provided but wasn't parsed successfully in config
+	if cfg.AKSResourceID != "" && cfg.ResourceID == nil {
+		resourceID, err := azure.ParseAzureResourceID(cfg.AKSResourceID)
+		if err != nil {
+			log.Fatalf("Failed to parse resource ID: %v", err)
+		}
+		cfg.ResourceID = resourceID
+	} else if cfg.AKSResourceID == "" {
+		// If no resource ID provided, it's null and will be handled by the handlers
+		log.Printf("No AKS Resource ID provided, tools will require parameters")
 	}
 
 	// Initialize Azure client
@@ -29,10 +35,10 @@ func main() {
 	cache := azure.NewAzureCache()
 
 	// Create Azure provider
-	azureProvider := azure.NewAzureResourceProvider(resourceID, client, cache)
+	azureProvider := azure.NewAzureResourceProvider(cfg.ResourceID, client, cache)
 
-	// Initialize tool registry
-	toolRegistry := registry.NewToolRegistry(azureProvider)
+	// Initialize tool registry with the config
+	toolRegistry := registry.NewToolRegistry(azureProvider, cfg)
 
 	// Register all tools
 	toolRegistry.RegisterAllTools()

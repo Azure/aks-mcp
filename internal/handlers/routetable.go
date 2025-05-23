@@ -8,15 +8,46 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v2"
 	"github.com/azure/aks-mcp/internal/azure"
 	"github.com/azure/aks-mcp/internal/azure/resourcehelpers"
+	"github.com/azure/aks-mcp/internal/config"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
 
 // GetRouteTableInfoHandler returns a handler for the get_route_table_info tool.
-func GetRouteTableInfoHandler(resourceID *azure.AzureResourceID, client *azure.AzureClient, cache *azure.AzureCache) server.ToolHandlerFunc {
+// It can handle both single-cluster and multi-cluster cases based on the configuration.
+func GetRouteTableInfoHandler(client *azure.AzureClient, cache *azure.AzureCache, cfg *config.Config) server.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		var clusterResourceID *azure.AzureResourceID
+		var err error
+
+		// Determine which resource ID to use based on the configuration
+		if cfg.SingleClusterMode {
+			// Use the pre-configured resource ID for single-cluster mode
+			clusterResourceID = cfg.ResourceID
+		} else {
+			// For multi-cluster mode, extract parameters from the request
+			subscriptionID, _ := request.GetArguments()["subscription_id"].(string)
+			resourceGroup, _ := request.GetArguments()["resource_group"].(string)
+			clusterName, _ := request.GetArguments()["cluster_name"].(string)
+
+			// Validate required parameters
+			if subscriptionID == "" || resourceGroup == "" || clusterName == "" {
+				return nil, fmt.Errorf("missing required parameters: subscription_id, resource_group, and cluster_name")
+			}
+
+			// Create a temporary resource ID for this request
+			clusterResourceID = &azure.AzureResourceID{
+				SubscriptionID: subscriptionID,
+				ResourceGroup:  resourceGroup,
+				ResourceName:   clusterName,
+				ResourceType:   azure.ResourceTypeAKSCluster,
+				FullID: fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.ContainerService/managedClusters/%s",
+					subscriptionID, resourceGroup, clusterName),
+			}
+		}
+
 		// Try to get cluster info first to extract network resources
-		cluster, err := getClusterFromCacheOrFetch(ctx, resourceID, client, cache)
+		cluster, err := getClusterFromCacheOrFetch(ctx, clusterResourceID, client, cache)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get AKS cluster: %v", err)
 		}
@@ -31,36 +62,22 @@ func GetRouteTableInfoHandler(resourceID *azure.AzureResourceID, client *azure.A
 			return mcp.NewToolResultText(fmt.Sprintf(`{"message": "%s"}`, message)), nil
 		}
 
-		// Parse the route table ID to get the subscription, resource group, and name
-		rtResourceID, err := azure.ParseResourceID(routeTableID)
+		// Validate the route table ID by trying to parse it
+		_, err = azure.ParseResourceID(routeTableID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse route table ID: %v", err)
 		}
 
-		// Check if route table is in cache
-		cacheKey := fmt.Sprintf("routetable:%s", routeTableID)
-
-		if cachedData, found := cache.Get(cacheKey); found {
-			if rt, ok := cachedData.(*armnetwork.RouteTable); ok {
-				// Return the cached route table directly
-				jsonStr, err := formatJSON(rt)
-				if err != nil {
-					return nil, fmt.Errorf("failed to marshal route table info: %v", err)
-				}
-
-				return mcp.NewToolResultText(jsonStr), nil
-			}
-		}
-
-		// Not in cache, so try to fetch the route table
-		// Get route table from Azure using the correct subscription ID
-		routeTable, err := client.GetRouteTable(ctx, rtResourceID.SubscriptionID, rtResourceID.ResourceGroup, rtResourceID.ResourceName)
+		// Get the route table from cache or fetch from Azure
+		resource, err := getResourceByIDFromCacheOrFetch(ctx, routeTableID, client, cache)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get route table details: %v", err)
 		}
 
-		// Add to cache
-		cache.Set(cacheKey, routeTable)
+		routeTable, ok := resource.(*armnetwork.RouteTable)
+		if !ok {
+			return nil, fmt.Errorf("resource is not a RouteTable")
+		}
 
 		// Return the raw ARM response
 		jsonStr, err := formatJSON(routeTable)

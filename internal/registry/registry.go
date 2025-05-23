@@ -3,6 +3,7 @@ package registry
 
 import (
 	"github.com/azure/aks-mcp/internal/azure"
+	"github.com/azure/aks-mcp/internal/config"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -32,13 +33,15 @@ type ToolDefinition struct {
 type ToolRegistry struct {
 	tools         map[string]ToolDefinition
 	azureProvider azure.AzureProvider
+	config        *config.Config
 }
 
 // NewToolRegistry creates a new tool registry.
-func NewToolRegistry(azureProvider azure.AzureProvider) *ToolRegistry {
+func NewToolRegistry(azureProvider azure.AzureProvider, cfg *config.Config) *ToolRegistry {
 	return &ToolRegistry{
 		tools:         make(map[string]ToolDefinition),
 		azureProvider: azureProvider,
+		config:        cfg,
 	}
 }
 
@@ -74,6 +77,11 @@ func (r *ToolRegistry) GetClient() *azure.AzureClient {
 // GetResourceID returns the parsed resource ID.
 func (r *ToolRegistry) GetResourceID() *azure.AzureResourceID {
 	return r.azureProvider.GetResourceID()
+}
+
+// GetConfig returns the configuration.
+func (r *ToolRegistry) GetConfig() *config.Config {
+	return r.config
 }
 
 // ConfigureMCPServer registers all tools with the MCP server.
