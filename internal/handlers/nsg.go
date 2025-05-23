@@ -7,6 +7,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v2"
 	"github.com/azure/aks-mcp/internal/azure"
+	"github.com/azure/aks-mcp/internal/azure/resourcehelpers"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -20,32 +21,13 @@ func GetNSGInfoHandler(resourceID *azure.AzureResourceID, client *azure.AzureCli
 			return nil, fmt.Errorf("failed to get AKS cluster: %v", err)
 		}
 
-		// Extract network resources from the cluster
-		networkResources := azure.ExtractNetworkProfileFromAKS(cluster)
-
-		// In a real-world scenario, we'd need to extract NSG information by looking up
-		// the NSGs associated with the VNet subnet
-		// For demonstration purposes, we'll try to use the VNet information
-		// and check for an NSG in the subnet
-
-		var nsgID string
-
-		// Check if we have VNet or subnet info to find associated NSGs
-		if subnetID, found := networkResources[azure.ResourceTypeSubnet]; found {
-			// Parse subnet ID
-			subnetResourceID, err := azure.ParseResourceID(subnetID)
-			if err == nil {
-				// Normally we would query the subnet to get its NSG ID
-				// For now, we'll construct a plausible NSG ID
-				nsgID = fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/networkSecurityGroups/%s-nsg",
-					subnetResourceID.SubscriptionID, subnetResourceID.ResourceGroup, subnetResourceID.ResourceName)
-			}
-		}
+		// Use the resourcehelpers to get the NSG ID from the AKS cluster
+		nsgID, err := resourcehelpers.GetNSGIDFromAKS(ctx, cluster, client, cache)
 
 		// If we didn't find an NSG ID, return an empty response with a log message
-		if nsgID == "" {
+		if err != nil || nsgID == "" {
 			message := "No network security group found for this AKS cluster"
-			fmt.Printf("WARNING: %s\n", message)
+			fmt.Printf("WARNING: %s: %v\n", message, err)
 			return mcp.NewToolResultText(fmt.Sprintf(`{"message": "%s"}`, message)), nil
 		}
 

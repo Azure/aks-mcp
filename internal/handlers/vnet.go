@@ -7,6 +7,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v2"
 	"github.com/azure/aks-mcp/internal/azure"
+	"github.com/azure/aks-mcp/internal/azure/resourcehelpers"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -19,17 +20,14 @@ func GetVNetInfoHandler(resourceID *azure.AzureResourceID, client *azure.AzureCl
 		if err != nil {
 			return nil, fmt.Errorf("failed to get AKS cluster: %v", err)
 		}
-
-		// Extract network resources from the cluster
-		networkResources := azure.ExtractNetworkProfileFromAKS(cluster)
-
-		// Get VNet ID from network resources
-		vnetID, vnetFound := networkResources[azure.ResourceTypeVirtualNetwork]
-
+		
+		// Use the resourcehelpers to get the VNet ID from the AKS cluster
+		vnetID, err := resourcehelpers.GetVNetIDFromAKS(ctx, cluster, client, cache)
+		
 		// If VNet information wasn't found, return an empty response with a log message
-		if !vnetFound || vnetID == "" {
+		if err != nil || vnetID == "" {
 			message := "No virtual network found for this AKS cluster"
-			fmt.Printf("WARNING: %s\n", message)
+			fmt.Printf("WARNING: %s: %v\n", message, err)
 			return mcp.NewToolResultText(fmt.Sprintf(`{"message": "%s"}`, message)), nil
 		}
 
@@ -41,7 +39,7 @@ func GetVNetInfoHandler(resourceID *azure.AzureResourceID, client *azure.AzureCl
 
 		// Check if VNet is in cache
 		cacheKey := fmt.Sprintf("vnet:%s", vnetID)
-
+		
 		if cachedData, found := cache.Get(cacheKey); found {
 			if vnet, ok := cachedData.(*armnetwork.VirtualNetwork); ok {
 				// Return the cached VNet directly
@@ -49,26 +47,26 @@ func GetVNetInfoHandler(resourceID *azure.AzureResourceID, client *azure.AzureCl
 				if err != nil {
 					return nil, fmt.Errorf("failed to marshal VNet info: %v", err)
 				}
-
+				
 				return mcp.NewToolResultText(jsonStr), nil
 			}
 		}
-
+		
 		// Not in cache, so get the VNet from Azure
 		vnet, err := client.GetVirtualNetwork(ctx, vnetResourceID.SubscriptionID, vnetResourceID.ResourceGroup, vnetResourceID.ResourceName)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get VNet details: %v", err)
 		}
-
+		
 		// Add to cache
 		cache.Set(cacheKey, vnet)
-
+		
 		// Return the raw ARM response
 		jsonStr, err := formatJSON(vnet)
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal VNet info: %v", err)
 		}
-
+		
 		return mcp.NewToolResultText(jsonStr), nil
 	}
 }

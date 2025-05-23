@@ -17,6 +17,7 @@ type SubscriptionClients struct {
 	SubscriptionID         string
 	ContainerServiceClient *armcontainerservice.ManagedClustersClient
 	VNetClient             *armnetwork.VirtualNetworksClient
+	SubnetsClient          *armnetwork.SubnetsClient
 	RouteTableClient       *armnetwork.RouteTablesClient
 	NSGClient              *armnetwork.SecurityGroupsClient
 }
@@ -86,11 +87,17 @@ func (c *AzureClient) getOrCreateClientsForSubscription(subscriptionID string) (
 		return nil, fmt.Errorf("failed to create network security group client for subscription %s: %v", subscriptionID, err)
 	}
 
+	subnetsClient, err := armnetwork.NewSubnetsClient(subscriptionID, c.credential, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create subnets client for subscription %s: %v", subscriptionID, err)
+	}
+
 	// Create and store the clients
 	clients = &SubscriptionClients{
 		SubscriptionID:         subscriptionID,
 		ContainerServiceClient: containerServiceClient,
 		VNetClient:             vnetClient,
+		SubnetsClient:          subnetsClient,
 		RouteTableClient:       routeTableClient,
 		NSGClient:              nsgClient,
 	}
@@ -155,6 +162,26 @@ func (c *AzureClient) GetNetworkSecurityGroup(ctx context.Context, subscriptionI
 	return &resp.SecurityGroup, nil
 }
 
+// GetSubnet retrieves information about the specified subnet in a virtual network.
+func (c *AzureClient) GetSubnet(ctx context.Context, subscriptionID, resourceGroup, vnetName, subnetName string) (*armnetwork.Subnet, error) {
+	clients, err := c.getOrCreateClientsForSubscription(subscriptionID)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := clients.SubnetsClient.Get(ctx, resourceGroup, vnetName, subnetName, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get subnet: %v", err)
+	}
+	return &resp.Subnet, nil
+}
+
+// GetOrCreateClientsForSubscription gets existing clients for a subscription or creates new ones.
+// This is a public wrapper around getOrCreateClientsForSubscription.
+func (c *AzureClient) GetOrCreateClientsForSubscription(subscriptionID string) (*SubscriptionClients, error) {
+	return c.getOrCreateClientsForSubscription(subscriptionID)
+}
+
 // Helper methods for working with resource IDs
 
 // GetResourceByID retrieves a resource by its full Azure resource ID.
@@ -183,6 +210,7 @@ func (c *AzureClient) GetResourceByID(ctx context.Context, resourceID string) (i
 
 // ExtractNetworkProfileFromAKS extracts network resource IDs from an AKS cluster.
 // Returns a map of resource type to resource ID.
+// Deprecated: Use the specialized helper functions in resourcehelpers package instead.
 func ExtractNetworkProfileFromAKS(cluster *armcontainerservice.ManagedCluster) map[ResourceType]string {
 	result := make(map[ResourceType]string)
 
