@@ -23,23 +23,23 @@ func formatJSON(obj interface{}) (string, error) {
 func getClusterFromCacheOrFetch(ctx context.Context, resourceID *azure.AzureResourceID, client *azure.AzureClient, cache *azure.AzureCache) (*armcontainerservice.ManagedCluster, error) {
 	// Generate cache key for the cluster
 	cacheKey := fmt.Sprintf("akscluster:%s", resourceID.FullID)
-	
+
 	// Try to get from cache first
 	if cachedData, found := cache.Get(cacheKey); found {
 		if cluster, ok := cachedData.(*armcontainerservice.ManagedCluster); ok {
 			return cluster, nil
 		}
 	}
-	
+
 	// Not in cache, so fetch from Azure
 	cluster, err := client.GetAKSCluster(ctx, resourceID.SubscriptionID, resourceID.ResourceGroup, resourceID.ResourceName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get AKS cluster: %v", err)
 	}
-	
+
 	// Add to cache
 	cache.Set(cacheKey, cluster)
-	
+
 	return cluster, nil
 }
 
@@ -47,20 +47,20 @@ func getClusterFromCacheOrFetch(ctx context.Context, resourceID *azure.AzureReso
 func getResourceByIDFromCacheOrFetch(ctx context.Context, resourceID string, client *azure.AzureClient, cache *azure.AzureCache) (interface{}, error) {
 	// Generate cache key for the resource
 	cacheKey := fmt.Sprintf("resource:%s", resourceID)
-	
+
 	// Try to get from cache first
 	if cachedData, found := cache.Get(cacheKey); found {
 		return cachedData, nil
 	}
-	
+
 	// Not in cache, so fetch from Azure
 	resource, err := client.GetResourceByID(ctx, resourceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get resource: %v", err)
 	}
-	
+
 	// Add to cache
 	cache.Set(cacheKey, resource)
-	
+
 	return resource, nil
 }

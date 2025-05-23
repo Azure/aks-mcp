@@ -13,7 +13,7 @@ import (
 
 // AKSMCPServer represents the MCP server for AKS.
 type AKSMCPServer struct {
-	server  *server.MCPServer
+	server   *server.MCPServer
 	registry *registry.ToolRegistry
 }
 
@@ -26,10 +26,10 @@ func NewAKSMCPServer(registry *registry.ToolRegistry) *AKSMCPServer {
 		server.WithPromptCapabilities(true),
 		server.WithToolCapabilities(true),
 	)
-	
+
 	// Register all tools with the MCP server
 	registry.ConfigureMCPServer(mcpServer)
-	
+
 	return &AKSMCPServer{
 		server:   mcpServer,
 		registry: registry,

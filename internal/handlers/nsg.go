@@ -19,17 +19,17 @@ func GetNSGInfoHandler(resourceID *azure.AzureResourceID, client *azure.AzureCli
 		if err != nil {
 			return nil, fmt.Errorf("failed to get AKS cluster: %v", err)
 		}
-		
+
 		// Extract network resources from the cluster
 		networkResources := azure.ExtractNetworkProfileFromAKS(cluster)
-		
-		// In a real-world scenario, we'd need to extract NSG information by looking up 
+
+		// In a real-world scenario, we'd need to extract NSG information by looking up
 		// the NSGs associated with the VNet subnet
 		// For demonstration purposes, we'll try to use the VNet information
 		// and check for an NSG in the subnet
 
 		var nsgID string
-		
+
 		// Check if we have VNet or subnet info to find associated NSGs
 		if subnetID, found := networkResources[azure.ResourceTypeSubnet]; found {
 			// Parse subnet ID
@@ -41,23 +41,23 @@ func GetNSGInfoHandler(resourceID *azure.AzureResourceID, client *azure.AzureCli
 					subnetResourceID.SubscriptionID, subnetResourceID.ResourceGroup, subnetResourceID.ResourceName)
 			}
 		}
-		
+
 		// If we didn't find an NSG ID, return an empty response with a log message
 		if nsgID == "" {
 			message := "No network security group found for this AKS cluster"
 			fmt.Printf("WARNING: %s\n", message)
 			return mcp.NewToolResultText(fmt.Sprintf(`{"message": "%s"}`, message)), nil
 		}
-		
+
 		// Parse the NSG ID to get the subscription, resource group, and name
 		nsgResourceID, err := azure.ParseResourceID(nsgID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse NSG ID: %v", err)
 		}
-		
+
 		// Check if NSG is in cache
 		cacheKey := fmt.Sprintf("nsg:%s", nsgID)
-		
+
 		if cachedData, found := cache.Get(cacheKey); found {
 			if nsg, ok := cachedData.(*armnetwork.SecurityGroup); ok {
 				// Return the cached NSG directly
@@ -65,26 +65,26 @@ func GetNSGInfoHandler(resourceID *azure.AzureResourceID, client *azure.AzureCli
 				if err != nil {
 					return nil, fmt.Errorf("failed to marshal NSG info: %v", err)
 				}
-				
+
 				return mcp.NewToolResultText(jsonStr), nil
 			}
 		}
-		
+
 		// Not in cache, so get the NSG from Azure
 		nsg, err := client.GetNetworkSecurityGroup(ctx, nsgResourceID.SubscriptionID, nsgResourceID.ResourceGroup, nsgResourceID.ResourceName)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get NSG details: %v", err)
 		}
-		
+
 		// Add to cache
 		cache.Set(cacheKey, nsg)
-		
+
 		// Return the raw ARM response
 		jsonStr, err := formatJSON(nsg)
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal NSG info: %v", err)
 		}
-		
+
 		return mcp.NewToolResultText(jsonStr), nil
 	}
 }

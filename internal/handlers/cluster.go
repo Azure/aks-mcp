@@ -18,13 +18,13 @@ func GetClusterInfoHandler(resourceID *azure.AzureResourceID, client *azure.Azur
 		if err != nil {
 			return nil, fmt.Errorf("failed to get AKS cluster: %v", err)
 		}
-		
+
 		// Return the ARM response directly as JSON
 		jsonStr, err := formatJSON(cluster)
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal cluster info: %v", err)
 		}
-		
+
 		return mcp.NewToolResultText(jsonStr), nil
 	}
 }

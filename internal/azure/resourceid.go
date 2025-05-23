@@ -12,22 +12,22 @@ type ResourceType string
 
 // Known Azure resource types
 const (
-	ResourceTypeAKSCluster      ResourceType = "Microsoft.ContainerService/managedClusters"
-	ResourceTypeVirtualNetwork  ResourceType = "Microsoft.Network/virtualNetworks"
-	ResourceTypeRouteTable      ResourceType = "Microsoft.Network/routeTables"
-	ResourceTypeSecurityGroup   ResourceType = "Microsoft.Network/networkSecurityGroups"
-	ResourceTypeSubnet          ResourceType = "Microsoft.Network/virtualNetworks/subnets"
-	ResourceTypeUnknown         ResourceType = "Unknown"
+	ResourceTypeAKSCluster     ResourceType = "Microsoft.ContainerService/managedClusters"
+	ResourceTypeVirtualNetwork ResourceType = "Microsoft.Network/virtualNetworks"
+	ResourceTypeRouteTable     ResourceType = "Microsoft.Network/routeTables"
+	ResourceTypeSecurityGroup  ResourceType = "Microsoft.Network/networkSecurityGroups"
+	ResourceTypeSubnet         ResourceType = "Microsoft.Network/virtualNetworks/subnets"
+	ResourceTypeUnknown        ResourceType = "Unknown"
 )
 
 // AzureResourceID represents an Azure resource ID.
 type AzureResourceID struct {
-	SubscriptionID string
-	ResourceGroup  string
-	ResourceType   ResourceType
-	ResourceName   string
+	SubscriptionID  string
+	ResourceGroup   string
+	ResourceType    ResourceType
+	ResourceName    string
 	SubResourceName string // Used for child resources like subnets
-	FullID         string
+	FullID          string
 }
 
 // ParseAzureResourceID parses an Azure resource ID into its components.
@@ -68,13 +68,13 @@ func ParseResourceID(resourceID string) (*AzureResourceID, error) {
 
 	// Determine the resource type and name based on the provider and resource type
 	provider := segments[6]
-	
+
 	// Handle different resource types
 	switch {
 	case provider == "Microsoft.ContainerService" && segments[7] == "managedClusters" && len(segments) >= 9:
 		result.ResourceType = ResourceTypeAKSCluster
 		result.ResourceName = segments[8]
-	
+
 	case provider == "Microsoft.Network" && segments[7] == "virtualNetworks" && len(segments) >= 9:
 		// Check if this is a subnet (child resource of VNet)
 		if len(segments) >= 11 && segments[9] == "subnets" {
@@ -85,15 +85,15 @@ func ParseResourceID(resourceID string) (*AzureResourceID, error) {
 			result.ResourceType = ResourceTypeVirtualNetwork
 			result.ResourceName = segments[8]
 		}
-	
+
 	case provider == "Microsoft.Network" && segments[7] == "routeTables" && len(segments) >= 9:
 		result.ResourceType = ResourceTypeRouteTable
 		result.ResourceName = segments[8]
-	
+
 	case provider == "Microsoft.Network" && segments[7] == "networkSecurityGroups" && len(segments) >= 9:
 		result.ResourceType = ResourceTypeSecurityGroup
 		result.ResourceName = segments[8]
-	
+
 	default:
 		// For unsupported or unknown resource types, we'll still try to extract the basic info
 		if len(segments) >= 9 {

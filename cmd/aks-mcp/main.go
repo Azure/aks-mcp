@@ -27,7 +27,7 @@ func main() {
 
 	// Initialize cache
 	cache := azure.NewAzureCache()
-	
+
 	// Create Azure provider
 	azureProvider := azure.NewAzureResourceProvider(resourceID, client, cache)
 

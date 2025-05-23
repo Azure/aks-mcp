@@ -34,7 +34,6 @@ type ToolRegistry struct {
 	azureProvider azure.AzureProvider
 }
 
-
 // NewToolRegistry creates a new tool registry.
 func NewToolRegistry(azureProvider azure.AzureProvider) *ToolRegistry {
 	return &ToolRegistry{

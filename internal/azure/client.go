@@ -207,7 +207,7 @@ func ExtractNetworkProfileFromAKS(cluster *armcontainerservice.ManagedCluster) m
 						result[ResourceTypeSubnet] = subnetID
 					}
 				}
-				
+
 				// Once we find a subnet ID, we can break since all agent pools typically use the same VNet
 				break
 			}
@@ -217,13 +217,13 @@ func ExtractNetworkProfileFromAKS(cluster *armcontainerservice.ManagedCluster) m
 	// Check network profile for additional information
 	if cluster.Properties.NetworkProfile != nil {
 		np := cluster.Properties.NetworkProfile
-		
+
 		// Extract information based on network plugin
 		if np.NetworkPlugin != nil && *np.NetworkPlugin == "azure" {
 			// For Azure CNI, we might have additional network information
 			// but it's not directly available in the AKS properties
-			
-			// Note: Additional network resources like NSGs and route tables are not directly 
+
+			// Note: Additional network resources like NSGs and route tables are not directly
 			// exposed in the AKS properties, but would need to be queried separately
 			// based on the subnet ID we extracted above
 		}

@@ -10,10 +10,10 @@ import (
 func (r *ToolRegistry) RegisterAllTools() {
 	// Register cluster tools
 	r.registerClusterTools()
-	
+
 	// Register network tools
 	r.registerNetworkTools()
-	
+
 	// Register other tool categories as needed
 }
 
@@ -43,7 +43,7 @@ func (r *ToolRegistry) registerNetworkTools() {
 		handlers.GetVNetInfoHandler(r.GetResourceID(), r.GetClient(), r.GetCache()),
 		CategoryNetwork,
 	)
-	
+
 	// Register get_route_table_info tool
 	r.RegisterTool(
 		"get_route_table_info",
@@ -54,7 +54,7 @@ func (r *ToolRegistry) registerNetworkTools() {
 		handlers.GetRouteTableInfoHandler(r.GetResourceID(), r.GetClient(), r.GetCache()),
 		CategoryNetwork,
 	)
-	
+
 	// Register get_nsg_info tool
 	r.RegisterTool(
 		"get_nsg_info",
