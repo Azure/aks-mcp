@@ -259,3 +259,55 @@ func ExtractNetworkProfileFromAKS(cluster *armcontainerservice.ManagedCluster) m
 
 	return result
 }
+
+// ListAKSClusters lists all AKS clusters in a specific resource group.
+func (c *AzureClient) ListAKSClusters(ctx context.Context, subscriptionID, resourceGroup string) ([]*armcontainerservice.ManagedCluster, error) {
+	clients, err := c.getOrCreateClientsForSubscription(subscriptionID)
+	if err != nil {
+		return nil, err
+	}
+
+	var clusters []*armcontainerservice.ManagedCluster
+	pager := clients.ContainerServiceClient.NewListByResourceGroupPager(resourceGroup, nil)
+
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get next page of AKS clusters: %v", err)
+		}
+
+		for _, cluster := range page.Value {
+			if cluster != nil {
+				clusters = append(clusters, cluster)
+			}
+		}
+	}
+
+	return clusters, nil
+}
+
+// ListAllAKSClusters lists all AKS clusters across a subscription.
+func (c *AzureClient) ListAllAKSClusters(ctx context.Context, subscriptionID string) ([]*armcontainerservice.ManagedCluster, error) {
+	clients, err := c.getOrCreateClientsForSubscription(subscriptionID)
+	if err != nil {
+		return nil, err
+	}
+
+	var clusters []*armcontainerservice.ManagedCluster
+	pager := clients.ContainerServiceClient.NewListPager(nil)
+
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get next page of AKS clusters: %v", err)
+		}
+
+		for _, cluster := range page.Value {
+			if cluster != nil {
+				clusters = append(clusters, cluster)
+			}
+		}
+	}
+
+	return clusters, nil
+}
