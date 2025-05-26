@@ -23,19 +23,10 @@ func GetNSGIDFromAKS(
 		return "", fmt.Errorf("invalid cluster or cluster properties")
 	}
 
-	// First, get the subnet ID from the cluster
-	subnetID := ""
-	if cluster.Properties.AgentPoolProfiles != nil {
-		for _, pool := range cluster.Properties.AgentPoolProfiles {
-			if pool.VnetSubnetID != nil {
-				subnetID = *pool.VnetSubnetID
-				break
-			}
-		}
-	}
-
-	if subnetID == "" {
-		return "", fmt.Errorf("no subnet found for AKS cluster")
+	// Get subnet ID using the helper function which handles cases when VnetSubnetID is not set
+	subnetID, err := GetSubnetIDFromAKS(ctx, cluster, client, cache)
+	if err != nil || subnetID == "" {
+		return "", fmt.Errorf("no subnet found for AKS cluster: %v", err)
 	}
 
 	// Check cache first
