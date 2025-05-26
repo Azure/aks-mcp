@@ -1,3 +1,8 @@
+// This package is not used for now.
+// TODO: do we need our own models to represent the data we get from Azure?
+// Nowa it is reusing the Azure SDK models directly, but that might easily reach token limits so we might need to
+// create our own models in the future to reduce the amount of data we send over the wire.
+
 // Package models provides data models for AKS MCP server.
 package models
 
