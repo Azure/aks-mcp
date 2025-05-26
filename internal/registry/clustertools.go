@@ -44,25 +44,28 @@ func (r *ToolRegistry) registerClusterTools() {
 		AccessRead,
 	)
 
-	// Register list_aks_clusters tool
-	listClustersTool := mcp.NewTool(
-		"list_aks_clusters",
-		mcp.WithDescription("List AKS clusters in a subscription and optional resource group"),
-		mcp.WithString("subscription_id",
-			mcp.Description("Azure Subscription ID"),
-			mcp.Required(),
-		),
-		mcp.WithString("resource_group",
-			mcp.Description("Optional: Azure Resource Group to filter clusters by"),
-		),
-	)
+	// Only register list_aks_clusters tool when not in SingleClusterMode
+	if !cfg.SingleClusterMode {
+		// Register list_aks_clusters tool
+		listClustersTool := mcp.NewTool(
+			"list_aks_clusters",
+			mcp.WithDescription("List AKS clusters in a subscription and optional resource group"),
+			mcp.WithString("subscription_id",
+				mcp.Description("Azure Subscription ID"),
+				mcp.Required(),
+			),
+			mcp.WithString("resource_group",
+				mcp.Description("Optional: Azure Resource Group to filter clusters by"),
+			),
+		)
 
-	// Register the list clusters tool
-	r.RegisterTool(
-		"list_aks_clusters",
-		listClustersTool,
-		handlers.ListClustersHandler(r.GetClient(), r.GetCache(), cfg),
-		CategoryCluster,
-		AccessRead,
-	)
+		// Register the list clusters tool
+		r.RegisterTool(
+			"list_aks_clusters",
+			listClustersTool,
+			handlers.ListClustersHandler(r.GetClient(), r.GetCache(), cfg),
+			CategoryCluster,
+			AccessRead,
+		)
+	}
 }
