@@ -41,6 +41,7 @@ func (r *ToolRegistry) registerClusterTools() {
 		clusterTool,
 		handlers.GetClusterInfoHandler(r.GetClient(), r.GetCache(), cfg),
 		CategoryCluster,
+		AccessRead,
 	)
 
 	// Register list_aks_clusters tool
@@ -62,5 +63,6 @@ func (r *ToolRegistry) registerClusterTools() {
 		listClustersTool,
 		handlers.ListClustersHandler(r.GetClient(), r.GetCache(), cfg),
 		CategoryCluster,
+		AccessRead,
 	)
 }

@@ -11,6 +11,9 @@ import (
 // ToolCategory defines a category for tools.
 type ToolCategory string
 
+// ToolAccessLevel defines access level required for a tool.
+type ToolAccessLevel string
+
 const (
 	// CategoryCluster defines tools related to AKS clusters.
 	CategoryCluster ToolCategory = "cluster"
@@ -20,13 +23,21 @@ const (
 	CategorySecurity ToolCategory = "security"
 	// CategoryGeneral defines general tools.
 	CategoryGeneral ToolCategory = "general"
+
+	// AccessRead represents read-only access level.
+	AccessRead ToolAccessLevel = "read"
+	// AccessReadWrite represents read-write access level.
+	AccessReadWrite ToolAccessLevel = "readwrite"
+	// AccessAdmin represents administrative access level.
+	AccessAdmin ToolAccessLevel = "admin"
 )
 
 // ToolDefinition defines a tool and its handler.
 type ToolDefinition struct {
-	Tool     mcp.Tool
-	Handler  server.ToolHandlerFunc
-	Category ToolCategory
+	Tool       mcp.Tool
+	Handler    server.ToolHandlerFunc
+	Category   ToolCategory
+	AccessLevel ToolAccessLevel
 }
 
 // ToolRegistry is a registry of tools for the AKS MCP server.
@@ -46,11 +57,12 @@ func NewToolRegistry(azureProvider azure.AzureProvider, cfg *config.Config) *Too
 }
 
 // RegisterTool registers a tool with the registry.
-func (r *ToolRegistry) RegisterTool(name string, tool mcp.Tool, handler server.ToolHandlerFunc, category ToolCategory) {
+func (r *ToolRegistry) RegisterTool(name string, tool mcp.Tool, handler server.ToolHandlerFunc, category ToolCategory, accessLevel ToolAccessLevel) {
 	r.tools[name] = ToolDefinition{
-		Tool:     tool,
-		Handler:  handler,
-		Category: category,
+		Tool:       tool,
+		Handler:    handler,
+		Category:   category,
+		AccessLevel: accessLevel,
 	}
 }
 

@@ -40,6 +40,7 @@ func (r *ToolRegistry) registerNetworkTools() {
 		vnetTool,
 		handlers.GetVNetInfoHandler(r.GetClient(), r.GetCache(), cfg),
 		CategoryNetwork,
+		AccessRead,
 	)
 
 	var routeTableTool mcp.Tool
@@ -72,6 +73,7 @@ func (r *ToolRegistry) registerNetworkTools() {
 		routeTableTool,
 		handlers.GetRouteTableInfoHandler(r.GetClient(), r.GetCache(), cfg),
 		CategoryNetwork,
+		AccessRead,
 	)
 
 	var nsgTool mcp.Tool
@@ -104,6 +106,7 @@ func (r *ToolRegistry) registerNetworkTools() {
 		nsgTool,
 		handlers.GetNSGInfoHandler(r.GetClient(), r.GetCache(), cfg),
 		CategoryNetwork,
+		AccessRead,
 	)
 
 	// Create Subnet tool with parameters if needed
@@ -138,5 +141,6 @@ func (r *ToolRegistry) registerNetworkTools() {
 		subnetTool,
 		handlers.GetSubnetInfoHandler(r.GetClient(), r.GetCache(), cfg),
 		CategoryNetwork,
+		AccessRead,
 	)
 }
