@@ -203,6 +203,8 @@ func (c *AzureClient) GetResourceByID(ctx context.Context, resourceID string) (i
 		return c.GetRouteTable(ctx, parsed.SubscriptionID, parsed.ResourceGroup, parsed.ResourceName)
 	case ResourceTypeSecurityGroup:
 		return c.GetNetworkSecurityGroup(ctx, parsed.SubscriptionID, parsed.ResourceGroup, parsed.ResourceName)
+	case ResourceTypeSubnet:
+		return c.GetSubnet(ctx, parsed.SubscriptionID, parsed.ResourceGroup, parsed.ResourceName, parsed.SubResourceName)
 	default:
 		return nil, fmt.Errorf("unsupported resource type: %s", parsed.ResourceType)
 	}

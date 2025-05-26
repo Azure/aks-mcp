@@ -105,4 +105,38 @@ func (r *ToolRegistry) registerNetworkTools() {
 		handlers.GetNSGInfoHandler(r.GetClient(), r.GetCache(), cfg),
 		CategoryNetwork,
 	)
+
+	// Create Subnet tool with parameters if needed
+	var subnetTool mcp.Tool
+	if cfg.SingleClusterMode {
+		subnetTool = mcp.NewTool(
+			"get_subnet_info",
+			mcp.WithDescription("Get information about the subnets used by the AKS cluster"),
+		)
+	} else {
+		subnetTool = mcp.NewTool(
+			"get_subnet_info",
+			mcp.WithDescription("Get information about the subnets used by the AKS cluster"),
+			mcp.WithString("subscription_id",
+				mcp.Description("Azure Subscription ID"),
+				mcp.Required(),
+			),
+			mcp.WithString("resource_group",
+				mcp.Description("Azure Resource Group containing the AKS cluster"),
+				mcp.Required(),
+			),
+			mcp.WithString("cluster_name",
+				mcp.Description("Name of the AKS cluster"),
+				mcp.Required(),
+			),
+		)
+	}
+	
+	// Register get_subnet_info tool
+	r.RegisterTool(
+		"get_subnet_info",
+		subnetTool,
+		handlers.GetSubnetInfoHandler(r.GetClient(), r.GetCache(), cfg),
+		CategoryNetwork,
+	)
 }
