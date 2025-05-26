@@ -23,7 +23,7 @@ func GetSubnetInfoHandler(client *azure.AzureClient, cache *azure.AzureCache, cf
 		// Determine which resource ID to use based on the configuration
 		if cfg.SingleClusterMode {
 			// Use the pre-configured resource ID for single-cluster mode
-			clusterResourceID = cfg.ResourceID
+			clusterResourceID = cfg.ParsedResourceID
 		} else {
 			// For multi-cluster mode, extract parameters from the request
 			subscriptionID, _ := request.GetArguments()["subscription_id"].(string)
@@ -41,7 +41,7 @@ func GetSubnetInfoHandler(client *azure.AzureClient, cache *azure.AzureCache, cf
 				ResourceGroup:  resourceGroup,
 				ResourceName:   clusterName,
 				ResourceType:   azure.ResourceTypeAKSCluster,
-				FullID:         fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.ContainerService/managedClusters/%s",
+				FullID: fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.ContainerService/managedClusters/%s",
 					subscriptionID, resourceGroup, clusterName),
 			}
 		}
@@ -51,10 +51,10 @@ func GetSubnetInfoHandler(client *azure.AzureClient, cache *azure.AzureCache, cf
 		if err != nil {
 			return nil, fmt.Errorf("failed to get AKS cluster: %v", err)
 		}
-		
+
 		// Use the resourcehelpers to get the subnet ID from the AKS cluster
 		subnetID, err := resourcehelpers.GetSubnetIDFromAKS(ctx, cluster, client, cache)
-		
+
 		// If subnet information wasn't found, return an empty response with a log message
 		if err != nil || subnetID == "" {
 			message := "No subnet found for this AKS cluster"
@@ -73,18 +73,18 @@ func GetSubnetInfoHandler(client *azure.AzureClient, cache *azure.AzureCache, cf
 		if err != nil {
 			return nil, fmt.Errorf("failed to get subnet details: %v", err)
 		}
-		
+
 		subnet, ok := resource.(*armnetwork.Subnet)
 		if !ok {
 			return nil, fmt.Errorf("resource is not a Subnet")
 		}
-		
+
 		// Return the raw ARM response
 		jsonStr, err := formatJSON(subnet)
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal subnet info: %v", err)
 		}
-		
+
 		return mcp.NewToolResultText(jsonStr), nil
 	}
 }

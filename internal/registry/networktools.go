@@ -134,7 +134,7 @@ func (r *ToolRegistry) registerNetworkTools() {
 			),
 		)
 	}
-	
+
 	// Register get_subnet_info tool
 	r.RegisterTool(
 		"get_subnet_info",

@@ -11,11 +11,11 @@ import (
 
 // Config holds the configuration for the AKS MCP server.
 type Config struct {
-	AKSResourceID     string
+	ResourceIDString  string // Raw resource ID string from command line
 	Transport         string
 	Address           string
 	SingleClusterMode bool
-	ResourceID        *azure.AzureResourceID
+	ParsedResourceID  *azure.AzureResourceID // Parsed version of the resource ID
 	AccessLevel       string
 }
 
@@ -25,7 +25,7 @@ func NewConfig() *Config {
 		Transport:         "stdio",
 		Address:           "localhost:8080",
 		SingleClusterMode: false,
-		ResourceID:        nil,
+		ParsedResourceID:  nil,
 		AccessLevel:       "read",
 	}
 }
@@ -35,13 +35,13 @@ func ParseFlags() *Config {
 	config := NewConfig()
 
 	flag.StringVarP(&config.Transport, "transport", "t", "stdio", "Transport type (stdio or sse)")
-	flag.StringVar(&config.AKSResourceID, "aks-resource-id", "", "AKS Resource ID (optional), set this when using single cluster mode")
+	flag.StringVar(&config.ResourceIDString, "aks-resource-id", "", "AKS Resource ID (optional), set this when using single cluster mode")
 	flag.StringVar(&config.Address, "address", "localhost:8080", "Address to listen on when using SSE transport")
 	flag.StringVar(&config.AccessLevel, "access-level", "read", "Access level for tools (read, readwrite, admin)")
 	flag.Parse()
 
-	// Set SingleClusterMode based on whether AKSResourceID is provided
-	config.SingleClusterMode = config.AKSResourceID != ""
+	// Set SingleClusterMode based on whether ResourceIDString is provided
+	config.SingleClusterMode = config.ResourceIDString != ""
 
 	return config
 }
@@ -75,16 +75,16 @@ func (c *Config) Validate() error {
 	}
 
 	// Parse and validate AKS resource ID if provided
-	if c.AKSResourceID != "" {
-		resourceID, err := azure.ParseAzureResourceID(c.AKSResourceID)
+	if c.ResourceIDString != "" {
+		resourceID, err := azure.ParseAzureResourceID(c.ResourceIDString)
 		if err != nil {
 			return fmt.Errorf("invalid AKS resource ID: %v", err)
 		}
-		c.ResourceID = resourceID
+		c.ParsedResourceID = resourceID
 	}
 
-	// Validate AKSResourceID if in single cluster mode
-	if c.SingleClusterMode && c.ResourceID == nil {
+	// Validate ResourceIDString if in single cluster mode
+	if c.SingleClusterMode && c.ParsedResourceID == nil {
 		return fmt.Errorf("invalid or missing AKS resource ID in single cluster mode")
 	}
 
@@ -106,4 +106,14 @@ func ValidateAndParseFlags() *Config {
 	}
 
 	return config
+}
+
+// GetResourceID is a helper method that returns the parsed resource ID.
+// It ensures that the resource ID is parsed if it is provided but not yet parsed.
+func (c *Config) GetResourceID() *azure.AzureResourceID {
+	// If we have a resource ID string but not a parsed version, parse it
+	if c.ParsedResourceID == nil && c.ResourceIDString != "" {
+		c.ParsedResourceID, _ = azure.ParseAzureResourceID(c.ResourceIDString)
+	}
+	return c.ParsedResourceID
 }

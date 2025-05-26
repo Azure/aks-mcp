@@ -34,9 +34,9 @@ const (
 
 // ToolDefinition defines a tool and its handler.
 type ToolDefinition struct {
-	Tool       mcp.Tool
-	Handler    server.ToolHandlerFunc
-	Category   ToolCategory
+	Tool        mcp.Tool
+	Handler     server.ToolHandlerFunc
+	Category    ToolCategory
 	AccessLevel ToolAccessLevel
 }
 
@@ -59,9 +59,9 @@ func NewToolRegistry(azureProvider azure.AzureProvider, cfg *config.Config) *Too
 // RegisterTool registers a tool with the registry.
 func (r *ToolRegistry) RegisterTool(name string, tool mcp.Tool, handler server.ToolHandlerFunc, category ToolCategory, accessLevel ToolAccessLevel) {
 	r.tools[name] = ToolDefinition{
-		Tool:       tool,
-		Handler:    handler,
-		Category:   category,
+		Tool:        tool,
+		Handler:     handler,
+		Category:    category,
 		AccessLevel: accessLevel,
 	}
 }
@@ -99,7 +99,7 @@ func (r *ToolRegistry) GetConfig() *config.Config {
 // ConfigureMCPServer registers all tools with the MCP server.
 func (r *ToolRegistry) ConfigureMCPServer(mcpServer *server.MCPServer) {
 	configAccessLevel := r.config.AccessLevel
-	
+
 	for _, def := range r.tools {
 		// Filter tools based on access level
 		if shouldRegisterTool(string(def.AccessLevel), configAccessLevel) {

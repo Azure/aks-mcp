@@ -15,7 +15,7 @@ func main() {
 	cfg := config.ValidateAndParseFlags()
 
 	// If we're here, the config is valid
-	if cfg.AKSResourceID == "" {
+	if cfg.ResourceIDString == "" {
 		// If no resource ID provided, it's null and will be handled by the handlers
 		log.Printf("No AKS Resource ID provided, tools will require parameters")
 	}
@@ -30,7 +30,7 @@ func main() {
 	cache := azure.NewAzureCache()
 
 	// Create Azure provider
-	azureProvider := azure.NewAzureResourceProvider(cfg.ResourceID, client, cache)
+	azureProvider := azure.NewAzureResourceProvider(cfg.ParsedResourceID, client, cache)
 
 	// Initialize tool registry with the config
 	toolRegistry := registry.NewToolRegistry(azureProvider, cfg)

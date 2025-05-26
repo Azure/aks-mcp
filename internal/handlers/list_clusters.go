@@ -27,7 +27,7 @@ func ListClustersHandler(client *azure.AzureClient, cache *azure.AzureCache, cfg
 		// Use the Azure client to list the clusters
 		var clusters interface{}
 		var err error
-		
+
 		cacheKey := fmt.Sprintf("clusters:sub:%s", subscriptionID)
 		if resourceGroup != "" {
 			cacheKey = fmt.Sprintf("clusters:sub:%s:rg:%s", subscriptionID, resourceGroup)

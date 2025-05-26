@@ -36,9 +36,9 @@ func GetSubnetIDFromAKS(ctx context.Context, cluster *armcontainerservice.Manage
 	}
 
 	// Get the VNet details to list subnets
-	vnet, err := client.GetVirtualNetwork(ctx, 
-		vnetResourceID.SubscriptionID, 
-		vnetResourceID.ResourceGroup, 
+	vnet, err := client.GetVirtualNetwork(ctx,
+		vnetResourceID.SubscriptionID,
+		vnetResourceID.ResourceGroup,
 		vnetResourceID.ResourceName)
 	if err != nil {
 		return "", fmt.Errorf("could not get VNet details: %v", err)

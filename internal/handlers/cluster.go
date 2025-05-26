@@ -21,7 +21,7 @@ func GetClusterInfoHandler(client *azure.AzureClient, cache *azure.AzureCache, c
 		// Determine which resource ID to use based on the configuration
 		if cfg.SingleClusterMode {
 			// Use the pre-configured resource ID for single-cluster mode
-			clusterResourceID = cfg.ResourceID
+			clusterResourceID = cfg.ParsedResourceID
 		} else {
 			// For multi-cluster mode, extract parameters from the request
 			subscriptionID, _ := request.GetArguments()["subscription_id"].(string)
