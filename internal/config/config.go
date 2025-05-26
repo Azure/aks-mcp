@@ -2,6 +2,9 @@
 package config
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/azure/aks-mcp/internal/azure"
 	flag "github.com/spf13/pflag"
 )
@@ -13,6 +16,7 @@ type Config struct {
 	Address           string
 	SingleClusterMode bool
 	ResourceID        *azure.AzureResourceID
+	AccessLevel       string
 }
 
 // NewConfig creates a new configuration with default values.
@@ -22,6 +26,7 @@ func NewConfig() *Config {
 		Address:           "localhost:8080",
 		SingleClusterMode: false,
 		ResourceID:        nil,
+		AccessLevel:       "read",
 	}
 }
 
@@ -32,20 +37,72 @@ func ParseFlags() *Config {
 	flag.StringVarP(&config.Transport, "transport", "t", "stdio", "Transport type (stdio or sse)")
 	flag.StringVar(&config.AKSResourceID, "aks-resource-id", "", "AKS Resource ID (optional), set this when using single cluster mode")
 	flag.StringVar(&config.Address, "address", "localhost:8080", "Address to listen on when using SSE transport")
+	flag.StringVar(&config.AccessLevel, "access-level", "read", "Access level for tools (read, readwrite, admin)")
 	flag.Parse()
 
 	// Set SingleClusterMode based on whether AKSResourceID is provided
 	config.SingleClusterMode = config.AKSResourceID != ""
 
-	// Parse resource ID if provided
-	if config.AKSResourceID != "" {
-		resourceID, err := azure.ParseAzureResourceID(config.AKSResourceID)
+	return config
+}
+
+// Validate checks the configuration values and returns an error if any are invalid.
+func (c *Config) Validate() error {
+	// Validate AccessLevel
+	validAccessLevels := map[string]bool{
+		"read":      true,
+		"readwrite": true,
+		"admin":     true,
+	}
+
+	if !validAccessLevels[c.AccessLevel] {
+		return fmt.Errorf("invalid access level: %s, must be one of read, readwrite, admin", c.AccessLevel)
+	}
+
+	// Validate Transport
+	validTransports := map[string]bool{
+		"stdio": true,
+		"sse":   true,
+	}
+
+	if !validTransports[c.Transport] {
+		return fmt.Errorf("invalid transport: %s, must be either stdio or sse", c.Transport)
+	}
+
+	// Validate Address if using SSE transport
+	if c.Transport == "sse" && c.Address == "" {
+		return fmt.Errorf("address must be specified when using SSE transport")
+	}
+
+	// Parse and validate AKS resource ID if provided
+	if c.AKSResourceID != "" {
+		resourceID, err := azure.ParseAzureResourceID(c.AKSResourceID)
 		if err != nil {
-			// Log the error but continue - we'll let the main function handle this
-			// to maintain consistent error handling
-			return config
+			return fmt.Errorf("invalid AKS resource ID: %v", err)
 		}
-		config.ResourceID = resourceID
+		c.ResourceID = resourceID
+	}
+
+	// Validate AKSResourceID if in single cluster mode
+	if c.SingleClusterMode && c.ResourceID == nil {
+		return fmt.Errorf("invalid or missing AKS resource ID in single cluster mode")
+	}
+
+	return nil
+}
+
+// ValidateAndParseFlags parses command-line flags, validates the config, and returns it.
+// If validation fails, it logs the error and exits.
+func ValidateAndParseFlags() *Config {
+	config := ParseFlags()
+
+	if err := config.Validate(); err != nil {
+		// This will be shown to the user
+		fmt.Printf("Configuration error: %v\n", err)
+		// Show usage information
+		flag.Usage()
+		// We use 2 as the exit code for configuration errors
+		os.Exit(2)
 	}
 
 	return config

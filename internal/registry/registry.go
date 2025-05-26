@@ -98,7 +98,26 @@ func (r *ToolRegistry) GetConfig() *config.Config {
 
 // ConfigureMCPServer registers all tools with the MCP server.
 func (r *ToolRegistry) ConfigureMCPServer(mcpServer *server.MCPServer) {
+	configAccessLevel := r.config.AccessLevel
+	
 	for _, def := range r.tools {
-		mcpServer.AddTool(def.Tool, def.Handler)
+		// Filter tools based on access level
+		if shouldRegisterTool(string(def.AccessLevel), configAccessLevel) {
+			mcpServer.AddTool(def.Tool, def.Handler)
+		}
+	}
+}
+
+// shouldRegisterTool determines if a tool should be registered based on access level.
+func shouldRegisterTool(toolAccessLevel, configAccessLevel string) bool {
+	switch configAccessLevel {
+	case "read":
+		return toolAccessLevel == "read"
+	case "readwrite":
+		return toolAccessLevel == "read" || toolAccessLevel == "readwrite"
+	case "admin":
+		return true // Admin has access to all tools
+	default:
+		return toolAccessLevel == "read" // Default to read-only for unknown access levels
 	}
 }
