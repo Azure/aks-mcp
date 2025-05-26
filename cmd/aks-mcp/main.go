@@ -12,7 +12,7 @@ import (
 func main() {
 	// Parse command line arguments and validate configuration
 	// This will also parse and validate resource ID if provided
-	cfg := config.ValidateAndParseFlags()
+	cfg := config.ParseFlagsAndValidate()
 
 	// If we're here, the config is valid
 	if cfg.ResourceIDString == "" {

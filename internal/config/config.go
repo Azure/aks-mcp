@@ -91,9 +91,9 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-// ValidateAndParseFlags parses command-line flags, validates the config, and returns it.
+// ParseFlagsAndValidate parses command-line flags, validates the config, and returns it.
 // If validation fails, it logs the error and exits.
-func ValidateAndParseFlags() *Config {
+func ParseFlagsAndValidate() *Config {
 	config := ParseFlags()
 
 	if err := config.Validate(); err != nil {
@@ -106,14 +106,4 @@ func ValidateAndParseFlags() *Config {
 	}
 
 	return config
-}
-
-// GetResourceID is a helper method that returns the parsed resource ID.
-// It ensures that the resource ID is parsed if it is provided but not yet parsed.
-func (c *Config) GetResourceID() *azure.AzureResourceID {
-	// If we have a resource ID string but not a parsed version, parse it
-	if c.ParsedResourceID == nil && c.ResourceIDString != "" {
-		c.ParsedResourceID, _ = azure.ParseAzureResourceID(c.ResourceIDString)
-	}
-	return c.ParsedResourceID
 }

@@ -4,7 +4,6 @@ package azure
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
@@ -208,58 +207,6 @@ func (c *AzureClient) GetResourceByID(ctx context.Context, resourceID string) (i
 	default:
 		return nil, fmt.Errorf("unsupported resource type: %s", parsed.ResourceType)
 	}
-}
-
-// ExtractNetworkProfileFromAKS extracts network resource IDs from an AKS cluster.
-// Returns a map of resource type to resource ID.
-// Deprecated: Use the specialized helper functions in resourcehelpers package instead.
-func ExtractNetworkProfileFromAKS(cluster *armcontainerservice.ManagedCluster) map[ResourceType]string {
-	result := make(map[ResourceType]string)
-
-	// Ensure the cluster is valid
-	if cluster == nil || cluster.Properties == nil {
-		return result
-	}
-
-	// Check if we have agent pool profiles
-	if cluster.Properties.AgentPoolProfiles != nil {
-		// Look through agent pools for subnet IDs
-		for _, pool := range cluster.Properties.AgentPoolProfiles {
-			if pool.VnetSubnetID != nil {
-				// The subnet ID contains the VNet ID as its parent resource
-				subnetID := *pool.VnetSubnetID
-				// Parse the subnet ID to extract the VNet ID
-				if parsed, err := ParseResourceID(subnetID); err == nil && parsed.IsSubnet() {
-					// Construct the VNet ID from the subnet ID
-					vnetIDParts := strings.Split(subnetID, "/subnets/")
-					if len(vnetIDParts) > 0 {
-						result[ResourceTypeVirtualNetwork] = vnetIDParts[0]
-						result[ResourceTypeSubnet] = subnetID
-					}
-				}
-
-				// Once we find a subnet ID, we can break since all agent pools typically use the same VNet
-				break
-			}
-		}
-	}
-
-	// Check network profile for additional information
-	if cluster.Properties.NetworkProfile != nil {
-		np := cluster.Properties.NetworkProfile
-
-		// Extract information based on network plugin
-		if np.NetworkPlugin != nil && *np.NetworkPlugin == "azure" {
-			// For Azure CNI, we might have additional network information
-			// but it's not directly available in the AKS properties
-
-			// Note: Additional network resources like NSGs and route tables are not directly
-			// exposed in the AKS properties, but would need to be queried separately
-			// based on the subnet ID we extracted above
-		}
-	}
-
-	return result
 }
 
 // ListAKSClusters lists all AKS clusters in a specific resource group.

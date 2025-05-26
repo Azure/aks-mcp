@@ -3,7 +3,6 @@ package azure
 
 // Provider defines an interface for accessing Azure resources.
 type AzureProvider interface {
-	GetResourceID() *AzureResourceID
 	GetClient() *AzureClient
 	GetCache() *AzureCache
 }
@@ -25,11 +24,6 @@ func NewAzureResourceProvider(resourceID *AzureResourceID, client *AzureClient, 
 		client:     client,
 		cache:      cache,
 	}
-}
-
-// GetResourceID returns the resource ID.
-func (p *AzureResourceProvider) GetResourceID() *AzureResourceID {
-	return p.resourceID
 }
 
 // GetClient returns the Azure client.

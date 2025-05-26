@@ -66,16 +66,6 @@ func (r *ToolRegistry) RegisterTool(name string, tool mcp.Tool, handler server.T
 	}
 }
 
-// GetAllTools returns all registered tools.
-func (r *ToolRegistry) GetAllTools() map[string]ToolDefinition {
-	return r.tools
-}
-
-// GetAzureProvider returns the Azure provider.
-func (r *ToolRegistry) GetAzureProvider() azure.AzureProvider {
-	return r.azureProvider
-}
-
 // GetCache returns the cache.
 func (r *ToolRegistry) GetCache() *azure.AzureCache {
 	return r.azureProvider.GetCache()
@@ -84,11 +74,6 @@ func (r *ToolRegistry) GetCache() *azure.AzureCache {
 // GetClient returns the Azure client.
 func (r *ToolRegistry) GetClient() *azure.AzureClient {
 	return r.azureProvider.GetClient()
-}
-
-// GetResourceID returns the parsed resource ID.
-func (r *ToolRegistry) GetResourceID() *azure.AzureResourceID {
-	return r.azureProvider.GetResourceID()
 }
 
 // GetConfig returns the configuration.
