@@ -20,7 +20,7 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -o aks-mcp ./cmd/aks-mcp
 
 # Runtime stage
-FROM alpine:3.19
+FROM alpine:3.21
 
 # Install required packages for kubectl and helm
 RUN apk add --no-cache curl bash openssl ca-certificates git
