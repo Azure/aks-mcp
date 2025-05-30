@@ -24,7 +24,7 @@ SPEC_PATH = "specification/containerservice/resource-manager/Microsoft.Container
 # Use relative path from the script's location to the target directory
 SCRIPT_DIR = Path(os.path.dirname(os.path.realpath(__file__)))
 PROJECT_ROOT = SCRIPT_DIR.parent  # Parent of the scripts directory
-TARGET_DIR = PROJECT_ROOT / "internal" / "azure" / "spec"
+TARGET_DIR = PROJECT_ROOT / "azure_spec"
 
 def main():
     """Main function to download the AKS API specs"""
