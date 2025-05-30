@@ -44,6 +44,39 @@ func (r *ToolRegistry) registerClusterTools() {
 		AccessRead,
 	)
 
+	// Register create_or_update_cluster tool - requires write access and is only available in multi-cluster mode
+	if !cfg.SingleClusterMode {
+		createClusterTool := mcp.NewTool(
+			"create_or_update_cluster",
+			mcp.WithDescription("Create or update an AKS cluster using an ARM template"),
+			mcp.WithString("subscription_id",
+				mcp.Description("Azure Subscription ID"),
+				mcp.Required(),
+			),
+			mcp.WithString("resource_group",
+				mcp.Description("Azure Resource Group for the AKS cluster"),
+				mcp.Required(),
+			),
+			mcp.WithString("cluster_name",
+				mcp.Description("Name of the AKS cluster to create or update"),
+				mcp.Required(),
+			),
+			mcp.WithString("arm_template",
+				mcp.Description("ARM template JSON for the AKS cluster"),
+				mcp.Required(),
+			),
+		)
+
+		// Register the create_or_update_cluster tool
+		r.RegisterTool(
+			"create_or_update_cluster",
+			createClusterTool,
+			handlers.CreateOrUpdateClusterHandler(r.GetClient(), r.GetCache(), cfg),
+			CategoryCluster,
+			AccessReadWrite, // This tool requires write access
+		)
+	}
+
 	// Only register list_aks_clusters tool when not in SingleClusterMode
 	if !cfg.SingleClusterMode {
 		// Register list_aks_clusters tool
