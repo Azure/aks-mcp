@@ -20,6 +20,18 @@ func main() {
 		log.Printf("No AKS Resource ID provided, tools will require parameters")
 	}
 
+	// Download Azure API specs if needed
+	specDownloader, err := azure.NewSpecDownloader(cfg.AzureSpecURL, cfg.SpecDir)
+	if err != nil {
+		log.Printf("Warning: Failed to initialize spec downloader: %v", err)
+		// Continue without downloading specs
+	} else {
+		if err := specDownloader.DownloadSpecsIfNeeded(); err != nil {
+			log.Printf("Warning: Failed to download specs: %v", err)
+			// Continue without specs
+		}
+	}
+
 	// Initialize Azure client
 	client, err := azure.NewAzureClient()
 	if err != nil {

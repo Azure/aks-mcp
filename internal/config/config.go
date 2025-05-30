@@ -17,6 +17,8 @@ type Config struct {
 	SingleClusterMode bool
 	ParsedResourceID  *azure.AzureResourceID // Parsed version of the resource ID
 	AccessLevel       string
+	AzureSpecURL      string // URL to the Azure REST API specs repository
+	SpecDir           string // Directory where specs are downloaded
 }
 
 // NewConfig creates a new configuration with default values.
@@ -27,6 +29,8 @@ func NewConfig() *Config {
 		SingleClusterMode: false,
 		ParsedResourceID:  nil,
 		AccessLevel:       "read",
+		AzureSpecURL:      "https://github.com/Azure/azure-rest-api-specs/tree/main/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable/2025-03-01",
+		SpecDir:           "specs", // directory for downloaded specs
 	}
 }
 
@@ -38,6 +42,7 @@ func ParseFlags() *Config {
 	flag.StringVar(&config.ResourceIDString, "aks-resource-id", "", "AKS Resource ID (optional), set this when using single cluster mode")
 	flag.StringVar(&config.Address, "address", "localhost:8080", "Address to listen on when using SSE transport")
 	flag.StringVar(&config.AccessLevel, "access-level", "read", "Access level for tools (read, readwrite, admin)")
+	flag.StringVar(&config.AzureSpecURL, "azure-spec-url", "https://github.com/Azure/azure-rest-api-specs/tree/main/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable/2025-03-01", "URL to the Azure REST API specs repository")
 	flag.Parse()
 
 	// Set SingleClusterMode based on whether ResourceIDString is provided

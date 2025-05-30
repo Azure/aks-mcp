@@ -48,7 +48,7 @@ func (r *ToolRegistry) registerClusterTools() {
 	if !cfg.SingleClusterMode {
 		createClusterTool := mcp.NewTool(
 			"create_or_update_cluster",
-			mcp.WithDescription("Create or update an AKS cluster using an ARM template"),
+			mcp.WithDescription("Create or update an AKS cluster using an ARM template, please use list_aks_example_arm_templates and get_aks_example_arm_template to find example templates to understand the required parameters"),
 			mcp.WithString("subscription_id",
 				mcp.Description("Azure Subscription ID"),
 				mcp.Required(),
@@ -75,10 +75,7 @@ func (r *ToolRegistry) registerClusterTools() {
 			CategoryCluster,
 			AccessReadWrite, // This tool requires write access
 		)
-	}
 
-	// Only register list_aks_clusters tool when not in SingleClusterMode
-	if !cfg.SingleClusterMode {
 		// Register list_aks_clusters tool
 		listClustersTool := mcp.NewTool(
 			"list_aks_clusters",
@@ -97,6 +94,40 @@ func (r *ToolRegistry) registerClusterTools() {
 			"list_aks_clusters",
 			listClustersTool,
 			handlers.ListClustersHandler(r.GetClient(), r.GetCache(), cfg),
+			CategoryCluster,
+			AccessRead,
+		)
+
+		// Register list_aks_example_arm_templates tool
+		listTemplatesTools := mcp.NewTool(
+			"list_aks_example_arm_templates",
+			mcp.WithDescription("List all available example ARM templates for AKS clusters"),
+		)
+
+		// Register the list templates tool
+		r.RegisterTool(
+			"list_aks_example_arm_templates",
+			listTemplatesTools,
+			handlers.GetExampleARMTemplatesHandler(r.GetClient(), r.GetCache(), cfg),
+			CategoryCluster,
+			AccessRead,
+		)
+
+		// Register get_aks_example_arm_template tool
+		getTemplateTools := mcp.NewTool(
+			"get_aks_example_arm_template",
+			mcp.WithDescription("Get the content of a specific AKS example ARM template"),
+			mcp.WithString("template_name",
+				mcp.Description("Name of the template to retrieve"),
+				mcp.Required(),
+			),
+		)
+
+		// Register the get template tool
+		r.RegisterTool(
+			"get_aks_example_arm_template",
+			getTemplateTools,
+			handlers.GetExampleARMTemplateContentHandler(r.GetClient(), r.GetCache(), cfg),
 			CategoryCluster,
 			AccessRead,
 		)
