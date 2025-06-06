@@ -104,7 +104,6 @@ func ListClustersHandler(client *azure.AzureClient, cache *azure.AzureCache, cfg
 		}
 
 		// Return the clusters as JSON
-		// TODO: This could be a large response, consider showing a summary instead
 		jsonStr, err := formatJSON(clusters)
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal clusters info: %v", err)
