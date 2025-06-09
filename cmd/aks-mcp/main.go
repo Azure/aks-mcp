@@ -32,6 +32,8 @@ func main() {
 		}
 	}
 
+	log.Printf("Starting AKS MCP server with configuration: %+v", cfg)
+
 	// Initialize Azure client
 	client, err := azure.NewAzureClient()
 	if err != nil {
@@ -52,6 +54,8 @@ func main() {
 
 	// Create MCP server
 	s := server.NewAKSMCPServer(toolRegistry)
+
+	log.Printf("Registered tools with the server")
 
 	// Start the server with the specified transport
 	switch cfg.Transport {

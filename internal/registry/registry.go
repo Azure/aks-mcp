@@ -2,6 +2,8 @@
 package registry
 
 import (
+	"log"
+
 	"github.com/azure/aks-mcp/internal/azure"
 	"github.com/azure/aks-mcp/internal/config"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -88,6 +90,7 @@ func (r *ToolRegistry) ConfigureMCPServer(mcpServer *server.MCPServer) {
 	for _, def := range r.tools {
 		// Filter tools based on access level
 		if shouldRegisterTool(string(def.AccessLevel), configAccessLevel) {
+			log.Printf("Registering tool: %s (Category: %s, Access Level: %s)", def.Tool.Name, def.Category, def.AccessLevel)
 			mcpServer.AddTool(def.Tool, def.Handler)
 		}
 	}
