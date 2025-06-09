@@ -123,46 +123,11 @@ func GetExampleARMTemplateContentHandler(client *azure.AzureClient, cache *azure
 
 // getTemplateDescription extracts a short description from the template file.
 func getTemplateDescription(templatePath string) string {
-	// Read the template file
-	content, err := os.ReadFile(templatePath)
-	if err != nil {
-		return "Unknown template"
-	}
-
-	// Parse the template content
-	var template map[string]interface{}
-	if err := json.Unmarshal(content, &template); err != nil {
-		return filepath.Base(templatePath)
-	}
-
 	// Extract relevant information
 	templateName := filepath.Base(templatePath)
 
-	// Try to find meaningful description
+	// TODO: Try to find meaningful description
 	description := templateName
-
-	// For example files that follow the standard pattern, derive a description
-	if strings.HasPrefix(templateName, "ManagedClustersCreate") {
-		description = "Create AKS cluster"
-
-		// Extract specific feature from filename
-		feature := strings.TrimPrefix(templateName, "ManagedClustersCreate_")
-		feature = strings.TrimSuffix(feature, ".json")
-
-		if feature != "Update" {
-			description += " with " + strings.ReplaceAll(feature, "_", " ")
-		}
-	} else if strings.HasPrefix(templateName, "AgentPoolsCreate") {
-		description = "Add node pool"
-
-		// Extract specific feature from filename
-		feature := strings.TrimPrefix(templateName, "AgentPoolsCreate_")
-		feature = strings.TrimSuffix(feature, ".json")
-
-		if feature != "Update" {
-			description += " with " + strings.ReplaceAll(feature, "_", " ")
-		}
-	}
 
 	return description
 }

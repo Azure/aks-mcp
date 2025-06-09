@@ -70,6 +70,12 @@ func (d *SpecDownloader) DownloadSpecsIfNeeded() error {
 func (d *SpecDownloader) DownloadSpecs() error {
 	log.Printf("Downloading Azure API specs from %s/%s", d.BaseURL, d.SpecPath)
 
+	// Download the example files
+	examplesURL := fmt.Sprintf("%s/%s/examples", d.BaseURL, d.SpecPath)
+	if err := d.downloadExamples(examplesURL); err != nil {
+		return fmt.Errorf("failed to download example files: %v", err)
+	}
+
 	// Download the main spec file
 	mainSpecURL := fmt.Sprintf("%s/%s/managedClusters.json", d.BaseURL, d.SpecPath)
 	mainSpecFile := filepath.Join(d.TargetDir, "managedClusters.json")
@@ -77,12 +83,6 @@ func (d *SpecDownloader) DownloadSpecs() error {
 		return fmt.Errorf("failed to download main spec file: %v", err)
 	}
 	log.Printf("Downloaded main spec file to %s", mainSpecFile)
-
-	// Download the example files
-	examplesURL := fmt.Sprintf("%s/%s/examples", d.BaseURL, d.SpecPath)
-	if err := d.downloadExamples(examplesURL); err != nil {
-		return fmt.Errorf("failed to download example files: %v", err)
-	}
 
 	log.Printf("Successfully downloaded Azure API specs to %s", d.TargetDir)
 	return nil

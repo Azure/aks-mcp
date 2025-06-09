@@ -23,12 +23,10 @@ func main() {
 	// Download Azure API specs if needed
 	specDownloader, err := azure.NewSpecDownloader(cfg.AzureSpecURL, cfg.SpecDir)
 	if err != nil {
-		log.Printf("Warning: Failed to initialize spec downloader: %v", err)
-		// Continue without downloading specs
+		log.Fatalf("Failed to initialize spec downloader: %v", err)
 	} else {
 		if err := specDownloader.DownloadSpecsIfNeeded(); err != nil {
-			log.Printf("Warning: Failed to download specs: %v", err)
-			// Continue without specs
+			log.Fatal("Failed to download Azure API specs: %v", err)
 		}
 	}
 
@@ -54,8 +52,6 @@ func main() {
 
 	// Create MCP server
 	s := server.NewAKSMCPServer(toolRegistry)
-
-	log.Printf("Registered tools with the server")
 
 	// Start the server with the specified transport
 	switch cfg.Transport {

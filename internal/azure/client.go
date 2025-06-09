@@ -339,13 +339,9 @@ func (c *AzureClient) CreateOrUpdateAKSCluster(ctx context.Context, subscription
 		return nil, fmt.Errorf("failed to begin create or update operation: %v", err)
 	}
 
-	// Get the initial response
-	// Note: We're not waiting for completion as AKS cluster creation can take 10+ minutes
 	resp, err := poller.PollUntilDone(ctx, nil)
 	if err != nil {
-		// We still return the response even if there's an error, as the operation might be in progress
-		// The error likely indicates the long-running operation hasn't completed
-		return &resp.ManagedCluster, fmt.Errorf("operation in progress: %v", err)
+		return &resp.ManagedCluster, fmt.Errorf("operation error: %v", err)
 	}
 
 	return &resp.ManagedCluster, nil
