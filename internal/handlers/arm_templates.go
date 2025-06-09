@@ -92,16 +92,28 @@ func GetExampleARMTemplateContentHandler(client *azure.AzureClient, cache *azure
 			return nil, fmt.Errorf("examples directory not found: %s", examplesDir)
 		}
 
-		// Build the path to the template file
+		// Build the path to the template file and prevent path traversal
 		templatePath := filepath.Join(examplesDir, templateName)
 
+		// Ensure the path is still inside the examples directory to prevent path traversal
+		resolvedPath, err := filepath.EvalSymlinks(templatePath)
+		if err != nil {
+			return nil, fmt.Errorf("invalid template path: %v", err)
+		}
+
+		// Check that the resolved path is still within the examples directory
+		if !strings.HasPrefix(resolvedPath, examplesDir) {
+			return nil, fmt.Errorf("invalid template path: path traversal detected")
+		}
+
 		// Verify the file exists
-		if _, err := os.Stat(templatePath); os.IsNotExist(err) {
+		if _, err := os.Stat(resolvedPath); os.IsNotExist(err) {
 			return nil, fmt.Errorf("template not found: %s", templateName)
 		}
 
 		// Read the template content
-		content, err := os.ReadFile(templatePath)
+		// #nosec G304 -- This is safe as we check that resolvedPath is within the allowed directory
+		content, err := os.ReadFile(resolvedPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read template: %v", err)
 		}

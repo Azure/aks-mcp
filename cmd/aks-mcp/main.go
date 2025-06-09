@@ -26,7 +26,7 @@ func main() {
 		log.Fatalf("Failed to initialize spec downloader: %v", err)
 	} else {
 		if err := specDownloader.DownloadSpecsIfNeeded(); err != nil {
-			log.Fatal("Failed to download Azure API specs: %v", err)
+			log.Fatalf("Failed to download Azure API specs: %v", err)
 		}
 	}
 

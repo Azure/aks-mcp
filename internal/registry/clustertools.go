@@ -48,7 +48,7 @@ func (r *ToolRegistry) registerClusterTools() {
 	if !cfg.SingleClusterMode {
 		createClusterTool := mcp.NewTool(
 			"create_or_update_cluster",
-			mcp.WithDescription("Create or update an AKS cluster using an ARM template, please use list_aks_example_arm_templates and get_aks_example_arm_template to find example templates to understand the required parameters"),
+			mcp.WithDescription("Create or update an AKS cluster using an ARM template, you can use list_aks_example_arm_templates and get_aks_example_arm_template to find example templates to understand the required parameters if you are not clear on the arm_template parameter"),
 			mcp.WithString("subscription_id",
 				mcp.Description("Azure Subscription ID"),
 				mcp.Required(),

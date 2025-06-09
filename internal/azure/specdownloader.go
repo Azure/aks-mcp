@@ -32,11 +32,11 @@ func NewSpecDownloader(specURL string, specDir string) (*SpecDownloader, error) 
 	targetDir := specDir
 	examplesDir := filepath.Join(targetDir, "examples")
 
-	// Create the directories if they don't exist
-	if err := os.MkdirAll(targetDir, 0755); err != nil {
+	// Create the directories if they don't exist with more restrictive permissions
+	if err := os.MkdirAll(targetDir, 0750); err != nil {
 		return nil, fmt.Errorf("failed to create target directory: %v", err)
 	}
-	if err := os.MkdirAll(examplesDir, 0755); err != nil {
+	if err := os.MkdirAll(examplesDir, 0750); err != nil {
 		return nil, fmt.Errorf("failed to create examples directory: %v", err)
 	}
 
@@ -113,7 +113,11 @@ func (d *SpecDownloader) downloadExamples(examplesURL string) error {
 	if err != nil {
 		return fmt.Errorf("failed to send request: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if cerr := resp.Body.Close(); cerr != nil {
+			log.Printf("Error closing response body: %v", cerr)
+		}
+	}()
 
 	// Check if the request was successful
 	if resp.StatusCode != http.StatusOK {
@@ -188,19 +192,31 @@ func downloadFile(url, localPath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to send request: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if cerr := resp.Body.Close(); cerr != nil {
+			log.Printf("Error closing response body: %v", cerr)
+		}
+	}()
 
 	// Check if the request was successful
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("received non-200 status code: %d", resp.StatusCode)
 	}
 
+	// Note: We're trusting that the calling code is controlling the localPath input
+	// since this is an internal utility function and the localPath is constructed within our code
+
 	// Create the file
-	out, err := os.Create(localPath)
+	// #nosec G304 -- This is safe as localPath is controlled by our code
+	out, err := os.OpenFile(localPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return fmt.Errorf("failed to create file: %v", err)
 	}
-	defer out.Close()
+	defer func() {
+		if cerr := out.Close(); cerr != nil {
+			log.Printf("Error closing output file: %v", cerr)
+		}
+	}()
 
 	// Write the response body to the file
 	_, err = io.Copy(out, resp.Body)
