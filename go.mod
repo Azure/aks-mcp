@@ -6,7 +6,7 @@ toolchain go1.24.2
 
 require (
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
-	github.com/mark3labs/mcp-go v0.31.0
+	github.com/mark3labs/mcp-go v0.32.0
 	github.com/spf13/pflag v1.0.6
 )
 
