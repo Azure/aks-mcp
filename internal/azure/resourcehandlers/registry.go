@@ -86,4 +86,24 @@ func RegisterSubnetInfoTool() mcp.Tool {
 	)
 }
 
+// RegisterLoadBalancersInfoTool registers the get_load_balancers_info tool
+func RegisterLoadBalancersInfoTool() mcp.Tool {
+	return mcp.NewTool(
+		"get_load_balancers_info",
+		mcp.WithDescription("Get information about all Load Balancers used by the AKS cluster (external and internal)"),
+		mcp.WithString("subscription_id",
+			mcp.Description("Azure Subscription ID"),
+			mcp.Required(),
+		),
+		mcp.WithString("resource_group",
+			mcp.Description("Azure Resource Group containing the AKS cluster"),
+			mcp.Required(),
+		),
+		mcp.WithString("cluster_name",
+			mcp.Description("Name of the AKS cluster"),
+			mcp.Required(),
+		),
+	)
+}
+
 // TODO: Future tool categories can be added here:

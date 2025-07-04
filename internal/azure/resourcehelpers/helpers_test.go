@@ -383,3 +383,54 @@ func TestGetNSGIDFromAKS(t *testing.T) {
 		}
 	})
 }
+
+// TestGetLoadBalancerIDsFromAKS tests the load balancer IDs extraction from an AKS cluster
+func TestGetLoadBalancerIDsFromAKS(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("cluster with nil properties", func(t *testing.T) {
+		cluster := &armcontainerservice.ManagedCluster{
+			Properties: nil,
+		}
+
+		_, err := GetLoadBalancerIDsFromAKS(ctx, cluster, nil)
+		if err == nil {
+			t.Error("Expected error for cluster with nil properties")
+		}
+		if err.Error() != "invalid cluster or cluster properties" {
+			t.Errorf("Expected 'invalid cluster or cluster properties' error, got %v", err)
+		}
+	})
+
+	t.Run("cluster with nil node resource group", func(t *testing.T) {
+		cluster := &armcontainerservice.ManagedCluster{
+			Properties: &armcontainerservice.ManagedClusterProperties{
+				NodeResourceGroup: nil,
+			},
+		}
+
+		_, err := GetLoadBalancerIDsFromAKS(ctx, cluster, nil)
+		if err == nil {
+			t.Error("Expected error for cluster with nil node resource group")
+		}
+		if err.Error() != "node resource group not found for AKS cluster" {
+			t.Errorf("Expected 'node resource group not found for AKS cluster' error, got %v", err)
+		}
+	})
+
+	t.Run("nil cluster", func(t *testing.T) {
+		_, err := GetLoadBalancerIDsFromAKS(ctx, nil, nil)
+		if err == nil {
+			t.Error("Expected error for nil cluster")
+		}
+		if err.Error() != "invalid cluster or cluster properties" {
+			t.Errorf("Expected 'invalid cluster or cluster properties' error, got %v", err)
+		}
+	})
+	t.Run("valid cluster with node resource group", func(t *testing.T) {
+		// Since we can't easily mock the Azure client in this unit test,
+		// and passing nil client causes a panic, we'll skip this test case
+		// The actual Azure client interaction would be tested in integration tests
+		t.Skip("Skipping test that requires Azure client - would be covered by integration tests")
+	})
+}

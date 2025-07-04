@@ -204,6 +204,82 @@ func GetSubnetInfoHandler(client *azure.AzureClient, cfg *config.ConfigData) too
 	})
 }
 
+// GetLoadBalancersInfoHandler returns a handler for the get_load_balancers_info command
+func GetLoadBalancersInfoHandler(client *azure.AzureClient, cfg *config.ConfigData) tools.ResourceHandler {
+	return tools.ResourceHandlerFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
+		// Extract parameters
+		subID, rg, clusterName, err := ExtractAKSParameters(params)
+		if err != nil {
+			return "", err
+		}
+
+		// Get the cluster details
+		ctx := context.Background()
+		cluster, err := GetClusterDetails(ctx, client, subID, rg, clusterName)
+		if err != nil {
+			return "", fmt.Errorf("failed to get cluster details: %v", err)
+		}
+
+		// Get the Load Balancer IDs from the cluster
+		lbIDs, err := resourcehelpers.GetLoadBalancerIDsFromAKS(ctx, cluster, client)
+		if err != nil {
+			return "", fmt.Errorf("failed to get Load Balancer IDs: %v", err)
+		}
+
+		// Check if no load balancers are found (valid configuration state)
+		if len(lbIDs) == 0 {
+			// Return a message indicating no standard AKS load balancers are found
+			response := map[string]interface{}{
+				"message": "No AKS load balancers (kubernetes/kubernetes-internal) found for this cluster",
+				"reason":  "This cluster may not have standard AKS load balancers configured, or it may be using a different networking setup.",
+			}
+			resultJSON, err := json.MarshalIndent(response, "", "  ")
+			if err != nil {
+				return "", fmt.Errorf("failed to marshal response to JSON: %v", err)
+			}
+			return string(resultJSON), nil
+		}
+
+		// Get details for each load balancer
+		var loadBalancers []interface{}
+		for _, lbID := range lbIDs {
+			lbInterface, err := client.GetResourceByID(ctx, lbID)
+			if err != nil {
+				return "", fmt.Errorf("failed to get Load Balancer details for %s: %v", lbID, err)
+			}
+
+			lb, ok := lbInterface.(*armnetwork.LoadBalancer)
+			if !ok {
+				return "", fmt.Errorf("unexpected resource type returned for Load Balancer %s", lbID)
+			}
+
+			loadBalancers = append(loadBalancers, lb)
+		}
+
+		// If only one load balancer, return it directly for backward compatibility
+		if len(loadBalancers) == 1 {
+			resultJSON, err := json.MarshalIndent(loadBalancers[0], "", "  ")
+			if err != nil {
+				return "", fmt.Errorf("failed to marshal Load Balancer info to JSON: %v", err)
+			}
+			return string(resultJSON), nil
+		}
+
+		// If multiple load balancers, return them as an array
+		result := map[string]interface{}{
+			"count":          len(loadBalancers),
+			"load_balancers": loadBalancers,
+		}
+
+		resultJSON, err := json.MarshalIndent(result, "", "  ")
+		if err != nil {
+			return "", fmt.Errorf("failed to marshal Load Balancer info to JSON: %v", err)
+		}
+
+		return string(resultJSON), nil
+	})
+}
+
 // =============================================================================
 // Shared Helper Functions
 // =============================================================================

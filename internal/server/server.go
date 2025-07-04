@@ -155,4 +155,9 @@ func (s *Service) registerNetworkTools(azClient *azure.AzureClient) {
 	log.Println("Registering network tool: get_subnet_info")
 	subnetTool := resourcehandlers.RegisterSubnetInfoTool()
 	s.mcpServer.AddTool(subnetTool, tools.CreateResourceHandler(resourcehandlers.GetSubnetInfoHandler(azClient, s.cfg), s.cfg))
+
+	// Register Load Balancers info tool
+	log.Println("Registering network tool: get_load_balancers_info")
+	lbTool := resourcehandlers.RegisterLoadBalancersInfoTool()
+	s.mcpServer.AddTool(lbTool, tools.CreateResourceHandler(resourcehandlers.GetLoadBalancersInfoHandler(azClient, s.cfg), s.cfg))
 }

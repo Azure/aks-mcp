@@ -21,6 +21,7 @@ type SubscriptionClients struct {
 	SubnetsClient          *armnetwork.SubnetsClient
 	RouteTableClient       *armnetwork.RouteTablesClient
 	NSGClient              *armnetwork.SecurityGroupsClient
+	LoadBalancerClient     *armnetwork.LoadBalancersClient
 }
 
 // AzureClient represents an Azure API client that can handle multiple subscriptions.
@@ -96,6 +97,11 @@ func (c *AzureClient) GetOrCreateClientsForSubscription(subscriptionID string) (
 		return nil, fmt.Errorf("failed to create subnets client for subscription %s: %v", subscriptionID, err)
 	}
 
+	loadBalancerClient, err := armnetwork.NewLoadBalancersClient(subscriptionID, c.credential, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create load balancer client for subscription %s: %v", subscriptionID, err)
+	}
+
 	// Create and store the clients
 	clients = &SubscriptionClients{
 		SubscriptionID:         subscriptionID,
@@ -104,6 +110,7 @@ func (c *AzureClient) GetOrCreateClientsForSubscription(subscriptionID string) (
 		SubnetsClient:          subnetsClient,
 		RouteTableClient:       routeTableClient,
 		NSGClient:              nsgClient,
+		LoadBalancerClient:     loadBalancerClient,
 	}
 
 	c.clientsMap[subscriptionID] = clients
@@ -255,6 +262,35 @@ func (c *AzureClient) GetSubnet(ctx context.Context, subscriptionID, resourceGro
 	return subnet, nil
 }
 
+// GetLoadBalancer retrieves information about the specified load balancer.
+func (c *AzureClient) GetLoadBalancer(ctx context.Context, subscriptionID, resourceGroup, lbName string) (*armnetwork.LoadBalancer, error) {
+	// Create cache key
+	cacheKey := fmt.Sprintf("resource:loadbalancer:%s:%s:%s", subscriptionID, resourceGroup, lbName)
+
+	// Check cache first
+	if cached, found := c.cache.Get(cacheKey); found {
+		if lb, ok := cached.(*armnetwork.LoadBalancer); ok {
+			return lb, nil
+		}
+	}
+
+	clients, err := c.GetOrCreateClientsForSubscription(subscriptionID)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := clients.LoadBalancerClient.Get(ctx, resourceGroup, lbName, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get load balancer: %v", err)
+	}
+
+	lb := &resp.LoadBalancer
+	// Store in cache
+	c.cache.Set(cacheKey, lb)
+
+	return lb, nil
+}
+
 // Helper methods for working with resource IDs
 
 // GetResourceByID retrieves a resource by its full Azure resource ID.
@@ -276,6 +312,8 @@ func (c *AzureClient) GetResourceByID(ctx context.Context, resourceID string) (i
 		return c.GetRouteTable(ctx, parsed.SubscriptionID, parsed.ResourceGroupName, parsed.Name)
 	case "Microsoft.Network/networkSecurityGroups":
 		return c.GetNetworkSecurityGroup(ctx, parsed.SubscriptionID, parsed.ResourceGroupName, parsed.Name)
+	case "Microsoft.Network/loadBalancers":
+		return c.GetLoadBalancer(ctx, parsed.SubscriptionID, parsed.ResourceGroupName, parsed.Name)
 	case "Microsoft.Network/virtualNetworks/subnets":
 		// For subnets, we need the VNet name from parent and subnet name
 		if parsed.Parent != nil {
