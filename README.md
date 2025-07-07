@@ -6,6 +6,7 @@ It allows AI tools to:
 
 - Operate (CRUD) AKS resources
 - Retrieve details related to AKS clusters (VNets, Subnets, NSGs, Route Tables, etc.)
+- Query monitoring and observability data (Log Analytics, Prometheus metrics, Application Insights)
 
 ## How it works
 
@@ -85,6 +86,12 @@ List all my AKS clusters in my subscription xxx.
 What is the network configuration of my AKS cluster?
 
 Show me the network security groups associated with my cluster.
+
+Query the control plane logs for my AKS cluster from the last 24 hours.
+
+Show me the CPU and memory metrics for my AKS cluster.
+
+Get the distributed traces from Application Insights for my application.
 ```
 
 ## Available Tools
@@ -105,6 +112,91 @@ The AKS-MCP server provides the following tools for interacting with AKS cluster
 - `get_subnet_info`: Get information about the subnets used by the AKS cluster
 - `get_route_table_info`: Get information about the route tables used by the AKS cluster
 - `get_nsg_info`: Get information about the network security groups used by the AKS cluster
+</details>
+
+<details>
+<summary>Monitoring Tools</summary>
+
+- `query_log_analytics`: Query Azure Log Analytics workspace for AKS cluster logs (control plane, audit, node/pod logs)
+- `query_prometheus_metrics`: Query Prometheus metrics from Azure Monitor for AKS cluster (CPU, memory, network)
+- `query_application_insights`: Query Application Insights for distributed tracing data with filtering capabilities
+
+### Common Log Analytics (KQL) Queries
+
+**Control Plane Logs:**
+```kql
+AzureDiagnostics
+| where Category == "kube-apiserver"
+| where TimeGenerated >= ago(1h)
+| order by TimeGenerated desc
+| limit 100
+```
+
+**Audit Logs:**
+```kql
+AzureDiagnostics
+| where Category == "kube-audit"
+| where TimeGenerated >= ago(24h)
+| order by TimeGenerated desc
+| limit 100
+```
+
+**Node and Pod Logs:**
+```kql
+ContainerLog
+| where TimeGenerated >= ago(1h)
+| order by TimeGenerated desc
+| limit 100
+```
+
+**Cluster Autoscaler Logs:**
+```kql
+AzureDiagnostics
+| where Category == "cluster-autoscaler"
+| where TimeGenerated >= ago(1h)
+| order by TimeGenerated desc
+| limit 100
+```
+
+### Common Prometheus Metrics
+
+**CPU Metrics:**
+- `node_cpu_usage_millicores`: CPU usage per node
+- `container_cpu_usage_millicores`: CPU usage per container
+
+**Memory Metrics:**
+- `node_memory_working_set_bytes`: Memory working set per node
+- `container_memory_working_set_bytes`: Memory working set per container
+
+**Network Metrics:**
+- `node_network_receive_bytes_total`: Network bytes received per node
+- `node_network_transmit_bytes_total`: Network bytes transmitted per node
+
+### Application Insights Queries
+
+**Request Traces:**
+```kql
+requests
+| where timestamp >= ago(1h)
+| order by timestamp desc
+| limit 100
+```
+
+**Dependency Traces:**
+```kql
+dependencies
+| where timestamp >= ago(1h)
+| order by timestamp desc
+| limit 100
+```
+
+**Exception Traces:**
+```kql
+exceptions
+| where timestamp >= ago(24h)
+| order by timestamp desc
+| limit 100
+```
 </details>
 
 ## Contributing
