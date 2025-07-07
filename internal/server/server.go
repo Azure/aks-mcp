@@ -129,6 +129,9 @@ func (s *Service) registerAzureResourceTools() {
 	// Register Network-related tools
 	s.registerNetworkTools(azClient)
 
+	// Register Monitoring-related tools
+	s.registerMonitoringTools(azClient)
+
 	// TODO: Add other resource categories in the future:
 }
 
@@ -155,4 +158,24 @@ func (s *Service) registerNetworkTools(azClient *azure.AzureClient) {
 	log.Println("Registering network tool: get_subnet_info")
 	subnetTool := resourcehandlers.RegisterSubnetInfoTool()
 	s.mcpServer.AddTool(subnetTool, tools.CreateResourceHandler(resourcehandlers.GetSubnetInfoHandler(azClient, s.cfg), s.cfg))
+}
+
+// registerMonitoringTools registers all monitoring-related Azure resource tools
+func (s *Service) registerMonitoringTools(azClient *azure.AzureClient) {
+	log.Println("Registering Monitoring tools...")
+
+	// Register Log Analytics query tool
+	log.Println("Registering monitoring tool: query_log_analytics")
+	logAnalyticsTool := resourcehandlers.RegisterLogAnalyticsQueryTool()
+	s.mcpServer.AddTool(logAnalyticsTool, tools.CreateResourceHandler(resourcehandlers.GetLogAnalyticsHandler(azClient, s.cfg), s.cfg))
+
+	// Register Prometheus metrics query tool
+	log.Println("Registering monitoring tool: query_prometheus_metrics")
+	prometheusTool := resourcehandlers.RegisterPrometheusMetricsQueryTool()
+	s.mcpServer.AddTool(prometheusTool, tools.CreateResourceHandler(resourcehandlers.GetPrometheusMetricsHandler(azClient, s.cfg), s.cfg))
+
+	// Register Application Insights query tool
+	log.Println("Registering monitoring tool: query_application_insights")
+	appInsightsTool := resourcehandlers.RegisterApplicationInsightsQueryTool()
+	s.mcpServer.AddTool(appInsightsTool, tools.CreateResourceHandler(resourcehandlers.GetApplicationInsightsHandler(azClient, s.cfg), s.cfg))
 }

@@ -9,8 +9,13 @@ import (
 	"github.com/Azure/aks-mcp/internal/config"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/monitor/query/azlogs"
+	"github.com/Azure/azure-sdk-for-go/sdk/monitor/query/azmetrics"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/applicationinsights/armapplicationinsights"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/operationalinsights/armoperationalinsights"
 )
 
 // SubscriptionClients contains Azure clients for a specific subscription.
@@ -21,6 +26,12 @@ type SubscriptionClients struct {
 	SubnetsClient          *armnetwork.SubnetsClient
 	RouteTableClient       *armnetwork.RouteTablesClient
 	NSGClient              *armnetwork.SecurityGroupsClient
+	// Monitoring clients
+	LogAnalyticsClient       *armoperationalinsights.WorkspacesClient
+	MonitorClient            *armmonitor.MetricsClient
+	ApplicationInsightsClient *armapplicationinsights.ComponentsClient
+	LogsQueryClient          *azlogs.Client
+	// Note: MetricsQueryClient will be created per region when needed
 }
 
 // AzureClient represents an Azure API client that can handle multiple subscriptions.
@@ -96,18 +107,49 @@ func (c *AzureClient) GetOrCreateClientsForSubscription(subscriptionID string) (
 		return nil, fmt.Errorf("failed to create subnets client for subscription %s: %v", subscriptionID, err)
 	}
 
+	// Create monitoring clients
+	logAnalyticsClient, err := armoperationalinsights.NewWorkspacesClient(subscriptionID, c.credential, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create log analytics client for subscription %s: %v", subscriptionID, err)
+	}
+
+	monitorClient, err := armmonitor.NewMetricsClient(subscriptionID, c.credential, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create monitor client for subscription %s: %v", subscriptionID, err)
+	}
+
+	applicationInsightsClient, err := armapplicationinsights.NewComponentsClient(subscriptionID, c.credential, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create application insights client for subscription %s: %v", subscriptionID, err)
+	}
+
+	logsQueryClient, err := azlogs.NewClient(c.credential, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create logs query client for subscription %s: %v", subscriptionID, err)
+	}
+
 	// Create and store the clients
 	clients = &SubscriptionClients{
-		SubscriptionID:         subscriptionID,
-		ContainerServiceClient: containerServiceClient,
-		VNetClient:             vnetClient,
-		SubnetsClient:          subnetsClient,
-		RouteTableClient:       routeTableClient,
-		NSGClient:              nsgClient,
+		SubscriptionID:            subscriptionID,
+		ContainerServiceClient:    containerServiceClient,
+		VNetClient:                vnetClient,
+		SubnetsClient:             subnetsClient,
+		RouteTableClient:          routeTableClient,
+		NSGClient:                 nsgClient,
+		LogAnalyticsClient:        logAnalyticsClient,
+		MonitorClient:             monitorClient,
+		ApplicationInsightsClient: applicationInsightsClient,
+		LogsQueryClient:           logsQueryClient,
 	}
 
 	c.clientsMap[subscriptionID] = clients
 	return clients, nil
+}
+
+// CreateMetricsQueryClient creates a metrics query client for a specific region
+func (c *AzureClient) CreateMetricsQueryClient(region string) (*azmetrics.Client, error) {
+	endpoint := fmt.Sprintf("https://%s.metrics.monitor.azure.com", region)
+	return azmetrics.NewClient(endpoint, c.credential, nil)
 }
 
 // GetAKSCluster retrieves information about the specified AKS cluster.
