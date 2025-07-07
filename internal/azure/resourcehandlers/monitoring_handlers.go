@@ -21,8 +21,8 @@ import (
 // GetLogAnalyticsHandler returns a handler for the query_log_analytics command
 func GetLogAnalyticsHandler(client *azure.AzureClient, cfg *config.ConfigData) tools.ResourceHandler {
 	return tools.ResourceHandlerFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
-		// Extract parameters
-		subID, err := extractStringParam(params, "subscription_id")
+		// Extract AKS cluster parameters
+		subID, rg, clusterName, err := ExtractAKSParameters(params)
 		if err != nil {
 			return "", err
 		}
@@ -49,6 +49,13 @@ func GetLogAnalyticsHandler(client *azure.AzureClient, cfg *config.ConfigData) t
 			return "", fmt.Errorf("failed to get clients: %v", err)
 		}
 		
+		// Get the cluster details to provide context (optional validation)
+		ctx := context.Background()
+		_, err = GetClusterDetails(ctx, client, subID, rg, clusterName)
+		if err != nil {
+			return "", fmt.Errorf("failed to get AKS cluster details: %v", err)
+		}
+		
 		// Parse time range
 		timeRange, err := parseTimeRange(timeRangeStr)
 		if err != nil {
@@ -56,7 +63,6 @@ func GetLogAnalyticsHandler(client *azure.AzureClient, cfg *config.ConfigData) t
 		}
 		
 		// Execute the KQL query
-		ctx := context.Background()
 		
 		timespan := azlogs.NewTimeInterval(timeRange.Start, timeRange.End)
 		
@@ -72,6 +78,9 @@ func GetLogAnalyticsHandler(client *azure.AzureClient, cfg *config.ConfigData) t
 		
 		// Format the response
 		result := map[string]interface{}{
+			"cluster_name": clusterName,
+			"resource_group": rg,
+			"workspace_id": workspaceID,
 			"query":     query,
 			"timespan":  fmt.Sprintf("%s to %s", timeRange.Start.Format(time.RFC3339), timeRange.End.Format(time.RFC3339)),
 			"tables":    response.Tables,
@@ -175,13 +184,8 @@ func GetPrometheusMetricsHandler(client *azure.AzureClient, cfg *config.ConfigDa
 // GetApplicationInsightsHandler returns a handler for the query_application_insights command
 func GetApplicationInsightsHandler(client *azure.AzureClient, cfg *config.ConfigData) tools.ResourceHandler {
 	return tools.ResourceHandlerFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
-		// Extract parameters
-		subID, err := extractStringParam(params, "subscription_id")
-		if err != nil {
-			return "", err
-		}
-		
-		resourceGroup, err := extractStringParam(params, "resource_group")
+		// Extract AKS cluster parameters
+		subID, rg, clusterName, err := ExtractAKSParameters(params)
 		if err != nil {
 			return "", err
 		}
@@ -214,9 +218,15 @@ func GetApplicationInsightsHandler(client *azure.AzureClient, cfg *config.Config
 			return "", fmt.Errorf("failed to get clients: %v", err)
 		}
 		
-		// Get Application Insights component to get the app ID
+		// Get the cluster details to provide context (optional validation)
 		ctx := context.Background()
-		component, err := clients.ApplicationInsightsClient.Get(ctx, resourceGroup, appInsightsName, nil)
+		_, err = GetClusterDetails(ctx, client, subID, rg, clusterName)
+		if err != nil {
+			return "", fmt.Errorf("failed to get AKS cluster details: %v", err)
+		}
+
+		// Get Application Insights component to get the app ID
+		component, err := clients.ApplicationInsightsClient.Get(ctx, rg, appInsightsName, nil)
 		if err != nil {
 			return "", fmt.Errorf("failed to get Application Insights component: %v", err)
 		}
@@ -242,6 +252,8 @@ func GetApplicationInsightsHandler(client *azure.AzureClient, cfg *config.Config
 		
 		// Format the response
 		result := map[string]interface{}{
+			"cluster_name":      clusterName,
+			"resource_group":    rg,
 			"app_insights_name": appInsightsName,
 			"app_id":           appID,
 			"query":            query,

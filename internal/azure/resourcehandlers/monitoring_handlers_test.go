@@ -164,6 +164,8 @@ func TestLogAnalyticsParameters(t *testing.T) {
 			name: "valid parameters",
 			params: map[string]interface{}{
 				"subscription_id": "sub-123",
+				"resource_group":  "rg-test",
+				"cluster_name":    "cluster-test",
 				"workspace_id":    "workspace-456",
 				"kql_query":       "ContainerLog | limit 10",
 				"time_range":      "1h",
@@ -173,8 +175,30 @@ func TestLogAnalyticsParameters(t *testing.T) {
 		{
 			name: "missing subscription_id",
 			params: map[string]interface{}{
-				"workspace_id": "workspace-456",
-				"kql_query":    "ContainerLog | limit 10",
+				"resource_group": "rg-test",
+				"cluster_name":   "cluster-test",
+				"workspace_id":   "workspace-456",
+				"kql_query":      "ContainerLog | limit 10",
+			},
+			expectError: true,
+		},
+		{
+			name: "missing resource_group",
+			params: map[string]interface{}{
+				"subscription_id": "sub-123",
+				"cluster_name":    "cluster-test",
+				"workspace_id":    "workspace-456",
+				"kql_query":       "ContainerLog | limit 10",
+			},
+			expectError: true,
+		},
+		{
+			name: "missing cluster_name",
+			params: map[string]interface{}{
+				"subscription_id": "sub-123",
+				"resource_group":  "rg-test",
+				"workspace_id":    "workspace-456",
+				"kql_query":       "ContainerLog | limit 10",
 			},
 			expectError: true,
 		},
@@ -182,6 +206,8 @@ func TestLogAnalyticsParameters(t *testing.T) {
 			name: "missing workspace_id",
 			params: map[string]interface{}{
 				"subscription_id": "sub-123",
+				"resource_group":  "rg-test",
+				"cluster_name":    "cluster-test",
 				"kql_query":       "ContainerLog | limit 10",
 			},
 			expectError: true,
@@ -190,6 +216,8 @@ func TestLogAnalyticsParameters(t *testing.T) {
 			name: "missing kql_query",
 			params: map[string]interface{}{
 				"subscription_id": "sub-123",
+				"resource_group":  "rg-test",
+				"cluster_name":    "cluster-test",
 				"workspace_id":    "workspace-456",
 			},
 			expectError: true,
@@ -198,6 +226,8 @@ func TestLogAnalyticsParameters(t *testing.T) {
 			name: "optional time_range",
 			params: map[string]interface{}{
 				"subscription_id": "sub-123",
+				"resource_group":  "rg-test",
+				"cluster_name":    "cluster-test",
 				"workspace_id":    "workspace-456",
 				"kql_query":       "ContainerLog | limit 10",
 			},
@@ -207,17 +237,20 @@ func TestLogAnalyticsParameters(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Test subscription_id extraction
-			_, err := extractStringParam(tt.params, "subscription_id")
-			if tt.expectError && (tt.name == "missing subscription_id") {
-				if err == nil {
-					t.Errorf("Expected error for missing subscription_id but got none")
+			// Test required AKS parameters
+			requiredAKSParams := []string{"subscription_id", "resource_group", "cluster_name"}
+			for _, param := range requiredAKSParams {
+				_, err := extractStringParam(tt.params, param)
+				if tt.expectError && (tt.name == "missing "+param) {
+					if err == nil {
+						t.Errorf("Expected error for missing %s but got none", param)
+					}
+					return
 				}
-				return
 			}
 
 			// Test workspace_id extraction
-			_, err = extractStringParam(tt.params, "workspace_id")
+			_, err := extractStringParam(tt.params, "workspace_id")
 			if tt.expectError && (tt.name == "missing workspace_id") {
 				if err == nil {
 					t.Errorf("Expected error for missing workspace_id but got none")
@@ -333,6 +366,7 @@ func TestApplicationInsightsParameters(t *testing.T) {
 			params: map[string]interface{}{
 				"subscription_id":    "sub-123",
 				"resource_group":     "rg-test",
+				"cluster_name":       "cluster-test",
 				"app_insights_name":  "appinsights-test",
 				"kql_query":          "requests | limit 10",
 				"time_range":         "24h",
@@ -340,10 +374,21 @@ func TestApplicationInsightsParameters(t *testing.T) {
 			expectError: false,
 		},
 		{
+			name: "missing cluster_name",
+			params: map[string]interface{}{
+				"subscription_id":   "sub-123",
+				"resource_group":    "rg-test",
+				"app_insights_name": "appinsights-test",
+				"kql_query":         "requests | limit 10",
+			},
+			expectError: true,
+		},
+		{
 			name: "missing app_insights_name",
 			params: map[string]interface{}{
 				"subscription_id": "sub-123",
 				"resource_group":  "rg-test",
+				"cluster_name":    "cluster-test",
 				"kql_query":       "requests | limit 10",
 			},
 			expectError: true,
@@ -353,6 +398,7 @@ func TestApplicationInsightsParameters(t *testing.T) {
 			params: map[string]interface{}{
 				"subscription_id":   "sub-123",
 				"resource_group":    "rg-test",
+				"cluster_name":      "cluster-test",
 				"app_insights_name": "appinsights-test",
 				"kql_query":         "requests | limit 10",
 			},
@@ -363,7 +409,7 @@ func TestApplicationInsightsParameters(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Test required parameters
-			requiredParams := []string{"subscription_id", "resource_group", "app_insights_name", "kql_query"}
+			requiredParams := []string{"subscription_id", "resource_group", "cluster_name", "app_insights_name", "kql_query"}
 			for _, param := range requiredParams {
 				_, err := extractStringParam(tt.params, param)
 				if tt.expectError && (tt.name == "missing "+param) {
