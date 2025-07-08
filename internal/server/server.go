@@ -178,6 +178,14 @@ func (s *Service) registerDiagnosticTools(azClient *azure.AzureClient) {
 	invokeDetectorTool := resourcehandlers.RegisterInvokeAppLensDetectorTool()
 	s.mcpServer.AddTool(invokeDetectorTool, tools.CreateResourceHandler(resourcehandlers.InvokeAppLensDetectorHandler(azClient, s.cfg), s.cfg))
 
-	// TODO: Register Resource Health tools in Phase 2
+	// Register Resource Health tools
+	log.Println("Registering diagnostic tool: get_resource_health_status")
+	healthStatusTool := resourcehandlers.RegisterGetResourceHealthStatusTool()
+	s.mcpServer.AddTool(healthStatusTool, tools.CreateResourceHandler(resourcehandlers.GetResourceHealthStatusHandler(azClient, s.cfg), s.cfg))
+
+	log.Println("Registering diagnostic tool: get_resource_health_events")
+	healthEventsTool := resourcehandlers.RegisterGetResourceHealthEventsTool()
+	s.mcpServer.AddTool(healthEventsTool, tools.CreateResourceHandler(resourcehandlers.GetResourceHealthEventsHandler(azClient, s.cfg), s.cfg))
+
 	// TODO: Register Azure Advisor tools in Phase 3
 }

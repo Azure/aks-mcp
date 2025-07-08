@@ -5,9 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/Azure/aks-mcp/internal/azure"
 	"github.com/Azure/aks-mcp/internal/azure/applens"
+	"github.com/Azure/aks-mcp/internal/azure/resourcehealth"
 	"github.com/Azure/aks-mcp/internal/azure/resourcehelpers"
 	"github.com/Azure/aks-mcp/internal/config"
 	"github.com/Azure/aks-mcp/internal/tools"
@@ -404,6 +406,147 @@ func InvokeAppLensDetectorHandler(client *azure.AzureClient, cfg *config.ConfigD
 		result, err := detectorManager.InvokeDetector(ctx, clusterResourceID, detectorName, timeRange)
 		if err != nil {
 			return "", fmt.Errorf("failed to invoke AppLens detector: %v", err)
+		}
+
+		return result, nil
+	})
+}
+
+// =============================================================================
+// Resource Health Handlers
+// =============================================================================
+
+// GetResourceHealthStatusHandler returns a handler for the get_resource_health_status command
+func GetResourceHealthStatusHandler(client *azure.AzureClient, cfg *config.ConfigData) tools.ResourceHandler {
+	return tools.ResourceHandlerFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
+		// Extract resource IDs
+		resourceIDsParam, ok := params["resource_ids"]
+		if !ok {
+			return "", fmt.Errorf("missing resource_ids parameter")
+		}
+
+		// Handle both single string and array of strings
+		var resourceIDs []string
+		switch v := resourceIDsParam.(type) {
+		case string:
+			resourceIDs = []string{v}
+		case []interface{}:
+			for _, id := range v {
+				if strID, ok := id.(string); ok {
+					resourceIDs = append(resourceIDs, strID)
+				} else {
+					return "", fmt.Errorf("invalid resource ID in array: must be string")
+				}
+			}
+		case []string:
+			resourceIDs = v
+		default:
+			return "", fmt.Errorf("invalid resource_ids parameter: must be string or array of strings")
+		}
+
+		// Extract optional include_history parameter
+		includeHistory, _ := params["include_history"].(bool)
+
+		// Validate resource IDs
+		if err := resourcehealth.ValidateResourceIDs(resourceIDs); err != nil {
+			return "", fmt.Errorf("invalid resource IDs: %v", err)
+		}
+
+		// Extract subscription ID from the first resource ID for client management
+		parts := strings.Split(resourceIDs[0], "/")
+		if len(parts) < 3 {
+			return "", fmt.Errorf("invalid resource ID format")
+		}
+		subscriptionID := parts[2]
+
+		// Get clients for the subscription to ensure subscription is accessible
+		_, err := client.GetOrCreateClientsForSubscription(subscriptionID)
+		if err != nil {
+			return "", fmt.Errorf("failed to get Azure clients: %v", err)
+		}
+
+		// Create event manager
+		eventManager, err := resourcehealth.NewEventManager(subscriptionID, client.GetCredential())
+		if err != nil {
+			return "", fmt.Errorf("failed to create event manager: %v", err)
+		}
+
+		// Get resource health status
+		ctx := context.Background()
+		result, err := eventManager.GetResourceHealthStatus(ctx, resourceIDs, includeHistory)
+		if err != nil {
+			return "", fmt.Errorf("failed to get resource health status: %v", err)
+		}
+
+		return result, nil
+	})
+}
+
+// GetResourceHealthEventsHandler returns a handler for the get_resource_health_events command
+func GetResourceHealthEventsHandler(client *azure.AzureClient, cfg *config.ConfigData) tools.ResourceHandler {
+	return tools.ResourceHandlerFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
+		// Extract resource ID
+		resourceID, ok := params["resource_id"].(string)
+		if !ok || resourceID == "" {
+			return "", fmt.Errorf("missing or invalid resource_id parameter")
+		}
+
+		// Extract optional time range parameters
+		startTimeStr, _ := params["start_time"].(string)
+		endTimeStr, _ := params["end_time"].(string)
+
+		// Extract optional health status filter
+		var healthStatusFilter []string
+		if filter, ok := params["health_status_filter"]; ok {
+			switch v := filter.(type) {
+			case string:
+				healthStatusFilter = []string{v}
+			case []interface{}:
+				for _, status := range v {
+					if strStatus, ok := status.(string); ok {
+						healthStatusFilter = append(healthStatusFilter, strStatus)
+					}
+				}
+			case []string:
+				healthStatusFilter = v
+			}
+		}
+
+		// Validate resource ID
+		if err := resourcehealth.ValidateResourceIDs([]string{resourceID}); err != nil {
+			return "", fmt.Errorf("invalid resource ID: %v", err)
+		}
+
+		// Parse time filters
+		startTime, endTime, err := resourcehealth.ParseTimeFilter(startTimeStr, endTimeStr)
+		if err != nil {
+			return "", fmt.Errorf("invalid time filter: %v", err)
+		}
+
+		// Extract subscription ID for client management
+		parts := strings.Split(resourceID, "/")
+		if len(parts) < 3 {
+			return "", fmt.Errorf("invalid resource ID format")
+		}
+		subscriptionID := parts[2]
+
+		// Get clients for the subscription to ensure subscription is accessible
+		_, err = client.GetOrCreateClientsForSubscription(subscriptionID)
+		if err != nil {
+			return "", fmt.Errorf("failed to get Azure clients: %v", err)
+		}
+
+		// Create event manager
+		eventManager, err := resourcehealth.NewEventManager(subscriptionID, client.GetCredential())
+		if err != nil {
+			return "", fmt.Errorf("failed to create event manager: %v", err)
+		}
+
+		// Get resource health events
+		ctx := context.Background()
+		result, err := eventManager.GetResourceHealthEvents(ctx, resourceID, startTime, endTime, healthStatusFilter)
+		if err != nil {
+			return "", fmt.Errorf("failed to get resource health events: %v", err)
 		}
 
 		return result, nil

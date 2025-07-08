@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/Azure/aks-mcp/internal/azure/applens"
+	"github.com/Azure/aks-mcp/internal/azure/resourcehealth"
 	"github.com/Azure/aks-mcp/internal/config"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
@@ -113,6 +114,12 @@ func (c *AzureClient) GetOrCreateClientsForSubscription(subscriptionID string) (
 		return nil, fmt.Errorf("failed to create AppLens client for subscription %s: %v", subscriptionID, err)
 	}
 
+	// Create Resource Health client
+	resourceHealthClient, err := resourcehealth.NewResourceHealthClient(subscriptionID, c.credential)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Resource Health client for subscription %s: %v", subscriptionID, err)
+	}
+
 	// Create and store the clients
 	clients = &SubscriptionClients{
 		SubscriptionID:         subscriptionID,
@@ -123,7 +130,8 @@ func (c *AzureClient) GetOrCreateClientsForSubscription(subscriptionID string) (
 		NSGClient:              nsgClient,
 		LoadBalancerClient:     loadBalancerClient,
 		AppLensClient:          appLensClient,
-		// TODO: Add ResourceHealthClient and AdvisorClient in subsequent phases
+		ResourceHealthClient:   resourceHealthClient,
+		// TODO: Add AdvisorClient in subsequent phase
 	}
 
 	c.clientsMap[subscriptionID] = clients

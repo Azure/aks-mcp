@@ -144,3 +144,45 @@ func RegisterInvokeAppLensDetectorTool() mcp.Tool {
 		),
 	)
 }
+
+// =============================================================================
+// Resource Health Tool Registrations
+// =============================================================================
+
+// RegisterGetResourceHealthStatusTool registers the get_resource_health_status tool
+func RegisterGetResourceHealthStatusTool() mcp.Tool {
+	return mcp.NewTool(
+		"get_resource_health_status",
+		mcp.WithDescription("Access current resource health status for Azure resources"),
+		mcp.WithArray("resource_ids",
+			mcp.Description("Array of Azure resource IDs (supports multiple resources)"),
+			mcp.Items(mcp.WithString("", mcp.Description("Azure resource ID"))),
+			mcp.Required(),
+		),
+		mcp.WithBoolean("include_history",
+			mcp.Description("Boolean to include recent health events"),
+		),
+	)
+}
+
+// RegisterGetResourceHealthEventsTool registers the get_resource_health_events tool
+func RegisterGetResourceHealthEventsTool() mcp.Tool {
+	return mcp.NewTool(
+		"get_resource_health_events",
+		mcp.WithDescription("Retrieve historical resource health events"),
+		mcp.WithString("resource_id",
+			mcp.Description("Azure resource ID"),
+			mcp.Required(),
+		),
+		mcp.WithString("start_time",
+			mcp.Description("Start time for historical query (ISO 8601 format)"),
+		),
+		mcp.WithString("end_time",
+			mcp.Description("End time for historical query (ISO 8601 format)"),
+		),
+		mcp.WithArray("health_status_filter",
+			mcp.Description("Filter by health status types"),
+			mcp.Items(mcp.WithString("", mcp.Description("Health status: Available, Unavailable, Degraded, Unknown"))),
+		),
+	)
+}
