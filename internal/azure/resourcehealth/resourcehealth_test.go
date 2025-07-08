@@ -186,7 +186,7 @@ func TestGenerateMockHealthStatus(t *testing.T) {
 	for _, resourceName := range tests {
 		t.Run(resourceName, func(t *testing.T) {
 			status := generateMockHealthStatus(resourceName)
-			
+
 			// Verify it's one of the valid statuses
 			validStatuses := map[HealthStatus]bool{
 				HealthStatusAvailable:   true,
@@ -194,7 +194,7 @@ func TestGenerateMockHealthStatus(t *testing.T) {
 				HealthStatusDegraded:    true,
 				HealthStatusUnknown:     true,
 			}
-			
+
 			if !validStatuses[status] {
 				t.Errorf("unexpected health status: %s", status)
 			}
@@ -381,18 +381,18 @@ func TestGetResourceHealthEvents(t *testing.T) {
 func TestGenerateHealthSummary(t *testing.T) {
 	statuses := []ResourceHealthStatus{
 		{
-			ResourceName: "aks-test",
-			Status:       HealthStatusAvailable,
+			ResourceName:  "aks-test",
+			Status:        HealthStatusAvailable,
 			StatusSummary: "All good",
 		},
 		{
-			ResourceName: "vm-test",
-			Status:       HealthStatusDegraded,
+			ResourceName:  "vm-test",
+			Status:        HealthStatusDegraded,
 			StatusSummary: "Performance issues",
 		},
 		{
-			ResourceName: "storage-test",
-			Status:       HealthStatusUnavailable,
+			ResourceName:  "storage-test",
+			Status:        HealthStatusUnavailable,
 			StatusSummary: "Service outage",
 		},
 	}
@@ -427,9 +427,9 @@ func TestGenerateHealthSummary(t *testing.T) {
 func TestFilterRecentEvents(t *testing.T) {
 	now := time.Now()
 	events := []ResourceHealthEvent{
-		{ID: "event1", StartTime: now.Add(-1 * time.Hour)},    // Recent
+		{ID: "event1", StartTime: now.Add(-1 * time.Hour)},       // Recent
 		{ID: "event2", StartTime: now.Add(-10 * 24 * time.Hour)}, // Old
-		{ID: "event3", StartTime: now.Add(-30 * time.Minute)}, // Recent
+		{ID: "event3", StartTime: now.Add(-30 * time.Minute)},    // Recent
 	}
 
 	recent := filterRecentEvents(events, 2*time.Hour)
@@ -459,9 +459,9 @@ func TestFilterActiveEvents(t *testing.T) {
 	futureTime := now.Add(1 * time.Hour)
 
 	events := []ResourceHealthEvent{
-		{ID: "event1", EndTime: nil},             // Active (no end time)
-		{ID: "event2", EndTime: &pastTime},      // Resolved
-		{ID: "event3", EndTime: &futureTime},    // Active (future end time)
+		{ID: "event1", EndTime: nil},         // Active (no end time)
+		{ID: "event2", EndTime: &pastTime},   // Resolved
+		{ID: "event3", EndTime: &futureTime}, // Active (future end time)
 	}
 
 	active := filterActiveEvents(events)

@@ -59,12 +59,12 @@ func (c *ResourceHealthClient) GetResourceHealthStatus(ctx context.Context, reso
 func (c *ResourceHealthClient) getResourceHealthStatusSingle(ctx context.Context, resourceID string, includeHistory bool) (*ResourceHealthStatus, error) {
 	// For now, return mock data
 	// In a real implementation, this would call the Azure Resource Health API
-	
+
 	// Extract resource name from ID
 	parts := strings.Split(resourceID, "/")
 	resourceName := "unknown"
 	resourceType := "unknown"
-	
+
 	if len(parts) >= 9 {
 		resourceType = fmt.Sprintf("%s/%s", parts[6], parts[7])
 		resourceName = parts[8]
@@ -148,7 +148,7 @@ func generateMockHealthStatus(resourceName string) HealthStatus {
 // generateMockStatusSummary creates a mock status summary
 func generateMockStatusSummary(resourceName string) string {
 	status := generateMockHealthStatus(resourceName)
-	
+
 	switch status {
 	case HealthStatusAvailable:
 		return "Resource is available and operating normally"
@@ -212,17 +212,17 @@ func generateMockHealthEvents(resourceID string, startTime, endTime time.Time) [
 
 	// Generate 3-7 mock events
 	eventCount := 3 + (len(resourceID) % 5)
-	
+
 	for i := 0; i < eventCount; i++ {
 		eventTime := startTime.Add(time.Duration(i*24/eventCount) * time.Hour * 24)
-		
+
 		if eventTime.After(endTime) {
 			break
 		}
 
 		eventType := generateMockEventType(i)
 		eventEndTime := eventTime.Add(time.Duration(2+i%6) * time.Hour)
-		
+
 		event := ResourceHealthEvent{
 			ID:          fmt.Sprintf("event-%d-%d", time.Now().Unix(), i),
 			ResourceID:  resourceID,

@@ -370,7 +370,7 @@ func InvokeAppLensDetectorHandler(client *azure.AzureClient, cfg *config.ConfigD
 
 		// Extract detector name (optional - if not provided, list detectors)
 		detectorName, _ := params["detector_name"].(string)
-		
+
 		// Extract optional time range
 		timeRange, _ := params["time_range"].(string)
 

@@ -54,7 +54,7 @@ func TestValidateClusterResourceID(t *testing.T) {
 
 func TestExtractClusterInfo(t *testing.T) {
 	resourceID := "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/rg-test/providers/Microsoft.ContainerService/managedClusters/aks-test"
-	
+
 	subscriptionID, resourceGroup, clusterName, err := ExtractClusterInfo(resourceID)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -149,7 +149,7 @@ func TestNewDetectorManager(t *testing.T) {
 func TestListDetectors(t *testing.T) {
 	// Skip this test in CI environment since it requires real Azure credentials
 	t.Skip("Skipping integration test - requires Azure credentials")
-	
+
 	// Create a detector manager
 	manager, err := NewDetectorManager("12345678-1234-1234-1234-123456789012", nil)
 	if err != nil {
@@ -157,7 +157,7 @@ func TestListDetectors(t *testing.T) {
 	}
 
 	clusterResourceID := "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/rg-test/providers/Microsoft.ContainerService/managedClusters/aks-test"
-	
+
 	// Test listing all detectors
 	result, err := manager.ListDetectors(context.Background(), clusterResourceID, "")
 	if err != nil {
@@ -168,13 +168,13 @@ func TestListDetectors(t *testing.T) {
 	}
 }
 
-// TestInvokeDetector tests the detector invocation functionality  
+// TestInvokeDetector tests the detector invocation functionality
 // Note: This test will fail in CI/local without proper Azure credentials
 // In a real implementation, you'd mock the HTTP client or use integration test environment
 func TestInvokeDetector(t *testing.T) {
 	// Skip this test in CI environment since it requires real Azure credentials
 	t.Skip("Skipping integration test - requires Azure credentials")
-	
+
 	// Create a detector manager
 	manager, err := NewDetectorManager("12345678-1234-1234-1234-123456789012", nil)
 	if err != nil {
@@ -182,7 +182,7 @@ func TestInvokeDetector(t *testing.T) {
 	}
 
 	clusterResourceID := "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/rg-test/providers/Microsoft.ContainerService/managedClusters/aks-test"
-	
+
 	// Test invoking a specific detector
 	result, err := manager.InvokeDetector(context.Background(), clusterResourceID, "cluster-health", "24h")
 	if err != nil {

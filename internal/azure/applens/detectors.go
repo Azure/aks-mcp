@@ -35,10 +35,10 @@ func (dm *DetectorManager) ListDetectors(ctx context.Context, clusterResourceID 
 
 	result := map[string]interface{}{
 		"clusterResourceId":  clusterResourceID,
-		"category":          category,
-		"detectorCount":     len(detectors),
+		"category":           category,
+		"detectorCount":      len(detectors),
 		"availableDetectors": detectors,
-		"timestamp":         time.Now().UTC().Format(time.RFC3339),
+		"timestamp":          time.Now().UTC().Format(time.RFC3339),
 	}
 
 	resultJSON, err := json.MarshalIndent(result, "", "  ")
@@ -75,8 +75,8 @@ func (dm *DetectorManager) InvokeDetector(ctx context.Context, clusterResourceID
 // formatDetectorResponse formats the detector response for better readability
 func formatDetectorResponse(response *DetectorResponse) map[string]interface{} {
 	result := map[string]interface{}{
-		"detectorId":     response.ID,
-		"detectorName":   response.Name,
+		"detectorId":   response.ID,
+		"detectorName": response.Name,
 		"executionTime": map[string]interface{}{
 			"startTime": response.StartTime.Format(time.RFC3339),
 			"endTime":   response.EndTime.Format(time.RFC3339),
@@ -90,7 +90,7 @@ func formatDetectorResponse(response *DetectorResponse) map[string]interface{} {
 	if len(response.Insights) > 0 {
 		insights := make(map[string]interface{})
 		insights["count"] = len(response.Insights)
-		
+
 		// Categorize insights by severity
 		severityCounts := make(map[string]int)
 		var criticalIssues []string
@@ -99,7 +99,7 @@ func formatDetectorResponse(response *DetectorResponse) map[string]interface{} {
 
 		for _, insight := range response.Insights {
 			severityCounts[insight.Level]++
-			
+
 			switch insight.Level {
 			case "high":
 				criticalIssues = append(criticalIssues, insight.Message)
@@ -128,7 +128,7 @@ func formatDetectorResponse(response *DetectorResponse) map[string]interface{} {
 	if len(response.Data) > 0 {
 		dataSummary := make(map[string]interface{})
 		dataSummary["datasetCount"] = len(response.Data)
-		
+
 		var tables []map[string]interface{}
 		for _, data := range response.Data {
 			if data.Table.TableName != "" {
@@ -138,7 +138,7 @@ func formatDetectorResponse(response *DetectorResponse) map[string]interface{} {
 					"rowCount":    len(data.Table.Rows),
 					"columns":     extractColumnNames(data.Table.Columns),
 				}
-				
+
 				// Add sample data if available
 				if len(data.Table.Rows) > 0 && len(data.Table.Rows) <= 5 {
 					tableInfo["sampleData"] = data.Table.Rows
@@ -146,15 +146,15 @@ func formatDetectorResponse(response *DetectorResponse) map[string]interface{} {
 					tableInfo["sampleData"] = data.Table.Rows[:5]
 					tableInfo["note"] = fmt.Sprintf("Showing first 5 rows of %d total rows", len(data.Table.Rows))
 				}
-				
+
 				tables = append(tables, tableInfo)
 			}
 		}
-		
+
 		if len(tables) > 0 {
 			dataSummary["tables"] = tables
 		}
-		
+
 		result["dataSummary"] = dataSummary
 	}
 

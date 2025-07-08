@@ -88,11 +88,11 @@ func (rm *RecommendationManager) GetRecommendationDetails(ctx context.Context, r
 // formatRecommendationsResponse formats the recommendations response for better readability
 func formatRecommendationsResponse(subscriptionID, resourceGroup string, recommendations []AdvisorRecommendation, filter *RecommendationFilter) map[string]interface{} {
 	result := map[string]interface{}{
-		"subscriptionId":       subscriptionID,
-		"resourceGroup":        resourceGroup,
-		"requestTime":          time.Now().UTC().Format(time.RFC3339),
-		"recommendationCount":  len(recommendations),
-		"recommendations":      recommendations,
+		"subscriptionId":      subscriptionID,
+		"resourceGroup":       resourceGroup,
+		"requestTime":         time.Now().UTC().Format(time.RFC3339),
+		"recommendationCount": len(recommendations),
+		"recommendations":     recommendations,
 	}
 
 	if filter != nil {
@@ -118,8 +118,8 @@ func formatRecommendationsResponse(subscriptionID, resourceGroup string, recomme
 		if len(costRecommendations) > 0 {
 			totalSavings := calculateTotalSavings(costRecommendations)
 			result["costOptimization"] = map[string]interface{}{
-				"count":                len(costRecommendations),
-				"recommendations":      costRecommendations,
+				"count":                 len(costRecommendations),
+				"recommendations":       costRecommendations,
 				"estimatedTotalSavings": totalSavings,
 			}
 		}
@@ -140,12 +140,12 @@ func formatRecommendationsResponse(subscriptionID, resourceGroup string, recomme
 // formatRecommendationDetailsResponse formats the recommendation details response
 func formatRecommendationDetailsResponse(details *RecommendationDetails, includeImplementationStatus bool) map[string]interface{} {
 	result := map[string]interface{}{
-		"recommendationId":     details.Recommendation.ID,
-		"requestTime":          time.Now().UTC().Format(time.RFC3339),
+		"recommendationId":            details.Recommendation.ID,
+		"requestTime":                 time.Now().UTC().Format(time.RFC3339),
 		"includeImplementationStatus": includeImplementationStatus,
-		"recommendation":       details.Recommendation,
-		"implementationRisk":   details.ImplementationRisk,
-		"businessImpact":       details.BusinessImpact,
+		"recommendation":              details.Recommendation,
+		"implementationRisk":          details.ImplementationRisk,
+		"businessImpact":              details.BusinessImpact,
 	}
 
 	if len(details.RelatedResources) > 0 {

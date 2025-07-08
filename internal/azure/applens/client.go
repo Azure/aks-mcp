@@ -69,8 +69,8 @@ func (c *AppLensClient) ListDetectors(ctx context.Context, clusterResourceID str
 	// Parse the response
 	var detectorResponse struct {
 		Value []struct {
-			Name       string            `json:"name"`
-			ID         string            `json:"id"`
+			Name       string                 `json:"name"`
+			ID         string                 `json:"id"`
 			Properties map[string]interface{} `json:"properties"`
 		} `json:"value"`
 	}
@@ -164,7 +164,7 @@ func (c *AppLensClient) InvokeDetector(ctx context.Context, clusterResourceID, d
 	// Add time range parameters
 	params.Add("startTime", startTime.Format(time.RFC3339))
 	params.Add("endTime", endTime.Format(time.RFC3339))
-	
+
 	apiURL += "?" + params.Encode()
 
 	// Make the API call
@@ -184,9 +184,9 @@ func (c *AppLensClient) InvokeDetector(ctx context.Context, clusterResourceID, d
 		ID         string `json:"id"`
 		Name       string `json:"name"`
 		Properties struct {
-			Dataset   interface{} `json:"dataset"`
-			Metadata  interface{} `json:"metadata"`
-			Status    string      `json:"status"`
+			Dataset  interface{} `json:"dataset"`
+			Metadata interface{} `json:"metadata"`
+			Status   string      `json:"status"`
 		} `json:"properties"`
 	}
 
@@ -230,7 +230,7 @@ func (c *AppLensClient) makeAuthenticatedRequest(ctx context.Context, method, ur
 	tokenRequestOptions := policy.TokenRequestOptions{
 		Scopes: []string{"https://management.azure.com/.default"},
 	}
-	
+
 	token, err := c.credential.GetToken(ctx, tokenRequestOptions)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get access token: %w", err)
@@ -288,9 +288,9 @@ func extractInsightsFromResponse(apiResponse *struct {
 	ID         string `json:"id"`
 	Name       string `json:"name"`
 	Properties struct {
-		Dataset   interface{} `json:"dataset"`
-		Metadata  interface{} `json:"metadata"`
-		Status    string      `json:"status"`
+		Dataset  interface{} `json:"dataset"`
+		Metadata interface{} `json:"metadata"`
+		Status   string      `json:"status"`
 	} `json:"properties"`
 }) []DetectorInsight {
 	insights := []DetectorInsight{}
@@ -298,18 +298,18 @@ func extractInsightsFromResponse(apiResponse *struct {
 	// Extract insights based on status
 	if apiResponse.Properties.Status == "failed" {
 		insights = append(insights, DetectorInsight{
-			Message:  "Detector execution failed",
-			Status:   "error",
-			Level:    "high",
+			Message: "Detector execution failed",
+			Status:  "error",
+			Level:   "high",
 			Metadata: map[string]interface{}{
 				"detector": apiResponse.Name,
 			},
 		})
 	} else if apiResponse.Properties.Status == "completed" {
 		insights = append(insights, DetectorInsight{
-			Message:  "Detector execution completed successfully",
-			Status:   "info",
-			Level:    "low",
+			Message: "Detector execution completed successfully",
+			Status:  "info",
+			Level:   "low",
 			Metadata: map[string]interface{}{
 				"detector": apiResponse.Name,
 			},

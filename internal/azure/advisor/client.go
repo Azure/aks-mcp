@@ -2,12 +2,16 @@ package advisor
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 )
 
@@ -35,14 +39,84 @@ func NewAdvisorClient(subscriptionID string, credential *azidentity.DefaultAzure
 
 // GetRecommendations retrieves Azure Advisor recommendations based on the provided filter
 func (c *AdvisorClient) GetRecommendations(ctx context.Context, filter *RecommendationFilter) ([]AdvisorRecommendation, error) {
-	// For now, return mock data
-	// In a real implementation, this would call the Azure Advisor API
-	
-	recommendations := generateMockRecommendations(c.subscriptionID, filter)
-	
-	// Apply filters if provided
+	// Build the API URL for Azure Advisor recommendations
+	apiURL := fmt.Sprintf("%s/subscriptions/%s/providers/Microsoft.Advisor/recommendations", c.baseURL, c.subscriptionID)
+
+	// Add query parameters
+	params := url.Values{}
+	params.Add("api-version", "2023-01-01")
+
+	// Add filter for AKS resources to match the comment requirement
+	filterQuery := "resourceType eq 'Microsoft.ContainerService/managedClusters'"
+
+	// Add additional filters if provided
 	if filter != nil {
-		recommendations = applyRecommendationFilters(recommendations, filter)
+		if len(filter.Category) > 0 {
+			categoryFilters := make([]string, len(filter.Category))
+			for i, cat := range filter.Category {
+				categoryFilters[i] = fmt.Sprintf("category eq '%s'", string(cat))
+			}
+			filterQuery += " and (" + strings.Join(categoryFilters, " or ") + ")"
+		}
+
+		if filter.ResourceGroup != "" {
+			filterQuery += fmt.Sprintf(" and resourceGroup eq '%s'", filter.ResourceGroup)
+		}
+	}
+
+	params.Add("$filter", filterQuery)
+	apiURL += "?" + params.Encode()
+
+	// Make the API call
+	resp, err := c.makeAuthenticatedRequest(ctx, "GET", apiURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to call Azure Advisor API: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("Azure Advisor API returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	// Parse the response
+	var advisorResponse struct {
+		Value []struct {
+			ID         string `json:"id"`
+			Name       string `json:"name"`
+			Type       string `json:"type"`
+			Properties struct {
+				Category         string `json:"category"`
+				Impact           string `json:"impact"`
+				ShortDescription struct {
+					Problem  string `json:"problem"`
+					Solution string `json:"solution"`
+				} `json:"shortDescription"`
+				ExtendedProperties map[string]interface{} `json:"extendedProperties"`
+				ResourceMetadata   struct {
+					ResourceID string `json:"resourceId"`
+					Source     string `json:"source"`
+				} `json:"resourceMetadata"`
+				LastUpdated string `json:"lastUpdated"`
+			} `json:"properties"`
+		} `json:"value"`
+	}
+
+	decoder := json.NewDecoder(resp.Body)
+	if err := decoder.Decode(&advisorResponse); err != nil {
+		return nil, fmt.Errorf("failed to parse advisor response: %w", err)
+	}
+
+	// Convert API response to our format
+	var recommendations []AdvisorRecommendation
+	for _, item := range advisorResponse.Value {
+		rec := convertAPIResponseToRecommendation(item, c.subscriptionID)
+		recommendations = append(recommendations, rec)
+	}
+
+	// Apply additional filters that aren't supported by the API
+	if filter != nil {
+		recommendations = applyClientSideFilters(recommendations, filter)
 	}
 
 	return recommendations, nil
@@ -54,427 +128,357 @@ func (c *AdvisorClient) GetRecommendationDetails(ctx context.Context, recommenda
 		return nil, fmt.Errorf("recommendation ID cannot be empty")
 	}
 
-	// Generate mock detailed recommendation
-	// In a real implementation, this would call the Azure Advisor API
-	
-	details := generateMockRecommendationDetails(recommendationID, includeImplementationStatus)
+	// Build the API URL for the specific recommendation
+	apiURL := fmt.Sprintf("%s%s", c.baseURL, recommendationID)
+
+	// Add query parameters
+	params := url.Values{}
+	params.Add("api-version", "2023-01-01")
+	apiURL += "?" + params.Encode()
+
+	// Make the API call
+	resp, err := c.makeAuthenticatedRequest(ctx, "GET", apiURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to call Azure Advisor API for recommendation details: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("Azure Advisor API returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	// Parse the response
+	var detailResponse struct {
+		ID         string `json:"id"`
+		Name       string `json:"name"`
+		Type       string `json:"type"`
+		Properties struct {
+			Category         string `json:"category"`
+			Impact           string `json:"impact"`
+			ShortDescription struct {
+				Problem  string `json:"problem"`
+				Solution string `json:"solution"`
+			} `json:"shortDescription"`
+			ExtendedProperties map[string]interface{} `json:"extendedProperties"`
+			ResourceMetadata   struct {
+				ResourceID string `json:"resourceId"`
+				Source     string `json:"source"`
+			} `json:"resourceMetadata"`
+			LastUpdated string `json:"lastUpdated"`
+		} `json:"properties"`
+	}
+
+	decoder := json.NewDecoder(resp.Body)
+	if err := decoder.Decode(&detailResponse); err != nil {
+		return nil, fmt.Errorf("failed to parse recommendation details response: %w", err)
+	}
+
+	// Convert API response to our format
+	recommendation := convertAPIResponseToRecommendation(detailResponse, c.subscriptionID)
+
+	// Create detailed response with enhanced information
+	details := &RecommendationDetails{
+		Recommendation:     recommendation,
+		RelatedResources:   extractRelatedResources(detailResponse.Properties.ExtendedProperties),
+		ImplementationRisk: generateImplementationRisk(recommendation.Category),
+		BusinessImpact:     generateBusinessImpact(recommendation.Category),
+		TechnicalDetails: map[string]interface{}{
+			"source":        detailResponse.Properties.ResourceMetadata.Source,
+			"extendedProps": detailResponse.Properties.ExtendedProperties,
+			"lastAnalysis":  detailResponse.Properties.LastUpdated,
+		},
+		SimilarRecommendations: []string{}, // Would need additional API calls to populate
+	}
+
 	return details, nil
 }
 
-// generateMockRecommendations creates mock Azure Advisor recommendations
-func generateMockRecommendations(subscriptionID string, filter *RecommendationFilter) []AdvisorRecommendation {
-	baseRecommendations := []AdvisorRecommendation{
-		{
-			ID:             fmt.Sprintf("/subscriptions/%s/recommendations/cost-sku-optimization", subscriptionID),
-			Name:           "cost-sku-optimization",
-			Type:           "Microsoft.Advisor/recommendations",
-			Category:       RecommendationCategoryCost,
-			Severity:       RecommendationSeverityHigh,
-			Status:         RecommendationStatusActive,
-			Title:          "Right-size underutilized virtual machines",
-			Description:    "Your virtual machine has been identified as under-utilized based on CPU usage",
-			Problem:        "VM is running with low CPU utilization (less than 5% average over 14 days)",
-			Solution:       "Consider resizing to a smaller SKU or shutting down if not needed",
-			EstimatedImpact: "High cost savings potential",
-			EstimatedSavings: &EstimatedSavings{
-				Currency:        "USD",
-				Amount:          150.50,
-				Unit:            "Monthly",
-				ConfidenceLevel: "High",
-			},
-			ResourceID:     fmt.Sprintf("/subscriptions/%s/resourceGroups/rg-aks/providers/Microsoft.Compute/virtualMachines/aks-vm-1", subscriptionID),
-			ResourceName:   "aks-vm-1",
-			ResourceType:   "Microsoft.Compute/virtualMachines",
-			ResourceGroup:  "rg-aks",
-			SubscriptionID: subscriptionID,
-			LastUpdated:    time.Now().Add(-2 * time.Hour),
-		},
-		{
-			ID:             fmt.Sprintf("/subscriptions/%s/recommendations/security-nsg-rules", subscriptionID),
-			Name:           "security-nsg-rules",
-			Type:           "Microsoft.Advisor/recommendations",
-			Category:       RecommendationCategorySecurity,
-			Severity:       RecommendationSeverityHigh,
-			Status:         RecommendationStatusActive,
-			Title:          "Restrict access through Internet-facing endpoints",
-			Description:    "Network Security Group rules allow unrestricted access from the internet",
-			Problem:        "NSG rules permit broad internet access (0.0.0.0/0) on sensitive ports",
-			Solution:       "Restrict source IP ranges to only required addresses and implement least privilege access",
-			EstimatedImpact: "High security risk reduction",
-			ResourceID:     fmt.Sprintf("/subscriptions/%s/resourceGroups/rg-aks/providers/Microsoft.Network/networkSecurityGroups/aks-nsg", subscriptionID),
-			ResourceName:   "aks-nsg",
-			ResourceType:   "Microsoft.Network/networkSecurityGroups",
-			ResourceGroup:  "rg-aks",
-			SubscriptionID: subscriptionID,
-			LastUpdated:    time.Now().Add(-1 * time.Hour),
-		},
-		{
-			ID:             fmt.Sprintf("/subscriptions/%s/recommendations/performance-aks-scaling", subscriptionID),
-			Name:           "performance-aks-scaling",
-			Type:           "Microsoft.Advisor/recommendations",
-			Category:       RecommendationCategoryPerformance,
-			Severity:       RecommendationSeverityMedium,
-			Status:         RecommendationStatusActive,
-			Title:          "Enable cluster autoscaler for AKS nodes",
-			Description:    "AKS cluster could benefit from automatic scaling capabilities",
-			Problem:        "Manual scaling may lead to resource waste or performance issues during load spikes",
-			Solution:       "Configure cluster autoscaler to automatically adjust node count based on demand",
-			EstimatedImpact: "Improved performance and cost optimization",
-			ResourceID:     fmt.Sprintf("/subscriptions/%s/resourceGroups/rg-aks/providers/Microsoft.ContainerService/managedClusters/aks-cluster", subscriptionID),
-			ResourceName:   "aks-cluster",
-			ResourceType:   "Microsoft.ContainerService/managedClusters",
-			ResourceGroup:  "rg-aks",
-			SubscriptionID: subscriptionID,
-			LastUpdated:    time.Now().Add(-3 * time.Hour),
-		},
-		{
-			ID:             fmt.Sprintf("/subscriptions/%s/recommendations/reliability-backup", subscriptionID),
-			Name:           "reliability-backup",
-			Type:           "Microsoft.Advisor/recommendations",
-			Category:       RecommendationCategoryReliability,
-			Severity:       RecommendationSeverityMedium,
-			Status:         RecommendationStatusActive,
-			Title:          "Configure backup for persistent volumes",
-			Description:    "Persistent volumes in AKS cluster lack backup configuration",
-			Problem:        "No backup strategy configured for critical data stored in persistent volumes",
-			Solution:       "Implement Azure Backup for persistent volumes or configure volume snapshots",
-			EstimatedImpact: "Improved data protection and disaster recovery capability",
-			ResourceID:     fmt.Sprintf("/subscriptions/%s/resourceGroups/rg-aks/providers/Microsoft.ContainerService/managedClusters/aks-cluster", subscriptionID),
-			ResourceName:   "aks-cluster",
-			ResourceType:   "Microsoft.ContainerService/managedClusters",
-			ResourceGroup:  "rg-aks",
-			SubscriptionID: subscriptionID,
-			LastUpdated:    time.Now().Add(-4 * time.Hour),
-		},
-		{
-			ID:             fmt.Sprintf("/subscriptions/%s/recommendations/operational-monitoring", subscriptionID),
-			Name:           "operational-monitoring",
+// makeAuthenticatedRequest makes an authenticated HTTP request to Azure Management API
+func (c *AdvisorClient) makeAuthenticatedRequest(ctx context.Context, method, url string, body io.Reader) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, method, url, body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Get access token
+	tokenRequestOptions := policy.TokenRequestOptions{
+		Scopes: []string{"https://management.azure.com/.default"},
+	}
+
+	token, err := c.credential.GetToken(ctx, tokenRequestOptions)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get access token: %w", err)
+	}
+
+	// Add authorization header
+	req.Header.Set("Authorization", "Bearer "+token.Token)
+	req.Header.Set("Content-Type", "application/json")
+
+	// Make the request
+	return c.httpClient.Do(req)
+}
+
+// convertAPIResponseToRecommendation converts Azure Advisor API response to our recommendation format
+func convertAPIResponseToRecommendation(item interface{}, subscriptionID string) AdvisorRecommendation {
+	// Type for API response structure
+	type APIRecommendation struct {
+		ID         string `json:"id"`
+		Name       string `json:"name"`
+		Type       string `json:"type"`
+		Properties struct {
+			Category         string `json:"category"`
+			Impact           string `json:"impact"`
+			ShortDescription struct {
+				Problem  string `json:"problem"`
+				Solution string `json:"solution"`
+			} `json:"shortDescription"`
+			ExtendedProperties map[string]interface{} `json:"extendedProperties"`
+			ResourceMetadata   struct {
+				ResourceID string `json:"resourceId"`
+				Source     string `json:"source"`
+			} `json:"resourceMetadata"`
+			LastUpdated string `json:"lastUpdated"`
+		} `json:"properties"`
+	}
+
+	// Initialize variables with defaults
+	var id, name, typeStr, category, impact, problem, solution, lastUpdated, resourceID string
+	var extendedProps map[string]interface{}
+
+	// Convert the interface{} to our expected type
+	// In practice, this will be the struct from the API response
+	jsonBytes, err := json.Marshal(item)
+	if err != nil {
+		// Return a fallback recommendation if we can't marshal
+		return AdvisorRecommendation{
+			ID:             fmt.Sprintf("/subscriptions/%s/recommendations/unknown", subscriptionID),
+			Name:           "unknown",
 			Type:           "Microsoft.Advisor/recommendations",
 			Category:       RecommendationCategoryOperational,
 			Severity:       RecommendationSeverityLow,
 			Status:         RecommendationStatusActive,
-			Title:          "Enable Container Insights for AKS cluster",
-			Description:    "AKS cluster monitoring could be enhanced with Container Insights",
-			Problem:        "Limited visibility into cluster and workload performance metrics",
-			Solution:       "Enable Azure Monitor Container Insights for comprehensive monitoring",
-			EstimatedImpact: "Improved operational visibility and troubleshooting capabilities",
-			ResourceID:     fmt.Sprintf("/subscriptions/%s/resourceGroups/rg-aks/providers/Microsoft.ContainerService/managedClusters/aks-cluster", subscriptionID),
-			ResourceName:   "aks-cluster",
-			ResourceType:   "Microsoft.ContainerService/managedClusters",
-			ResourceGroup:  "rg-aks",
+			Title:          "Unknown recommendation",
+			Description:    "Could not parse recommendation details",
+			Problem:        "Unable to parse API response",
+			Solution:       "Check API response format",
+			LastUpdated:    time.Now(),
 			SubscriptionID: subscriptionID,
-			LastUpdated:    time.Now().Add(-5 * time.Hour),
-		},
+		}
 	}
 
-	// Add implementation guides to some recommendations
-	baseRecommendations[0].ImplementationGuide = []ImplementationStep{
-		{
-			StepNumber:  1,
-			Title:       "Analyze current usage",
-			Description: "Review CPU and memory utilization over the past 30 days",
-			Action:      "Use Azure Monitor to analyze performance metrics",
-			IsRequired:  true,
-			Effort:      "Low",
-		},
-		{
-			StepNumber:  2,
-			Title:       "Select appropriate SKU",
-			Description: "Choose a smaller VM SKU that meets your workload requirements",
-			Action:      "Use Azure VM Size recommendations tool",
-			IsRequired:  true,
-			Effort:      "Medium",
-		},
-		{
-			StepNumber:  3,
-			Title:       "Schedule downtime",
-			Description: "Plan a maintenance window for VM resizing",
-			Action:      "Coordinate with stakeholders for downtime window",
-			IsRequired:  true,
-			Effort:      "Low",
-		},
-		{
-			StepNumber:  4,
-			Title:       "Resize VM",
-			Description: "Change the VM SKU to the recommended size",
-			Action:      "Use Azure portal or CLI to resize the VM",
-			IsRequired:  true,
-			Effort:      "Medium",
-		},
+	var apiRec APIRecommendation
+	if err := json.Unmarshal(jsonBytes, &apiRec); err != nil {
+		// Return a fallback recommendation if we can't unmarshal
+		return AdvisorRecommendation{
+			ID:             fmt.Sprintf("/subscriptions/%s/recommendations/parse-error", subscriptionID),
+			Name:           "parse-error",
+			Type:           "Microsoft.Advisor/recommendations",
+			Category:       RecommendationCategoryOperational,
+			Severity:       RecommendationSeverityLow,
+			Status:         RecommendationStatusActive,
+			Title:          "Parse error",
+			Description:    "Failed to parse recommendation details",
+			Problem:        "Unable to unmarshal API response",
+			Solution:       "Check API response format",
+			LastUpdated:    time.Now(),
+			SubscriptionID: subscriptionID,
+		}
 	}
 
-	baseRecommendations[1].ImplementationGuide = []ImplementationStep{
-		{
-			StepNumber:  1,
-			Title:       "Audit current NSG rules",
-			Description: "Review all existing Network Security Group rules",
-			Action:      "Document current inbound and outbound rules",
-			IsRequired:  true,
-			Effort:      "Medium",
-		},
-		{
-			StepNumber:  2,
-			Title:       "Identify required access",
-			Description: "Determine legitimate source IP ranges and ports",
-			Action:      "Work with application teams to define access requirements",
-			IsRequired:  true,
-			Effort:      "High",
-		},
-		{
-			StepNumber:  3,
-			Title:       "Update NSG rules",
-			Description: "Modify rules to restrict access to specific IP ranges",
-			Action:      "Update NSG rules using Azure portal or ARM templates",
-			IsRequired:  true,
-			Effort:      "Medium",
-		},
-		{
-			StepNumber:  4,
-			Title:       "Test connectivity",
-			Description: "Verify that legitimate traffic still works after changes",
-			Action:      "Perform connectivity tests from allowed sources",
-			IsRequired:  true,
-			Effort:      "Medium",
-		},
-	}
+	// Extract values from parsed structure
+	id = apiRec.ID
+	name = apiRec.Name
+	typeStr = apiRec.Type
+	category = apiRec.Properties.Category
+	impact = apiRec.Properties.Impact
+	problem = apiRec.Properties.ShortDescription.Problem
+	solution = apiRec.Properties.ShortDescription.Solution
+	lastUpdated = apiRec.Properties.LastUpdated
+	resourceID = apiRec.Properties.ResourceMetadata.ResourceID
+	extendedProps = apiRec.Properties.ExtendedProperties
 
-	return baseRecommendations
-}
-
-// generateMockRecommendationDetails creates mock detailed recommendation information
-func generateMockRecommendationDetails(recommendationID string, includeImplementationStatus bool) *RecommendationDetails {
-	// Extract category from ID for mock purposes
-	var category RecommendationCategory
-	if strings.Contains(recommendationID, "cost") {
-		category = RecommendationCategoryCost
-	} else if strings.Contains(recommendationID, "security") {
-		category = RecommendationCategorySecurity
-	} else if strings.Contains(recommendationID, "performance") {
-		category = RecommendationCategoryPerformance
-	} else if strings.Contains(recommendationID, "reliability") {
-		category = RecommendationCategoryReliability
+	// Parse last updated time
+	var parsedTime time.Time
+	if lastUpdated != "" {
+		if parsed, err := time.Parse(time.RFC3339, lastUpdated); err == nil {
+			parsedTime = parsed
+		} else {
+			parsedTime = time.Now()
+		}
 	} else {
-		category = RecommendationCategoryOperational
+		parsedTime = time.Now()
 	}
 
-	// Create base recommendation
-	recommendation := AdvisorRecommendation{
-		ID:           recommendationID,
-		Name:         extractNameFromID(recommendationID),
-		Type:         "Microsoft.Advisor/recommendations",
-		Category:     category,
-		Severity:     RecommendationSeverityMedium,
-		Status:       RecommendationStatusActive,
-		Title:        generateMockTitle(category),
-		Description:  generateMockDescription(category),
-		Problem:      generateMockProblem(category),
-		Solution:     generateMockSolution(category),
-		LastUpdated:  time.Now().Add(-2 * time.Hour),
+	// Extract resource information
+	resourceName, resourceType, resourceGroup := extractResourceInfo(resourceID)
+
+	// Map impact to severity
+	severity := mapImpactToSeverity(impact)
+
+	// Create the recommendation
+	rec := AdvisorRecommendation{
+		ID:             id,
+		Name:           name,
+		Type:           typeStr,
+		Category:       mapCategoryString(category),
+		Severity:       severity,
+		Status:         RecommendationStatusActive,
+		Title:          generateTitleFromProblem(problem),
+		Description:    problem,
+		Problem:        problem,
+		Solution:       solution,
+		ResourceID:     resourceID,
+		ResourceName:   resourceName,
+		ResourceType:   resourceType,
+		ResourceGroup:  resourceGroup,
+		SubscriptionID: subscriptionID,
+		LastUpdated:    parsedTime,
 	}
 
-	details := &RecommendationDetails{
-		Recommendation: recommendation,
-		RelatedResources: []RelatedResource{
-			{
-				ResourceID:   "/subscriptions/sub1/resourceGroups/rg1/providers/Microsoft.Network/virtualNetworks/vnet1",
-				ResourceName: "vnet1",
-				ResourceType: "Microsoft.Network/virtualNetworks",
-				Relationship: "related",
-			},
-		},
-		ImplementationRisk: ImplementationRisk{
-			Level:      generateMockRiskLevel(category),
-			Factors:    generateMockRiskFactors(category),
-			Mitigation: generateMockRiskMitigation(category),
-			Downtime:   generateMockDowntime(category),
-		},
-		BusinessImpact: BusinessImpact{
-			Performance: generateMockBusinessImpact(category, "performance"),
-			Cost:        generateMockBusinessImpact(category, "cost"),
-			Security:    generateMockBusinessImpact(category, "security"),
-			Reliability: generateMockBusinessImpact(category, "reliability"),
-			Compliance:  generateMockBusinessImpact(category, "compliance"),
-		},
-		TechnicalDetails: map[string]interface{}{
-			"detectionMethod": "Automated analysis",
-			"analysisVersion": "1.2.3",
-			"lastAnalysis":    time.Now().Add(-6 * time.Hour).Format(time.RFC3339),
-		},
-		SimilarRecommendations: []string{
-			fmt.Sprintf("%s-similar-1", recommendationID),
-			fmt.Sprintf("%s-similar-2", recommendationID),
-		},
+	// Add estimated savings if available in extended properties
+	if savings := extractEstimatedSavings(extendedProps); savings != nil {
+		rec.EstimatedSavings = savings
 	}
 
-	return details
+	return rec
 }
 
-// Helper functions for mock data generation
-func extractNameFromID(id string) string {
-	parts := strings.Split(id, "/")
+// extractResourceInfo extracts resource information from resource ID
+func extractResourceInfo(resourceID string) (name, resourceType, resourceGroup string) {
+	if resourceID == "" {
+		return "unknown", "unknown", "unknown"
+	}
+
+	parts := strings.Split(resourceID, "/")
+	if len(parts) < 5 {
+		return "unknown", "unknown", "unknown"
+	}
+
+	// Extract resource group (position 4 in the path)
+	if len(parts) > 4 {
+		resourceGroup = parts[4]
+	}
+
+	// Extract resource type (combine provider and type)
+	if len(parts) > 7 {
+		resourceType = parts[6] + "/" + parts[7]
+	}
+
+	// Extract resource name (last part)
 	if len(parts) > 0 {
-		return parts[len(parts)-1]
+		name = parts[len(parts)-1]
 	}
-	return "unknown-recommendation"
+
+	return name, resourceType, resourceGroup
 }
 
-func generateMockTitle(category RecommendationCategory) string {
-	switch category {
-	case RecommendationCategoryCost:
-		return "Optimize resource costs"
-	case RecommendationCategorySecurity:
-		return "Improve security posture"
-	case RecommendationCategoryPerformance:
-		return "Enhance performance"
-	case RecommendationCategoryReliability:
-		return "Increase reliability"
-	case RecommendationCategoryOperational:
-		return "Improve operational efficiency"
+// mapImpactToSeverity maps Azure Advisor impact to our severity enum
+func mapImpactToSeverity(impact string) RecommendationSeverity {
+	switch strings.ToLower(impact) {
+	case "high":
+		return RecommendationSeverityHigh
+	case "medium":
+		return RecommendationSeverityMedium
+	case "low":
+		return RecommendationSeverityLow
 	default:
-		return "General recommendation"
+		return RecommendationSeverityMedium
 	}
 }
 
-func generateMockDescription(category RecommendationCategory) string {
-	switch category {
-	case RecommendationCategoryCost:
-		return "This recommendation can help reduce your Azure costs"
-	case RecommendationCategorySecurity:
-		return "This recommendation can improve your security posture"
-	case RecommendationCategoryPerformance:
-		return "This recommendation can enhance application performance"
-	case RecommendationCategoryReliability:
-		return "This recommendation can increase system reliability"
-	case RecommendationCategoryOperational:
-		return "This recommendation can improve operational processes"
+// mapCategoryString maps Azure Advisor category to our category enum
+func mapCategoryString(category string) RecommendationCategory {
+	switch strings.ToLower(category) {
+	case "cost":
+		return RecommendationCategoryCost
+	case "security":
+		return RecommendationCategorySecurity
+	case "performance":
+		return RecommendationCategoryPerformance
+	case "reliability":
+		return RecommendationCategoryReliability
+	case "operational":
+		return RecommendationCategoryOperational
 	default:
-		return "This is a general recommendation"
+		return RecommendationCategoryOperational
 	}
 }
 
-func generateMockProblem(category RecommendationCategory) string {
-	switch category {
-	case RecommendationCategoryCost:
-		return "Resources are not optimally sized for current usage patterns"
-	case RecommendationCategorySecurity:
-		return "Security configurations do not follow best practices"
-	case RecommendationCategoryPerformance:
-		return "Performance could be improved with configuration changes"
-	case RecommendationCategoryReliability:
-		return "Current setup lacks proper redundancy and backup"
-	case RecommendationCategoryOperational:
-		return "Monitoring and alerting could be enhanced"
-	default:
-		return "General improvement opportunity identified"
+// generateTitleFromProblem generates a title from the problem description
+func generateTitleFromProblem(problem string) string {
+	if problem == "" {
+		return "Azure Advisor Recommendation"
+	}
+
+	// Truncate if too long and add "..."
+	if len(problem) > 60 {
+		return problem[:57] + "..."
+	}
+
+	return problem
+}
+
+// extractEstimatedSavings extracts estimated savings from extended properties
+func extractEstimatedSavings(extendedProps map[string]interface{}) *EstimatedSavings {
+	if extendedProps == nil {
+		return nil
+	}
+
+	// Look for cost-related properties
+	var amount float64
+	var currency string = "USD"
+	var found bool
+
+	// Common property names for savings in Azure Advisor
+	if savingsValue, ok := extendedProps["savings"]; ok {
+		if amount, ok = savingsValue.(float64); ok {
+			found = true
+		}
+	}
+
+	if monthlySavings, ok := extendedProps["monthlySavings"]; ok {
+		if amount, ok = monthlySavings.(float64); ok {
+			found = true
+		}
+	}
+
+	if annualSavings, ok := extendedProps["annualSavings"]; ok {
+		if annualAmount, ok := annualSavings.(float64); ok {
+			amount = annualAmount / 12 // Convert to monthly
+			found = true
+		}
+	}
+
+	if currencyValue, ok := extendedProps["currency"]; ok {
+		if currStr, ok := currencyValue.(string); ok {
+			currency = currStr
+		}
+	}
+
+	if !found {
+		return nil
+	}
+
+	return &EstimatedSavings{
+		Currency:        currency,
+		Amount:          amount,
+		Unit:            "Monthly",
+		ConfidenceLevel: "Medium",
 	}
 }
 
-func generateMockSolution(category RecommendationCategory) string {
-	switch category {
-	case RecommendationCategoryCost:
-		return "Resize resources to match actual usage patterns"
-	case RecommendationCategorySecurity:
-		return "Apply security best practices and policies"
-	case RecommendationCategoryPerformance:
-		return "Optimize configuration for better performance"
-	case RecommendationCategoryReliability:
-		return "Implement backup and redundancy strategies"
-	case RecommendationCategoryOperational:
-		return "Enable monitoring and configure appropriate alerts"
-	default:
-		return "Apply recommended changes"
-	}
+// extractRelatedResources extracts related resources from extended properties
+func extractRelatedResources(extendedProps map[string]interface{}) []RelatedResource {
+	var resources []RelatedResource
+
+	// This would be implementation-specific based on what's in extended properties
+	// For now, return empty slice as we don't know the exact structure
+	return resources
 }
 
-func generateMockRiskLevel(category RecommendationCategory) string {
-	switch category {
-	case RecommendationCategoryCost:
-		return "Low"
-	case RecommendationCategorySecurity:
-		return "Medium"
-	case RecommendationCategoryPerformance:
-		return "Low"
-	case RecommendationCategoryReliability:
-		return "Medium"
-	case RecommendationCategoryOperational:
-		return "Low"
-	default:
-		return "Low"
-	}
-}
-
-func generateMockRiskFactors(category RecommendationCategory) []string {
-	switch category {
-	case RecommendationCategoryCost:
-		return []string{"Resource downtime during resizing", "Potential performance impact"}
-	case RecommendationCategorySecurity:
-		return []string{"Configuration changes may affect connectivity", "Potential service disruption"}
-	case RecommendationCategoryPerformance:
-		return []string{"Configuration changes may require testing", "Monitoring needed post-change"}
-	case RecommendationCategoryReliability:
-		return []string{"Implementation requires planning", "May involve additional costs"}
-	case RecommendationCategoryOperational:
-		return []string{"Learning curve for new tools", "Configuration time required"}
-	default:
-		return []string{"General implementation considerations"}
-	}
-}
-
-func generateMockRiskMitigation(category RecommendationCategory) []string {
-	switch category {
-	case RecommendationCategoryCost:
-		return []string{"Schedule changes during maintenance windows", "Test in non-production first"}
-	case RecommendationCategorySecurity:
-		return []string{"Implement changes incrementally", "Have rollback plan ready"}
-	case RecommendationCategoryPerformance:
-		return []string{"Monitor performance before and after changes", "Have baseline measurements"}
-	case RecommendationCategoryReliability:
-		return []string{"Plan implementation phases", "Validate backup procedures"}
-	case RecommendationCategoryOperational:
-		return []string{"Provide training for operations team", "Start with pilot deployment"}
-	default:
-		return []string{"Follow change management procedures"}
-	}
-}
-
-func generateMockDowntime(category RecommendationCategory) string {
-	switch category {
-	case RecommendationCategoryCost:
-		return "Minimal"
-	case RecommendationCategorySecurity:
-		return "None"
-	case RecommendationCategoryPerformance:
-		return "None"
-	case RecommendationCategoryReliability:
-		return "Minimal"
-	case RecommendationCategoryOperational:
-		return "None"
-	default:
-		return "None"
-	}
-}
-
-func generateMockBusinessImpact(category RecommendationCategory, impactType string) string {
-	if category == RecommendationCategoryCost && impactType == "cost" {
-		return "High positive impact - significant cost savings expected"
-	}
-	if category == RecommendationCategorySecurity && impactType == "security" {
-		return "High positive impact - improved security posture"
-	}
-	if category == RecommendationCategoryPerformance && impactType == "performance" {
-		return "Medium positive impact - better application responsiveness"
-	}
-	if category == RecommendationCategoryReliability && impactType == "reliability" {
-		return "High positive impact - reduced downtime risk"
-	}
-	if category == RecommendationCategoryOperational && impactType == "performance" {
-		return "Medium positive impact - improved operational efficiency"
-	}
-	return "Minimal impact"
-}
-
-// applyRecommendationFilters applies the provided filters to the recommendations
-func applyRecommendationFilters(recommendations []AdvisorRecommendation, filter *RecommendationFilter) []AdvisorRecommendation {
+// applyClientSideFilters applies filters that aren't supported by the API
+func applyClientSideFilters(recommendations []AdvisorRecommendation, filter *RecommendationFilter) []AdvisorRecommendation {
 	if filter == nil {
 		return recommendations
 	}
@@ -501,7 +505,7 @@ func applyRecommendationFilters(recommendations []AdvisorRecommendation, filter 
 			}
 		}
 
-		// Check severity filter
+		// Check severity filter (client-side since API doesn't support it directly)
 		if len(filter.Severity) > 0 {
 			found := false
 			for _, sev := range filter.Severity {
@@ -538,4 +542,57 @@ func applyRecommendationFilters(recommendations []AdvisorRecommendation, filter 
 	}
 
 	return filtered
+}
+
+// generateImplementationRisk generates implementation risk based on category
+func generateImplementationRisk(category RecommendationCategory) ImplementationRisk {
+	switch category {
+	case RecommendationCategoryCost:
+		return ImplementationRisk{
+			Level:      "Low",
+			Factors:    []string{"Resource downtime during resizing", "Potential performance impact"},
+			Mitigation: []string{"Schedule changes during maintenance windows", "Test in non-production first"},
+			Downtime:   "Minimal",
+		}
+	case RecommendationCategorySecurity:
+		return ImplementationRisk{
+			Level:      "Medium",
+			Factors:    []string{"Configuration changes may affect connectivity", "Potential service disruption"},
+			Mitigation: []string{"Implement changes incrementally", "Have rollback plan ready"},
+			Downtime:   "None",
+		}
+	default:
+		return ImplementationRisk{
+			Level:      "Low",
+			Factors:    []string{"General implementation considerations"},
+			Mitigation: []string{"Follow change management procedures"},
+			Downtime:   "None",
+		}
+	}
+}
+
+// generateBusinessImpact generates business impact based on category
+func generateBusinessImpact(category RecommendationCategory) BusinessImpact {
+	impact := BusinessImpact{
+		Performance: "Minimal impact",
+		Cost:        "Minimal impact",
+		Security:    "Minimal impact",
+		Reliability: "Minimal impact",
+		Compliance:  "Minimal impact",
+	}
+
+	switch category {
+	case RecommendationCategoryCost:
+		impact.Cost = "High positive impact - significant cost savings expected"
+	case RecommendationCategorySecurity:
+		impact.Security = "High positive impact - improved security posture"
+	case RecommendationCategoryPerformance:
+		impact.Performance = "Medium positive impact - better application responsiveness"
+	case RecommendationCategoryReliability:
+		impact.Reliability = "High positive impact - reduced downtime risk"
+	case RecommendationCategoryOperational:
+		impact.Performance = "Medium positive impact - improved operational efficiency"
+	}
+
+	return impact
 }

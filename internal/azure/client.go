@@ -26,9 +26,9 @@ type SubscriptionClients struct {
 	NSGClient              *armnetwork.SecurityGroupsClient
 	LoadBalancerClient     *armnetwork.LoadBalancersClient
 	// Diagnostic and advisory clients
-	AppLensClient          interface{} // Will hold *applens.AppLensClient
-	ResourceHealthClient   interface{} // Will hold resource health client
-	AdvisorClient          interface{} // Will hold advisor client
+	AppLensClient        interface{} // Will hold *applens.AppLensClient
+	ResourceHealthClient interface{} // Will hold resource health client
+	AdvisorClient        interface{} // Will hold advisor client
 }
 
 // AzureClient represents an Azure API client that can handle multiple subscriptions.

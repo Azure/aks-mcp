@@ -35,11 +35,11 @@ func (em *EventManager) GetResourceHealthStatus(ctx context.Context, resourceIDs
 	}
 
 	result := map[string]interface{}{
-		"requestTime":      time.Now().UTC().Format(time.RFC3339),
-		"resourceCount":    len(resourceIDs),
-		"includeHistory":   includeHistory,
-		"healthStatuses":   statuses,
-		"summary":          generateHealthSummary(statuses),
+		"requestTime":    time.Now().UTC().Format(time.RFC3339),
+		"resourceCount":  len(resourceIDs),
+		"includeHistory": includeHistory,
+		"healthStatuses": statuses,
+		"summary":        generateHealthSummary(statuses),
 	}
 
 	resultJSON, err := json.MarshalIndent(result, "", "  ")
@@ -53,14 +53,14 @@ func (em *EventManager) GetResourceHealthStatus(ctx context.Context, resourceIDs
 // GetResourceHealthEvents returns formatted historical health events
 func (em *EventManager) GetResourceHealthEvents(ctx context.Context, resourceID string, startTime, endTime *time.Time, healthStatusFilter []string) (string, error) {
 	filter := &HealthEventFilter{}
-	
+
 	if startTime != nil {
 		filter.StartTime = startTime
 	}
 	if endTime != nil {
 		filter.EndTime = endTime
 	}
-	
+
 	if len(healthStatusFilter) > 0 {
 		for _, status := range healthStatusFilter {
 			filter.HealthStatusFilter = append(filter.HealthStatusFilter, HealthStatus(status))
@@ -102,7 +102,7 @@ func generateHealthSummary(statuses []ResourceHealthStatus) map[string]interface
 
 	for _, status := range statuses {
 		statusCounts[string(status.Status)]++
-		
+
 		if status.Status != HealthStatusAvailable {
 			issues = append(issues, fmt.Sprintf("%s: %s", status.ResourceName, status.StatusSummary))
 		}
@@ -134,11 +134,11 @@ func generateHealthSummary(statuses []ResourceHealthStatus) map[string]interface
 // formatHealthEventsResponse formats the health events response for better readability
 func formatHealthEventsResponse(resourceID string, events []ResourceHealthEvent, filter *HealthEventFilter) map[string]interface{} {
 	result := map[string]interface{}{
-		"resourceId":    resourceID,
-		"requestTime":   time.Now().UTC().Format(time.RFC3339),
-		"eventCount":    len(events),
-		"timeRange":     formatTimeRange(filter),
-		"events":        events,
+		"resourceId":  resourceID,
+		"requestTime": time.Now().UTC().Format(time.RFC3339),
+		"eventCount":  len(events),
+		"timeRange":   formatTimeRange(filter),
+		"events":      events,
 	}
 
 	if len(events) > 0 {
@@ -171,11 +171,11 @@ func formatHealthEventsResponse(resourceID string, events []ResourceHealthEvent,
 // generateEventSummary creates a summary of health events
 func generateEventSummary(events []ResourceHealthEvent) map[string]interface{} {
 	summary := map[string]interface{}{
-		"totalEvents": len(events),
-		"eventTypes": map[string]int{},
+		"totalEvents":        len(events),
+		"eventTypes":         map[string]int{},
 		"statusDistribution": map[string]int{},
-		"levelDistribution": map[string]int{},
-		"timeSpan": map[string]interface{}{},
+		"levelDistribution":  map[string]int{},
+		"timeSpan":           map[string]interface{}{},
 	}
 
 	eventTypes := summary["eventTypes"].(map[string]int)
@@ -188,10 +188,10 @@ func generateEventSummary(events []ResourceHealthEvent) map[string]interface{} {
 	for i, event := range events {
 		// Count event types
 		eventTypes[string(event.EventType)]++
-		
+
 		// Count status distribution
 		statusDistribution[string(event.Status)]++
-		
+
 		// Count level distribution
 		levelDistribution[event.Level]++
 
@@ -234,7 +234,7 @@ func generateEventSummary(events []ResourceHealthEvent) map[string]interface{} {
 // formatTimeRange formats the time range for display
 func formatTimeRange(filter *HealthEventFilter) map[string]interface{} {
 	timeRange := map[string]interface{}{}
-	
+
 	if filter != nil {
 		if filter.StartTime != nil {
 			timeRange["startTime"] = filter.StartTime.Format(time.RFC3339)
