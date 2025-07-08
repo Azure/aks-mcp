@@ -129,6 +129,9 @@ func (s *Service) registerAzureResourceTools() {
 	// Register Network-related tools
 	s.registerNetworkTools(azClient)
 
+	// Register Diagnostic tools (AppLens, Resource Health, Azure Advisor)
+	s.registerDiagnosticTools(azClient)
+
 	// TODO: Add other resource categories in the future:
 }
 
@@ -160,4 +163,21 @@ func (s *Service) registerNetworkTools(azClient *azure.AzureClient) {
 	log.Println("Registering network tool: get_load_balancers_info")
 	lbTool := resourcehandlers.RegisterLoadBalancersInfoTool()
 	s.mcpServer.AddTool(lbTool, tools.CreateResourceHandler(resourcehandlers.GetLoadBalancersInfoHandler(azClient, s.cfg), s.cfg))
+}
+
+// registerDiagnosticTools registers all diagnostic and advisory Azure tools
+func (s *Service) registerDiagnosticTools(azClient *azure.AzureClient) {
+	log.Println("Registering Diagnostic tools...")
+
+	// Register AppLens tools
+	log.Println("Registering diagnostic tool: list_applens_detectors")
+	listDetectorsTool := resourcehandlers.RegisterListAppLensDetectorsTool()
+	s.mcpServer.AddTool(listDetectorsTool, tools.CreateResourceHandler(resourcehandlers.ListAppLensDetectorsHandler(azClient, s.cfg), s.cfg))
+
+	log.Println("Registering diagnostic tool: invoke_applens_detector")
+	invokeDetectorTool := resourcehandlers.RegisterInvokeAppLensDetectorTool()
+	s.mcpServer.AddTool(invokeDetectorTool, tools.CreateResourceHandler(resourcehandlers.InvokeAppLensDetectorHandler(azClient, s.cfg), s.cfg))
+
+	// TODO: Register Resource Health tools in Phase 2
+	// TODO: Register Azure Advisor tools in Phase 3
 }

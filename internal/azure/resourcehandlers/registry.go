@@ -107,3 +107,40 @@ func RegisterLoadBalancersInfoTool() mcp.Tool {
 }
 
 // TODO: Future tool categories can be added here:
+
+// =============================================================================
+// AppLens Diagnostic Tool Registrations
+// =============================================================================
+
+// RegisterListAppLensDetectorsTool registers the list_applens_detectors tool
+func RegisterListAppLensDetectorsTool() mcp.Tool {
+	return mcp.NewTool(
+		"list_applens_detectors",
+		mcp.WithDescription("List all available AppLens detectors for an AKS cluster"),
+		mcp.WithString("cluster_resource_id",
+			mcp.Description("Full Azure resource ID of the AKS cluster"),
+			mcp.Required(),
+		),
+		mcp.WithString("category",
+			mcp.Description("Filter by detector category (performance, security, reliability)"),
+		),
+	)
+}
+
+// RegisterInvokeAppLensDetectorTool registers the invoke_applens_detector tool
+func RegisterInvokeAppLensDetectorTool() mcp.Tool {
+	return mcp.NewTool(
+		"invoke_applens_detector",
+		mcp.WithDescription("Call and invoke AppLens detectors for AKS clusters"),
+		mcp.WithString("cluster_resource_id",
+			mcp.Description("Full Azure resource ID of the AKS cluster"),
+			mcp.Required(),
+		),
+		mcp.WithString("detector_name",
+			mcp.Description("Specific detector to run, if not provided, list available detectors"),
+		),
+		mcp.WithString("time_range",
+			mcp.Description("Time range for analysis (e.g., '24h', '7d', '30d')"),
+		),
+	)
+}

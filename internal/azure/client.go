@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/Azure/aks-mcp/internal/azure/applens"
 	"github.com/Azure/aks-mcp/internal/config"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
@@ -22,6 +23,10 @@ type SubscriptionClients struct {
 	RouteTableClient       *armnetwork.RouteTablesClient
 	NSGClient              *armnetwork.SecurityGroupsClient
 	LoadBalancerClient     *armnetwork.LoadBalancersClient
+	// Diagnostic and advisory clients
+	AppLensClient          interface{} // Will hold *applens.AppLensClient
+	ResourceHealthClient   interface{} // Will hold resource health client
+	AdvisorClient          interface{} // Will hold advisor client
 }
 
 // AzureClient represents an Azure API client that can handle multiple subscriptions.
@@ -102,6 +107,12 @@ func (c *AzureClient) GetOrCreateClientsForSubscription(subscriptionID string) (
 		return nil, fmt.Errorf("failed to create load balancer client for subscription %s: %v", subscriptionID, err)
 	}
 
+	// Create AppLens client
+	appLensClient, err := applens.NewAppLensClient(subscriptionID, c.credential)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create AppLens client for subscription %s: %v", subscriptionID, err)
+	}
+
 	// Create and store the clients
 	clients = &SubscriptionClients{
 		SubscriptionID:         subscriptionID,
@@ -111,6 +122,8 @@ func (c *AzureClient) GetOrCreateClientsForSubscription(subscriptionID string) (
 		RouteTableClient:       routeTableClient,
 		NSGClient:              nsgClient,
 		LoadBalancerClient:     loadBalancerClient,
+		AppLensClient:          appLensClient,
+		// TODO: Add ResourceHealthClient and AdvisorClient in subsequent phases
 	}
 
 	c.clientsMap[subscriptionID] = clients
@@ -144,6 +157,11 @@ func (c *AzureClient) GetAKSCluster(ctx context.Context, subscriptionID, resourc
 	c.cache.Set(cacheKey, cluster)
 
 	return cluster, nil
+}
+
+// GetCredential returns the Azure credential used by this client
+func (c *AzureClient) GetCredential() *azidentity.DefaultAzureCredential {
+	return c.credential
 }
 
 // GetVirtualNetwork retrieves information about the specified virtual network.

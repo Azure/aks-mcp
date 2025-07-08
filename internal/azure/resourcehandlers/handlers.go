@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/Azure/aks-mcp/internal/azure"
+	"github.com/Azure/aks-mcp/internal/azure/applens"
 	"github.com/Azure/aks-mcp/internal/azure/resourcehelpers"
 	"github.com/Azure/aks-mcp/internal/config"
 	"github.com/Azure/aks-mcp/internal/tools"
@@ -311,5 +312,100 @@ func GetClusterDetails(ctx context.Context, client *azure.AzureClient, subscript
 }
 
 // =============================================================================
-// TODO: Future Handler Categories
+// AppLens Diagnostic Handlers
 // =============================================================================
+
+// ListAppLensDetectorsHandler returns a handler for the list_applens_detectors command
+func ListAppLensDetectorsHandler(client *azure.AzureClient, cfg *config.ConfigData) tools.ResourceHandler {
+	return tools.ResourceHandlerFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
+		// Extract cluster resource ID
+		clusterResourceID, ok := params["cluster_resource_id"].(string)
+		if !ok || clusterResourceID == "" {
+			return "", fmt.Errorf("missing or invalid cluster_resource_id parameter")
+		}
+
+		// Extract optional category filter
+		category, _ := params["category"].(string)
+
+		// Validate cluster resource ID format
+		subscriptionID, _, _, err := applens.ExtractClusterInfo(clusterResourceID)
+		if err != nil {
+			return "", fmt.Errorf("invalid cluster resource ID: %v", err)
+		}
+
+		// Get clients for the subscription to ensure subscription is accessible
+		_, err = client.GetOrCreateClientsForSubscription(subscriptionID)
+		if err != nil {
+			return "", fmt.Errorf("failed to get Azure clients: %v", err)
+		}
+
+		// Create detector manager
+		detectorManager, err := applens.NewDetectorManager(subscriptionID, client.GetCredential())
+		if err != nil {
+			return "", fmt.Errorf("failed to create detector manager: %v", err)
+		}
+
+		// List detectors
+		ctx := context.Background()
+		result, err := detectorManager.ListDetectors(ctx, clusterResourceID, category)
+		if err != nil {
+			return "", fmt.Errorf("failed to list AppLens detectors: %v", err)
+		}
+
+		return result, nil
+	})
+}
+
+// InvokeAppLensDetectorHandler returns a handler for the invoke_applens_detector command
+func InvokeAppLensDetectorHandler(client *azure.AzureClient, cfg *config.ConfigData) tools.ResourceHandler {
+	return tools.ResourceHandlerFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
+		// Extract cluster resource ID
+		clusterResourceID, ok := params["cluster_resource_id"].(string)
+		if !ok || clusterResourceID == "" {
+			return "", fmt.Errorf("missing or invalid cluster_resource_id parameter")
+		}
+
+		// Extract detector name (optional - if not provided, list detectors)
+		detectorName, _ := params["detector_name"].(string)
+		
+		// Extract optional time range
+		timeRange, _ := params["time_range"].(string)
+
+		// Validate cluster resource ID format
+		subscriptionID, _, _, err := applens.ExtractClusterInfo(clusterResourceID)
+		if err != nil {
+			return "", fmt.Errorf("invalid cluster resource ID: %v", err)
+		}
+
+		// Get clients for the subscription to ensure subscription is accessible
+		_, err = client.GetOrCreateClientsForSubscription(subscriptionID)
+		if err != nil {
+			return "", fmt.Errorf("failed to get Azure clients: %v", err)
+		}
+
+		// Create detector manager
+		detectorManager, err := applens.NewDetectorManager(subscriptionID, client.GetCredential())
+		if err != nil {
+			return "", fmt.Errorf("failed to create detector manager: %v", err)
+		}
+
+		ctx := context.Background()
+
+		// If no detector name provided, list available detectors
+		if detectorName == "" {
+			result, err := detectorManager.ListDetectors(ctx, clusterResourceID, "")
+			if err != nil {
+				return "", fmt.Errorf("failed to list AppLens detectors: %v", err)
+			}
+			return result, nil
+		}
+
+		// Invoke the specific detector
+		result, err := detectorManager.InvokeDetector(ctx, clusterResourceID, detectorName, timeRange)
+		if err != nil {
+			return "", fmt.Errorf("failed to invoke AppLens detector: %v", err)
+		}
+
+		return result, nil
+	})
+}
