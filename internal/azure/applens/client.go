@@ -2,12 +2,16 @@ package applens
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 )
 
@@ -35,59 +39,71 @@ func NewAppLensClient(subscriptionID string, credential *azidentity.DefaultAzure
 
 // ListDetectors retrieves a list of available detectors for an AKS cluster
 func (c *AppLensClient) ListDetectors(ctx context.Context, clusterResourceID string, category string) ([]DetectorInfo, error) {
-	// For now, return a mock list of common AKS detectors
-	// In a real implementation, this would call the AppLens API
-	detectors := []DetectorInfo{
-		{
-			ID:          "cluster-health",
-			Name:        "Cluster Health Check",
-			Description: "Analyzes overall cluster health status and identifies potential issues",
-			Category:    "reliability",
+	// Extract cluster information from resource ID
+	subscriptionID, resourceGroup, clusterName, err := ExtractClusterInfo(clusterResourceID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid cluster resource ID: %w", err)
+	}
+
+	// Build the API URL to list all detectors
+	apiURL := fmt.Sprintf("%s/subscriptions/%s/resourceGroups/%s/providers/Microsoft.ContainerService/managedClusters/%s/detectors",
+		c.baseURL, subscriptionID, resourceGroup, clusterName)
+
+	// Add query parameters
+	params := url.Values{}
+	params.Add("api-version", "2023-05-01-preview")
+	apiURL += "?" + params.Encode()
+
+	// Make the API call
+	resp, err := c.makeAuthenticatedRequest(ctx, "GET", apiURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to call AKS detectors API: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("AKS detectors API returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	// Parse the response
+	var detectorResponse struct {
+		Value []struct {
+			Name       string            `json:"name"`
+			ID         string            `json:"id"`
+			Properties map[string]interface{} `json:"properties"`
+		} `json:"value"`
+	}
+
+	decoder := json.NewDecoder(resp.Body)
+	if err := decoder.Decode(&detectorResponse); err != nil {
+		return nil, fmt.Errorf("failed to parse detectors response: %w", err)
+	}
+
+	// Convert to our detector format
+	var detectors []DetectorInfo
+	for _, det := range detectorResponse.Value {
+		detector := DetectorInfo{
+			ID:          det.Name,
+			Name:        det.Name,
+			Description: fmt.Sprintf("AKS detector: %s", det.Name),
+			Category:    "aks", // Default category since the API doesn't provide detailed categories
 			Metadata: map[string]string{
-				"estimatedTime": "2-3 minutes",
-				"complexity":    "medium",
+				"resourceId": det.ID,
 			},
-		},
-		{
-			ID:          "node-performance",
-			Name:        "Node Performance Analysis",
-			Description: "Evaluates node performance metrics and resource utilization",
-			Category:    "performance",
-			Metadata: map[string]string{
-				"estimatedTime": "3-5 minutes",
-				"complexity":    "high",
-			},
-		},
-		{
-			ID:          "network-connectivity",
-			Name:        "Network Connectivity Check",
-			Description: "Validates network connectivity and DNS resolution within the cluster",
-			Category:    "reliability",
-			Metadata: map[string]string{
-				"estimatedTime": "1-2 minutes",
-				"complexity":    "low",
-			},
-		},
-		{
-			ID:          "security-assessment",
-			Name:        "Security Configuration Assessment",
-			Description: "Reviews cluster security settings and identifies potential vulnerabilities",
-			Category:    "security",
-			Metadata: map[string]string{
-				"estimatedTime": "4-6 minutes",
-				"complexity":    "high",
-			},
-		},
-		{
-			ID:          "resource-utilization",
-			Name:        "Resource Utilization Analysis",
-			Description: "Analyzes CPU, memory, and storage utilization across the cluster",
-			Category:    "performance",
-			Metadata: map[string]string{
-				"estimatedTime": "2-3 minutes",
-				"complexity":    "medium",
-			},
-		},
+		}
+
+		// Add any additional properties from the API response
+		if det.Properties != nil {
+			if desc, ok := det.Properties["description"].(string); ok && desc != "" {
+				detector.Description = desc
+			}
+			if cat, ok := det.Properties["category"].(string); ok && cat != "" {
+				detector.Category = cat
+			}
+		}
+
+		detectors = append(detectors, detector)
 	}
 
 	// Filter by category if specified
@@ -113,6 +129,20 @@ func (c *AppLensClient) InvokeDetector(ctx context.Context, clusterResourceID, d
 		return nil, fmt.Errorf("detector name cannot be empty")
 	}
 
+	// Extract cluster information from resource ID
+	subscriptionID, resourceGroup, clusterName, err := ExtractClusterInfo(clusterResourceID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid cluster resource ID: %w", err)
+	}
+
+	// Build the API URL for the specific detector
+	apiURL := fmt.Sprintf("%s/subscriptions/%s/resourceGroups/%s/providers/Microsoft.ContainerService/managedClusters/%s/detectors/%s",
+		c.baseURL, subscriptionID, resourceGroup, clusterName, detectorName)
+
+	// Add query parameters
+	params := url.Values{}
+	params.Add("api-version", "2023-05-01-preview")
+
 	// Set default time range if not provided
 	endTime := time.Now()
 	startTime := endTime.Add(-24 * time.Hour) // Default to last 24 hours
@@ -131,149 +161,205 @@ func (c *AppLensClient) InvokeDetector(ctx context.Context, clusterResourceID, d
 		}
 	}
 
-	// For now, return mock detector results
-	// In a real implementation, this would call the AppLens API
+	// Add time range parameters
+	params.Add("startTime", startTime.Format(time.RFC3339))
+	params.Add("endTime", endTime.Format(time.RFC3339))
+	
+	apiURL += "?" + params.Encode()
+
+	// Make the API call
+	resp, err := c.makeAuthenticatedRequest(ctx, "GET", apiURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to call AKS detector API: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("AKS detector API returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	// Parse the response
+	var apiResponse struct {
+		ID         string `json:"id"`
+		Name       string `json:"name"`
+		Properties struct {
+			Dataset   interface{} `json:"dataset"`
+			Metadata  interface{} `json:"metadata"`
+			Status    string      `json:"status"`
+		} `json:"properties"`
+	}
+
+	decoder := json.NewDecoder(resp.Body)
+	if err := decoder.Decode(&apiResponse); err != nil {
+		return nil, fmt.Errorf("failed to parse detector response: %w", err)
+	}
+
+	// Convert API response to our format
 	response := &DetectorResponse{
-		ID:        detectorName,
-		Name:      detectorName,
+		ID:        apiResponse.Name,
+		Name:      apiResponse.Name,
 		StartTime: startTime,
 		EndTime:   endTime,
-		Status:    "completed",
-		Data:      generateMockDetectorData(detectorName),
-		Insights:  generateMockInsights(detectorName),
+		Status:    apiResponse.Properties.Status,
+		Data:      convertDetectorDataset(apiResponse.Properties.Dataset),
+		Insights:  extractInsightsFromResponse(&apiResponse),
 		Metadata: map[string]interface{}{
 			"clusterResourceId": clusterResourceID,
-			"executionTime":     "2.3 seconds",
-			"dataPoints":        42,
+			"executionTime":     fmt.Sprintf("%.2f seconds", time.Since(startTime).Seconds()),
+			"apiResponse":       apiResponse.Properties.Metadata,
 		},
+	}
+
+	// If status is empty, default to completed
+	if response.Status == "" {
+		response.Status = "completed"
 	}
 
 	return response, nil
 }
 
-// generateMockDetectorData creates sample detector data for testing
-func generateMockDetectorData(detectorName string) []DetectorData {
-	switch detectorName {
-	case "cluster-health":
-		return []DetectorData{
-			{
-				Table: DetectorTable{
-					TableName: "HealthMetrics",
-					Columns: []DetectorColumn{
-						{ColumnName: "Component", DataType: "string", ColumnType: "string"},
-						{ColumnName: "Status", DataType: "string", ColumnType: "string"},
-						{ColumnName: "Score", DataType: "int", ColumnType: "int"},
-					},
-					Rows: [][]interface{}{
-						{"API Server", "Healthy", 95},
-						{"etcd", "Healthy", 98},
-						{"Scheduler", "Warning", 85},
-						{"Controller Manager", "Healthy", 92},
-					},
-				},
-				RenderingProperties: map[string]interface{}{
-					"type":  "table",
-					"title": "Cluster Component Health",
-				},
-			},
-		}
-	case "node-performance":
-		return []DetectorData{
-			{
-				Table: DetectorTable{
-					TableName: "NodeMetrics",
-					Columns: []DetectorColumn{
-						{ColumnName: "NodeName", DataType: "string", ColumnType: "string"},
-						{ColumnName: "CPUUsage", DataType: "double", ColumnType: "double"},
-						{ColumnName: "MemoryUsage", DataType: "double", ColumnType: "double"},
-						{ColumnName: "DiskUsage", DataType: "double", ColumnType: "double"},
-					},
-					Rows: [][]interface{}{
-						{"aks-nodepool1-12345", 65.2, 78.5, 45.1},
-						{"aks-nodepool1-67890", 72.8, 82.3, 51.7},
-						{"aks-nodepool1-11111", 58.9, 69.4, 38.2},
-					},
-				},
-				RenderingProperties: map[string]interface{}{
-					"type":  "table",
-					"title": "Node Performance Metrics",
-				},
-			},
-		}
-	default:
-		return []DetectorData{
-			{
-				Table: DetectorTable{
-					TableName: "GenericResults",
-					Columns: []DetectorColumn{
-						{ColumnName: "Metric", DataType: "string", ColumnType: "string"},
-						{ColumnName: "Value", DataType: "string", ColumnType: "string"},
-					},
-					Rows: [][]interface{}{
-						{"Status", "Analysis completed"},
-						{"Issues Found", "0"},
-					},
-				},
-				RenderingProperties: map[string]interface{}{
-					"type":  "table",
-					"title": "Detection Results",
-				},
-			},
-		}
+// makeAuthenticatedRequest makes an authenticated HTTP request to Azure Management API
+func (c *AppLensClient) makeAuthenticatedRequest(ctx context.Context, method, url string, body io.Reader) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, method, url, body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
+
+	// Get access token
+	tokenRequestOptions := policy.TokenRequestOptions{
+		Scopes: []string{"https://management.azure.com/.default"},
+	}
+	
+	token, err := c.credential.GetToken(ctx, tokenRequestOptions)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get access token: %w", err)
+	}
+
+	// Add authorization header
+	req.Header.Set("Authorization", "Bearer "+token.Token)
+	req.Header.Set("Content-Type", "application/json")
+
+	// Make the request
+	return c.httpClient.Do(req)
 }
 
-// generateMockInsights creates sample insights for testing
-func generateMockInsights(detectorName string) []DetectorInsight {
-	switch detectorName {
-	case "cluster-health":
-		return []DetectorInsight{
-			{
-				Message: "Scheduler component showing warning status due to high latency",
-				Status:  "warning",
-				Level:   "medium",
-				Metadata: map[string]interface{}{
-					"component":    "scheduler",
-					"latency":      "120ms",
-					"recommended":  "Monitor and consider scaling if latency persists",
-				},
-			},
-		}
-	case "node-performance":
-		return []DetectorInsight{
-			{
-				Message: "Node aks-nodepool1-67890 has high memory utilization",
-				Status:  "warning",
-				Level:   "medium",
-				Metadata: map[string]interface{}{
-					"node":         "aks-nodepool1-67890",
-					"memoryUsage":  "82.3%",
-					"threshold":    "80%",
-					"recommended":  "Consider adding more nodes or optimizing workloads",
-				},
-			},
-		}
-	case "security-assessment":
-		return []DetectorInsight{
-			{
-				Message: "Pod Security Standards not enforced on some namespaces",
-				Status:  "warning",
-				Level:   "high",
-				Metadata: map[string]interface{}{
-					"affectedNamespaces": []string{"default", "kube-public"},
-					"recommended":        "Implement Pod Security Standards across all namespaces",
-				},
-			},
-		}
-	default:
-		return []DetectorInsight{
-			{
-				Message: "Analysis completed successfully with no critical issues found",
-				Status:  "info",
-				Level:   "low",
-			},
-		}
+// convertDetectorDataset converts the API dataset to our internal format
+func convertDetectorDataset(dataset interface{}) []DetectorData {
+	if dataset == nil {
+		return []DetectorData{}
 	}
+
+	// Try to convert the dataset to our expected format
+	// The actual format depends on the specific detector API response
+	dataList := []DetectorData{}
+
+	// This is a simplified conversion - in practice, you'd need to handle
+	// the specific structure returned by the AKS detector API
+	if dataMap, ok := dataset.(map[string]interface{}); ok {
+		data := DetectorData{
+			Table: DetectorTable{
+				TableName: "DetectorResults",
+				Columns: []DetectorColumn{
+					{ColumnName: "Property", DataType: "string", ColumnType: "string"},
+					{ColumnName: "Value", DataType: "string", ColumnType: "string"},
+				},
+				Rows: [][]interface{}{},
+			},
+			RenderingProperties: map[string]interface{}{
+				"type":  "table",
+				"title": "Detector Results",
+			},
+		}
+
+		// Convert map entries to table rows
+		for key, value := range dataMap {
+			data.Table.Rows = append(data.Table.Rows, []interface{}{key, fmt.Sprintf("%v", value)})
+		}
+
+		dataList = append(dataList, data)
+	}
+
+	return dataList
+}
+
+// extractInsightsFromResponse extracts insights from the API response
+func extractInsightsFromResponse(apiResponse *struct {
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	Properties struct {
+		Dataset   interface{} `json:"dataset"`
+		Metadata  interface{} `json:"metadata"`
+		Status    string      `json:"status"`
+	} `json:"properties"`
+}) []DetectorInsight {
+	insights := []DetectorInsight{}
+
+	// Extract insights based on status
+	if apiResponse.Properties.Status == "failed" {
+		insights = append(insights, DetectorInsight{
+			Message:  "Detector execution failed",
+			Status:   "error",
+			Level:    "high",
+			Metadata: map[string]interface{}{
+				"detector": apiResponse.Name,
+			},
+		})
+	} else if apiResponse.Properties.Status == "completed" {
+		insights = append(insights, DetectorInsight{
+			Message:  "Detector execution completed successfully",
+			Status:   "info",
+			Level:    "low",
+			Metadata: map[string]interface{}{
+				"detector": apiResponse.Name,
+			},
+		})
+	}
+
+	// You can add more sophisticated insight extraction logic here
+	// based on the actual structure of the dataset
+
+	return insights
+}
+
+// ExtractClusterInfo extracts subscription ID, resource group, and cluster name from resource ID
+func ExtractClusterInfo(resourceID string) (subscriptionID, resourceGroup, clusterName string, err error) {
+	if resourceID == "" {
+		return "", "", "", fmt.Errorf("cluster resource ID cannot be empty")
+	}
+
+	// Basic validation for AKS cluster resource ID format
+	// Expected format: /subscriptions/{subscription-id}/resourceGroups/{resource-group}/providers/Microsoft.ContainerService/managedClusters/{cluster-name}
+	parts := strings.Split(resourceID, "/")
+	if len(parts) < 9 {
+		return "", "", "", fmt.Errorf("invalid resource ID format: expected AKS cluster resource ID")
+	}
+
+	if parts[1] != "subscriptions" {
+		return "", "", "", fmt.Errorf("invalid resource ID: must start with /subscriptions/")
+	}
+
+	if parts[3] != "resourceGroups" {
+		return "", "", "", fmt.Errorf("invalid resource ID: missing resourceGroups segment")
+	}
+
+	if parts[5] != "providers" {
+		return "", "", "", fmt.Errorf("invalid resource ID: missing providers segment")
+	}
+
+	if parts[6] != "Microsoft.ContainerService" {
+		return "", "", "", fmt.Errorf("invalid resource ID: must be Microsoft.ContainerService provider")
+	}
+
+	if parts[7] != "managedClusters" {
+		return "", "", "", fmt.Errorf("invalid resource ID: must be managedClusters resource type")
+	}
+
+	subscriptionID = parts[2]
+	resourceGroup = parts[4]
+	clusterName = parts[8]
+
+	return subscriptionID, resourceGroup, clusterName, nil
 }
 
 // parseTimeRange converts a time range string to a duration

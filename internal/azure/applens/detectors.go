@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
@@ -174,54 +173,4 @@ func extractColumnNames(columns []DetectorColumn) []string {
 		names[i] = col.ColumnName
 	}
 	return names
-}
-
-// ValidateClusterResourceID validates that the provided resource ID is for an AKS cluster
-func ValidateClusterResourceID(resourceID string) error {
-	if resourceID == "" {
-		return fmt.Errorf("cluster resource ID cannot be empty")
-	}
-
-	// Basic validation for AKS cluster resource ID format
-	// Expected format: /subscriptions/{subscription-id}/resourceGroups/{resource-group}/providers/Microsoft.ContainerService/managedClusters/{cluster-name}
-	parts := strings.Split(resourceID, "/")
-	if len(parts) < 9 {
-		return fmt.Errorf("invalid resource ID format: expected AKS cluster resource ID")
-	}
-
-	if parts[1] != "subscriptions" {
-		return fmt.Errorf("invalid resource ID: must start with /subscriptions/")
-	}
-
-	if parts[3] != "resourceGroups" {
-		return fmt.Errorf("invalid resource ID: missing resourceGroups segment")
-	}
-
-	if parts[5] != "providers" {
-		return fmt.Errorf("invalid resource ID: missing providers segment")
-	}
-
-	if parts[6] != "Microsoft.ContainerService" {
-		return fmt.Errorf("invalid resource ID: must be Microsoft.ContainerService provider")
-	}
-
-	if parts[7] != "managedClusters" {
-		return fmt.Errorf("invalid resource ID: must be managedClusters resource type")
-	}
-
-	return nil
-}
-
-// ExtractClusterInfo extracts subscription ID, resource group, and cluster name from resource ID
-func ExtractClusterInfo(resourceID string) (subscriptionID, resourceGroup, clusterName string, err error) {
-	if err = ValidateClusterResourceID(resourceID); err != nil {
-		return "", "", "", err
-	}
-
-	parts := strings.Split(resourceID, "/")
-	subscriptionID = parts[2]
-	resourceGroup = parts[4]
-	clusterName = parts[8]
-
-	return subscriptionID, resourceGroup, clusterName, nil
 }
