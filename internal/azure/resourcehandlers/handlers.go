@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/Azure/aks-mcp/internal/azure"
+	"github.com/Azure/aks-mcp/internal/azure/advisor"
 	"github.com/Azure/aks-mcp/internal/azure/applens"
 	"github.com/Azure/aks-mcp/internal/azure/resourcehealth"
 	"github.com/Azure/aks-mcp/internal/azure/resourcehelpers"
@@ -547,6 +548,131 @@ func GetResourceHealthEventsHandler(client *azure.AzureClient, cfg *config.Confi
 		result, err := eventManager.GetResourceHealthEvents(ctx, resourceID, startTime, endTime, healthStatusFilter)
 		if err != nil {
 			return "", fmt.Errorf("failed to get resource health events: %v", err)
+		}
+
+		return result, nil
+	})
+}
+
+// =============================================================================
+// Azure Advisor Handlers
+// =============================================================================
+
+// GetAzureAdvisorRecommendationsHandler returns a handler for the get_azure_advisor_recommendations command
+func GetAzureAdvisorRecommendationsHandler(client *azure.AzureClient, cfg *config.ConfigData) tools.ResourceHandler {
+	return tools.ResourceHandlerFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
+		// Extract subscription ID
+		subscriptionID, ok := params["subscription_id"].(string)
+		if !ok || subscriptionID == "" {
+			return "", fmt.Errorf("missing or invalid subscription_id parameter")
+		}
+
+		// Extract optional resource group
+		resourceGroup, _ := params["resource_group"].(string)
+
+		// Extract optional category filter
+		var categories []string
+		if categoriesParam, ok := params["category"]; ok {
+			switch v := categoriesParam.(type) {
+			case string:
+				categories = []string{v}
+			case []interface{}:
+				for _, cat := range v {
+					if strCat, ok := cat.(string); ok {
+						categories = append(categories, strCat)
+					}
+				}
+			case []string:
+				categories = v
+			}
+		}
+
+		// Extract optional severity filter
+		var severities []string
+		if severitiesParam, ok := params["severity"]; ok {
+			switch v := severitiesParam.(type) {
+			case string:
+				severities = []string{v}
+			case []interface{}:
+				for _, sev := range v {
+					if strSev, ok := sev.(string); ok {
+						severities = append(severities, strSev)
+					}
+				}
+			case []string:
+				severities = v
+			}
+		}
+
+		// Validate filter parameters
+		if err := advisor.ValidateFilterParameters(categories, severities); err != nil {
+			return "", fmt.Errorf("invalid filter parameters: %v", err)
+		}
+
+		// Get clients for the subscription to ensure subscription is accessible
+		_, err := client.GetOrCreateClientsForSubscription(subscriptionID)
+		if err != nil {
+			return "", fmt.Errorf("failed to get Azure clients: %v", err)
+		}
+
+		// Create recommendation manager
+		recommendationManager, err := advisor.NewRecommendationManager(subscriptionID, client.GetCredential())
+		if err != nil {
+			return "", fmt.Errorf("failed to create recommendation manager: %v", err)
+		}
+
+		// Get Azure Advisor recommendations
+		ctx := context.Background()
+		result, err := recommendationManager.GetRecommendations(ctx, subscriptionID, resourceGroup, categories, severities)
+		if err != nil {
+			return "", fmt.Errorf("failed to get Azure Advisor recommendations: %v", err)
+		}
+
+		return result, nil
+	})
+}
+
+// GetAdvisorRecommendationDetailsHandler returns a handler for the get_advisor_recommendation_details command
+func GetAdvisorRecommendationDetailsHandler(client *azure.AzureClient, cfg *config.ConfigData) tools.ResourceHandler {
+	return tools.ResourceHandlerFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
+		// Extract recommendation ID
+		recommendationID, ok := params["recommendation_id"].(string)
+		if !ok || recommendationID == "" {
+			return "", fmt.Errorf("missing or invalid recommendation_id parameter")
+		}
+
+		// Extract optional include implementation status
+		includeImplementationStatus, _ := params["include_implementation_status"].(bool)
+
+		// Validate recommendation ID
+		if err := advisor.ValidateRecommendationID(recommendationID); err != nil {
+			return "", fmt.Errorf("invalid recommendation ID: %v", err)
+		}
+
+		// Extract subscription ID from recommendation ID for client management
+		parts := strings.Split(recommendationID, "/")
+		if len(parts) < 3 {
+			return "", fmt.Errorf("invalid recommendation ID format")
+		}
+		subscriptionID := parts[2]
+
+		// Get clients for the subscription to ensure subscription is accessible
+		_, err := client.GetOrCreateClientsForSubscription(subscriptionID)
+		if err != nil {
+			return "", fmt.Errorf("failed to get Azure clients: %v", err)
+		}
+
+		// Create recommendation manager
+		recommendationManager, err := advisor.NewRecommendationManager(subscriptionID, client.GetCredential())
+		if err != nil {
+			return "", fmt.Errorf("failed to create recommendation manager: %v", err)
+		}
+
+		// Get recommendation details
+		ctx := context.Background()
+		result, err := recommendationManager.GetRecommendationDetails(ctx, recommendationID, includeImplementationStatus)
+		if err != nil {
+			return "", fmt.Errorf("failed to get recommendation details: %v", err)
 		}
 
 		return result, nil

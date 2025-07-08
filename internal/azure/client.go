@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/Azure/aks-mcp/internal/azure/advisor"
 	"github.com/Azure/aks-mcp/internal/azure/applens"
 	"github.com/Azure/aks-mcp/internal/azure/resourcehealth"
 	"github.com/Azure/aks-mcp/internal/config"
@@ -120,6 +121,12 @@ func (c *AzureClient) GetOrCreateClientsForSubscription(subscriptionID string) (
 		return nil, fmt.Errorf("failed to create Resource Health client for subscription %s: %v", subscriptionID, err)
 	}
 
+	// Create Azure Advisor client
+	advisorClient, err := advisor.NewAdvisorClient(subscriptionID, c.credential)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Azure Advisor client for subscription %s: %v", subscriptionID, err)
+	}
+
 	// Create and store the clients
 	clients = &SubscriptionClients{
 		SubscriptionID:         subscriptionID,
@@ -131,7 +138,7 @@ func (c *AzureClient) GetOrCreateClientsForSubscription(subscriptionID string) (
 		LoadBalancerClient:     loadBalancerClient,
 		AppLensClient:          appLensClient,
 		ResourceHealthClient:   resourceHealthClient,
-		// TODO: Add AdvisorClient in subsequent phase
+		AdvisorClient:          advisorClient,
 	}
 
 	c.clientsMap[subscriptionID] = clients

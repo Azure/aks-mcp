@@ -187,5 +187,12 @@ func (s *Service) registerDiagnosticTools(azClient *azure.AzureClient) {
 	healthEventsTool := resourcehandlers.RegisterGetResourceHealthEventsTool()
 	s.mcpServer.AddTool(healthEventsTool, tools.CreateResourceHandler(resourcehandlers.GetResourceHealthEventsHandler(azClient, s.cfg), s.cfg))
 
-	// TODO: Register Azure Advisor tools in Phase 3
+	// Register Azure Advisor tools
+	log.Println("Registering diagnostic tool: get_azure_advisor_recommendations")
+	advisorRecommendationsTool := resourcehandlers.RegisterGetAzureAdvisorRecommendationsTool()
+	s.mcpServer.AddTool(advisorRecommendationsTool, tools.CreateResourceHandler(resourcehandlers.GetAzureAdvisorRecommendationsHandler(azClient, s.cfg), s.cfg))
+
+	log.Println("Registering diagnostic tool: get_advisor_recommendation_details")
+	advisorDetailsTool := resourcehandlers.RegisterGetAdvisorRecommendationDetailsTool()
+	s.mcpServer.AddTool(advisorDetailsTool, tools.CreateResourceHandler(resourcehandlers.GetAdvisorRecommendationDetailsHandler(azClient, s.cfg), s.cfg))
 }

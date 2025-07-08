@@ -186,3 +186,45 @@ func RegisterGetResourceHealthEventsTool() mcp.Tool {
 		),
 	)
 }
+
+// =============================================================================
+// Azure Advisor Tool Registrations
+// =============================================================================
+
+// RegisterGetAzureAdvisorRecommendationsTool registers the get_azure_advisor_recommendations tool
+func RegisterGetAzureAdvisorRecommendationsTool() mcp.Tool {
+	return mcp.NewTool(
+		"get_azure_advisor_recommendations",
+		mcp.WithDescription("Access active Azure Advisor recommendations"),
+		mcp.WithString("subscription_id",
+			mcp.Description("Azure subscription ID"),
+			mcp.Required(),
+		),
+		mcp.WithString("resource_group",
+			mcp.Description("Filter by specific resource group"),
+		),
+		mcp.WithArray("category",
+			mcp.Description("Filter by recommendation category"),
+			mcp.Items(mcp.WithString("", mcp.Description("Category: Cost, Performance, Security, Reliability, Operational"))),
+		),
+		mcp.WithArray("severity",
+			mcp.Description("Filter by severity level"),
+			mcp.Items(mcp.WithString("", mcp.Description("Severity: High, Medium, Low"))),
+		),
+	)
+}
+
+// RegisterGetAdvisorRecommendationDetailsTool registers the get_advisor_recommendation_details tool
+func RegisterGetAdvisorRecommendationDetailsTool() mcp.Tool {
+	return mcp.NewTool(
+		"get_advisor_recommendation_details",
+		mcp.WithDescription("Get detailed information about specific recommendations"),
+		mcp.WithString("recommendation_id",
+			mcp.Description("Unique identifier for the recommendation"),
+			mcp.Required(),
+		),
+		mcp.WithBoolean("include_implementation_status",
+			mcp.Description("Include tracking of implementation progress"),
+		),
+	)
+}
