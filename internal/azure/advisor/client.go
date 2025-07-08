@@ -2,16 +2,12 @@ package advisor
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 )
 
@@ -542,52 +538,4 @@ func applyRecommendationFilters(recommendations []AdvisorRecommendation, filter 
 	}
 
 	return filtered
-}
-
-// makeRequest makes an authenticated HTTP request to the Azure API
-func (c *AdvisorClient) makeRequest(ctx context.Context, method, path string, body io.Reader) (*http.Response, error) {
-	// Get access token
-	token, err := c.credential.GetToken(ctx, policy.TokenRequestOptions{
-		Scopes: []string{"https://management.azure.com/.default"},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to get access token: %w", err)
-	}
-
-	// Build URL
-	u, err := url.JoinPath(c.baseURL, path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build URL: %w", err)
-	}
-
-	// Create request
-	req, err := http.NewRequestWithContext(ctx, method, u, body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	// Set headers
-	req.Header.Set("Authorization", "Bearer "+token.Token)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-
-	// Make request
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("request failed: %w", err)
-	}
-
-	return resp, nil
-}
-
-// parseResponse parses a JSON response into the target interface
-func parseResponse(resp *http.Response, target interface{}) error {
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 400 {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
-	}
-
-	return json.NewDecoder(resp.Body).Decode(target)
 }

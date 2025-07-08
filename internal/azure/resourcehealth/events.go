@@ -242,14 +242,14 @@ func formatTimeRange(filter *HealthEventFilter) map[string]interface{} {
 		if filter.EndTime != nil {
 			timeRange["endTime"] = filter.EndTime.Format(time.RFC3339)
 		}
-		if filter.HealthStatusFilter != nil && len(filter.HealthStatusFilter) > 0 {
+		if len(filter.HealthStatusFilter) > 0 {
 			statusFilter := make([]string, len(filter.HealthStatusFilter))
 			for i, status := range filter.HealthStatusFilter {
 				statusFilter[i] = string(status)
 			}
 			timeRange["statusFilter"] = statusFilter
 		}
-		if filter.EventTypeFilter != nil && len(filter.EventTypeFilter) > 0 {
+		if len(filter.EventTypeFilter) > 0 {
 			typeFilter := make([]string, len(filter.EventTypeFilter))
 			for i, eventType := range filter.EventTypeFilter {
 				typeFilter[i] = string(eventType)
