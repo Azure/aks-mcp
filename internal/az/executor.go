@@ -28,9 +28,15 @@ func (e *AzExecutor) Execute(params map[string]interface{}, cfg *config.ConfigDa
 		return "", fmt.Errorf("invalid command parameter")
 	}
 
+	// Determine command type based on the command prefix
+	commandType := security.CommandTypeAz
+	if strings.HasPrefix(azCmd, "kubectl") {
+		commandType = security.CommandTypeKubectl
+	}
+
 	// Validate the command against security settings
 	validator := security.NewValidator(cfg.SecurityConfig)
-	err := validator.ValidateCommand(azCmd, security.CommandTypeAz)
+	err := validator.ValidateCommand(azCmd, commandType)
 	if err != nil {
 		return "", err
 	}
@@ -50,9 +56,9 @@ func (e *AzExecutor) Execute(params map[string]interface{}, cfg *config.ConfigDa
 		cmdArgs = strings.Join(cmdParts[1:], " ")
 	}
 
-	// If the command is not an az command, return an error
-	if binaryName != "az" {
-		return "", fmt.Errorf("command must start with 'az'")
+	// Validate binary name
+	if binaryName != "az" && binaryName != "kubectl" {
+		return "", fmt.Errorf("command must start with 'az' or 'kubectl'")
 	}
 
 	// Execute the command
@@ -72,9 +78,15 @@ func (e *AzExecutor) ExecuteSpecificCommand(cmd string, params map[string]interf
 		fullCmd += " " + args
 	}
 
+	// Determine command type based on the command prefix
+	commandType := security.CommandTypeAz
+	if strings.HasPrefix(fullCmd, "kubectl") {
+		commandType = security.CommandTypeKubectl
+	}
+
 	// Validate the command against security settings
 	validator := security.NewValidator(cfg.SecurityConfig)
-	err := validator.ValidateCommand(fullCmd, security.CommandTypeAz)
+	err := validator.ValidateCommand(fullCmd, commandType)
 	if err != nil {
 		return "", err
 	}
@@ -94,9 +106,9 @@ func (e *AzExecutor) ExecuteSpecificCommand(cmd string, params map[string]interf
 		cmdArgs = strings.Join(cmdParts[1:], " ")
 	}
 
-	// If the command is not an az command, return an error
-	if binaryName != "az" {
-		return "", fmt.Errorf("command must start with 'az'")
+	// Validate binary name
+	if binaryName != "az" && binaryName != "kubectl" {
+		return "", fmt.Errorf("command must start with 'az' or 'kubectl'")
 	}
 
 	// Execute the command

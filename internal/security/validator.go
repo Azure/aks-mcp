@@ -6,7 +6,8 @@ import (
 
 // Command type constants
 const (
-	CommandTypeAz = "az"
+	CommandTypeAz      = "az"
+	CommandTypeKubectl = "kubectl"
 )
 
 var (
@@ -58,6 +59,27 @@ var (
 		"az resource list",
 		"az resource show",
 	}
+
+	// KubectlReadOperations defines kubectl operations that don't modify state
+	KubectlReadOperations = []string{
+		// Resource listing and getting
+		"kubectl get",
+		"kubectl describe",
+		
+		// Logs and debugging
+		"kubectl logs",
+		"kubectl top",
+		
+		// Cluster information
+		"kubectl cluster-info",
+		"kubectl api-resources",
+		"kubectl version",
+		"kubectl config",
+		
+		// Other read-only operations
+		"kubectl explain",
+		"kubectl api-versions",
+	}
 )
 
 // Validator handles validation of commands against security configuration
@@ -86,6 +108,8 @@ func (v *Validator) getReadOperationsList(commandType string) []string {
 	switch commandType {
 	case CommandTypeAz:
 		return AzReadOperations
+	case CommandTypeKubectl:
+		return KubectlReadOperations
 	default:
 		return []string{}
 	}

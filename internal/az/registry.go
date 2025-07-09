@@ -168,3 +168,21 @@ func GetAdminAzCommands() []AksCommand {
 		// {Name: "az aks update-credentials", Description: "Update credentials for a managed Kubernetes cluster", ArgsExample: "--name myAKSCluster --resource-group myResourceGroup --reset-service-principal --service-principal CLIENT_ID --client-secret CLIENT_SECRET"},
 	}
 }
+
+// GetKubectlCommands returns kubectl commands for browsing Kubernetes resources
+func GetKubectlCommands() []AksCommand {
+	return []AksCommand{
+		// Resource listing and getting
+		{Name: "kubectl get", Description: "List or get Kubernetes resources (pods, services, deployments, nodes, namespaces, etc.)", ArgsExample: "pods -n kube-system -o wide"},
+		{Name: "kubectl describe", Description: "Show detailed information about specific Kubernetes resources", ArgsExample: "pod my-pod-name -n default"},
+		
+		// Logs and debugging
+		{Name: "kubectl logs", Description: "Print container logs from pods", ArgsExample: "my-pod-name -n default --tail=100 --follow=false"},
+		{Name: "kubectl top", Description: "Display resource usage (CPU/Memory) for nodes or pods", ArgsExample: "nodes"},
+		
+		// Cluster information
+		{Name: "kubectl cluster-info", Description: "Display cluster information and component statuses", ArgsExample: ""},
+		{Name: "kubectl api-resources", Description: "List all available API resources in the cluster", ArgsExample: "--namespaced=true"},
+		{Name: "kubectl version", Description: "Display client and server Kubernetes version", ArgsExample: "--short"},
+	}
+}

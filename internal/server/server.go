@@ -46,6 +46,9 @@ func (s *Service) Initialize() error {
 	// Register individual az commands
 	s.registerAzCommands()
 
+	// Register kubectl commands for Kubernetes resource browsing
+	s.registerKubectlCommands()
+
 	// Register Azure resource tools (VNet, NSG, etc.)
 	s.registerAzureResourceTools()
 
@@ -115,6 +118,18 @@ func (s *Service) registerAzCommands() {
 			commandExecutor := az.CreateCommandExecutorFunc(cmd.Name)
 			s.mcpServer.AddTool(azTool, tools.CreateToolHandler(commandExecutor, s.cfg))
 		}
+	}
+}
+
+// registerKubectlCommands registers kubectl commands for browsing Kubernetes resources
+func (s *Service) registerKubectlCommands() {
+	// Check if kubectl commands should be available based on access level
+	// kubectl commands are read-only by default, so available at all access levels
+	for _, cmd := range az.GetKubectlCommands() {
+		log.Println("Registering kubectl command:", cmd.Name)
+		kubectlTool := az.RegisterAzCommand(cmd)
+		commandExecutor := az.CreateCommandExecutorFunc(cmd.Name)
+		s.mcpServer.AddTool(kubectlTool, tools.CreateToolHandler(commandExecutor, s.cfg))
 	}
 }
 
