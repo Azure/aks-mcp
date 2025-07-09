@@ -49,6 +49,10 @@ var (
 		"az account set",
 		"az login",
 
+		// Azure Advisor commands (read-only)
+		"az advisor recommendation list",
+		"az advisor recommendation show",
+
 		// Other general commands
 		"az find",
 		"az version",

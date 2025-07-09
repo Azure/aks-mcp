@@ -406,3 +406,6 @@ aks-mcp
 # Custom ignores for AKS-MCP
 *.exe
 PULL_REQUEST_TEMPLATE.md
+
+# PowerShell scripts for development/debugging
+*.ps1
