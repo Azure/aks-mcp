@@ -7,10 +7,10 @@ import (
 	"fmt"
 
 	"github.com/Azure/aks-mcp/internal/azureclient"
+	"github.com/Azure/aks-mcp/internal/components/common"
 	"github.com/Azure/aks-mcp/internal/components/network/resourcehelpers"
 	"github.com/Azure/aks-mcp/internal/config"
 	"github.com/Azure/aks-mcp/internal/tools"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v2"
 )
 
@@ -22,14 +22,14 @@ import (
 func GetVNetInfoHandler(client *azureclient.AzureClient, cfg *config.ConfigData) tools.ResourceHandler {
 	return tools.ResourceHandlerFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
 		// Extract parameters
-		subID, rg, clusterName, err := ExtractAKSParameters(params)
+		subID, rg, clusterName, err := common.ExtractAKSParameters(params)
 		if err != nil {
 			return "", err
 		}
 
 		// Get the cluster details
 		ctx := context.Background()
-		cluster, err := GetClusterDetails(ctx, client, subID, rg, clusterName)
+		cluster, err := common.GetClusterDetails(ctx, client, subID, rg, clusterName)
 		if err != nil {
 			return "", fmt.Errorf("failed to get cluster details: %v", err)
 		}
@@ -65,14 +65,14 @@ func GetVNetInfoHandler(client *azureclient.AzureClient, cfg *config.ConfigData)
 func GetNSGInfoHandler(client *azureclient.AzureClient, cfg *config.ConfigData) tools.ResourceHandler {
 	return tools.ResourceHandlerFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
 		// Extract parameters
-		subID, rg, clusterName, err := ExtractAKSParameters(params)
+		subID, rg, clusterName, err := common.ExtractAKSParameters(params)
 		if err != nil {
 			return "", err
 		}
 
 		// Get the cluster details
 		ctx := context.Background()
-		cluster, err := GetClusterDetails(ctx, client, subID, rg, clusterName)
+		cluster, err := common.GetClusterDetails(ctx, client, subID, rg, clusterName)
 		if err != nil {
 			return "", fmt.Errorf("failed to get cluster details: %v", err)
 		}
@@ -108,14 +108,14 @@ func GetNSGInfoHandler(client *azureclient.AzureClient, cfg *config.ConfigData) 
 func GetRouteTableInfoHandler(client *azureclient.AzureClient, cfg *config.ConfigData) tools.ResourceHandler {
 	return tools.ResourceHandlerFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
 		// Extract parameters
-		subID, rg, clusterName, err := ExtractAKSParameters(params)
+		subID, rg, clusterName, err := common.ExtractAKSParameters(params)
 		if err != nil {
 			return "", err
 		}
 
 		// Get the cluster details
 		ctx := context.Background()
-		cluster, err := GetClusterDetails(ctx, client, subID, rg, clusterName)
+		cluster, err := common.GetClusterDetails(ctx, client, subID, rg, clusterName)
 		if err != nil {
 			return "", fmt.Errorf("failed to get cluster details: %v", err)
 		}
@@ -165,14 +165,14 @@ func GetRouteTableInfoHandler(client *azureclient.AzureClient, cfg *config.Confi
 func GetSubnetInfoHandler(client *azureclient.AzureClient, cfg *config.ConfigData) tools.ResourceHandler {
 	return tools.ResourceHandlerFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
 		// Extract parameters
-		subID, rg, clusterName, err := ExtractAKSParameters(params)
+		subID, rg, clusterName, err := common.ExtractAKSParameters(params)
 		if err != nil {
 			return "", err
 		}
 
 		// Get the cluster details
 		ctx := context.Background()
-		cluster, err := GetClusterDetails(ctx, client, subID, rg, clusterName)
+		cluster, err := common.GetClusterDetails(ctx, client, subID, rg, clusterName)
 		if err != nil {
 			return "", fmt.Errorf("failed to get cluster details: %v", err)
 		}
@@ -208,14 +208,14 @@ func GetSubnetInfoHandler(client *azureclient.AzureClient, cfg *config.ConfigDat
 func GetLoadBalancersInfoHandler(client *azureclient.AzureClient, cfg *config.ConfigData) tools.ResourceHandler {
 	return tools.ResourceHandlerFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
 		// Extract parameters
-		subID, rg, clusterName, err := ExtractAKSParameters(params)
+		subID, rg, clusterName, err := common.ExtractAKSParameters(params)
 		if err != nil {
 			return "", err
 		}
 
 		// Get the cluster details
 		ctx := context.Background()
-		cluster, err := GetClusterDetails(ctx, client, subID, rg, clusterName)
+		cluster, err := common.GetClusterDetails(ctx, client, subID, rg, clusterName)
 		if err != nil {
 			return "", fmt.Errorf("failed to get cluster details: %v", err)
 		}
@@ -278,34 +278,4 @@ func GetLoadBalancersInfoHandler(client *azureclient.AzureClient, cfg *config.Co
 
 		return string(resultJSON), nil
 	})
-}
-
-// =============================================================================
-// Shared Helper Functions
-// =============================================================================
-
-// ExtractAKSParameters extracts and validates the common AKS parameters from the params map
-func ExtractAKSParameters(params map[string]interface{}) (subscriptionID, resourceGroup, clusterName string, err error) {
-	subID, ok := params["subscription_id"].(string)
-	if !ok || subID == "" {
-		return "", "", "", fmt.Errorf("missing or invalid subscription_id parameter")
-	}
-
-	rg, ok := params["resource_group"].(string)
-	if !ok || rg == "" {
-		return "", "", "", fmt.Errorf("missing or invalid resource_group parameter")
-	}
-
-	clusterNameParam, ok := params["cluster_name"].(string)
-	if !ok || clusterNameParam == "" {
-		return "", "", "", fmt.Errorf("missing or invalid cluster_name parameter")
-	}
-
-	return subID, rg, clusterNameParam, nil
-}
-
-// GetClusterDetails gets the details of an AKS cluster
-func GetClusterDetails(ctx context.Context, client *azureclient.AzureClient, subscriptionID, resourceGroup, clusterName string) (*armcontainerservice.ManagedCluster, error) {
-	// Get the cluster from Azure client (which now handles caching internally)
-	return client.GetAKSCluster(ctx, subscriptionID, resourceGroup, clusterName)
 }
