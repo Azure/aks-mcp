@@ -51,8 +51,10 @@ Filter recommendations for:
 
 ### File Organization
 ```
-internal/azure/advisor/
+internal/components/advisor/
 ├── aks_recommendations.go # AKS-specific filtering and processing
+├── handlers.go           # MCP tool handlers
+├── registry.go           # Tool registration
 ├── reports.go            # Report generation
 └── types.go              # Data types
 ```
@@ -66,11 +68,11 @@ func (s *Server) registerAdvisorTools() {
 
 ### Use Existing Executor
 ```go
-import "github.com/Azure/aks-mcp/internal/az"
+import "github.com/Azure/aks-mcp/internal/azcli"
 
 func (s *Server) handleAdvisorRecommendation(params map[string]interface{}) (string, error) {
     // Use existing executor instead of creating new CLI client
-    executor := az.NewExecutor()
+    executor := azcli.NewExecutor()
     
     // Build Azure CLI command
     args := []string{"advisor", "recommendation", "list", "--output", "json"}
@@ -99,7 +101,7 @@ func (s *Server) handleAdvisorRecommendation(params map[string]interface{}) (str
 ## Expected Integration
 
 - Add tool registration in `internal/server/server.go`
-- Create handlers in `internal/azure/advisor/` directory
+- Create handlers in `internal/components/advisor/` directory
 - Follow existing error handling patterns
 - Use standard JSON output format
 
