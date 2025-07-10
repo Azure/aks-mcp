@@ -66,6 +66,24 @@ func TestValidateCommand(t *testing.T) {
 			command:     "az account list",
 			wantErr:     false,
 		},
+		{
+			name:        "MonitorMetrics_ListCommand_ShouldWork",
+			accessLevel: "readonly",
+			command:     "az monitor metrics list --resource /subscriptions/test/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/cluster",
+			wantErr:     false,
+		},
+		{
+			name:        "MonitorMetrics_ListDefinitionsCommand_ShouldWork",
+			accessLevel: "readonly",
+			command:     "az monitor metrics list-definitions --resource /subscriptions/test/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/cluster",
+			wantErr:     false,
+		},
+		{
+			name:        "MonitorMetrics_ListNamespacesCommand_ShouldWork",
+			accessLevel: "readonly",
+			command:     "az monitor metrics list-namespaces --resource /subscriptions/test/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/cluster",
+			wantErr:     false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -329,6 +347,91 @@ func TestIsReadOperation_TrustedAccessCommands(t *testing.T) {
 				}
 				if !found {
 					t.Logf("No match found in allowed operations")
+				}
+			}
+		})
+	}
+}
+
+func TestIsReadOperation_MonitorMetricsCommands(t *testing.T) {
+	validator := NewValidator(&SecurityConfig{})
+	readOps := AzReadOperations
+
+	tests := []struct {
+		name     string
+		command  string
+		expected bool
+	}{
+		{
+			name:     "monitor metrics list should be read-only",
+			command:  "az monitor metrics list --resource /subscriptions/test/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/cluster",
+			expected: true,
+		},
+		{
+			name:     "monitor metrics list-definitions should be read-only",
+			command:  "az monitor metrics list-definitions --resource /subscriptions/test/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/cluster",
+			expected: true,
+		},
+		{
+			name:     "monitor metrics list-namespaces should be read-only",
+			command:  "az monitor metrics list-namespaces --resource /subscriptions/test/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/cluster",
+			expected: true,
+		},
+		{
+			name:     "monitor metrics list with minimal args should be read-only",
+			command:  "az monitor metrics list --resource /test/resource",
+			expected: true,
+		},
+		{
+			name:     "monitor metrics list-definitions with minimal args should be read-only",
+			command:  "az monitor metrics list-definitions --resource /test/resource",
+			expected: true,
+		},
+		{
+			name:     "monitor metrics list-namespaces with minimal args should be read-only",
+			command:  "az monitor metrics list-namespaces --resource /test/resource",
+			expected: true,
+		},
+		{
+			name:     "monitor metrics create should not be read-only",
+			command:  "az monitor metrics create --resource /test/resource",
+			expected: false,
+		},
+		{
+			name:     "monitor metrics delete should not be read-only",
+			command:  "az monitor metrics delete --resource /test/resource",
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := validator.isReadOperation(tt.command, readOps)
+			if result != tt.expected {
+				t.Errorf("isReadOperation(%q) = %v, expected %v", tt.command, result, tt.expected)
+
+				// Debug: let's see what base command is being extracted
+				cmdParts := strings.Fields(tt.command)
+				var baseCommand string
+				if len(cmdParts) >= 4 && cmdParts[0] == CommandTypeAz {
+					baseCommand = strings.Join(cmdParts[:4], " ")
+				}
+				t.Logf("Extracted base command: %q", baseCommand)
+
+				// Check if it's in the allowed operations
+				found := false
+				for _, allowed := range readOps {
+					if strings.HasPrefix(allowed, "az monitor metrics") {
+						t.Logf("Found monitor metrics allowed operation: %q", allowed)
+						if strings.HasPrefix(tt.command, allowed) {
+							found = true
+							t.Logf("Matched against allowed operation: %q", allowed)
+							break
+						}
+					}
+				}
+				if !found {
+					t.Logf("No match found in monitor metrics allowed operations")
 				}
 			}
 		})

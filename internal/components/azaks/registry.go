@@ -1,8 +1,7 @@
 package azaks
 
 import (
-	"strings"
-
+	"github.com/Azure/aks-mcp/internal/utils"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
@@ -11,12 +10,6 @@ type AksCommand struct {
 	Name        string
 	Description string
 	ArgsExample string // Example of command arguments
-}
-
-// replaceSpacesWithUnderscores converts spaces to underscores
-// to create a valid tool name that follows the [a-z0-9_-] pattern
-func replaceSpacesWithUnderscores(s string) string {
-	return strings.ReplaceAll(s, " ", "_")
 }
 
 // // RegisterAz registers the generic az tool
@@ -34,7 +27,7 @@ func replaceSpacesWithUnderscores(s string) string {
 func RegisterAzCommand(cmd AksCommand) mcp.Tool {
 	// Convert spaces to underscores for valid tool name
 	commandName := cmd.Name
-	validToolName := replaceSpacesWithUnderscores(commandName)
+	validToolName := utils.ReplaceSpacesWithUnderscores(commandName)
 
 	description := "Run " + cmd.Name + " command: " + cmd.Description + "."
 

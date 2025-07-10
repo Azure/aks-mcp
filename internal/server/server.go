@@ -8,6 +8,7 @@ import (
 	"github.com/Azure/aks-mcp/internal/azureclient"
 	"github.com/Azure/aks-mcp/internal/components/advisor"
 	"github.com/Azure/aks-mcp/internal/components/azaks"
+	"github.com/Azure/aks-mcp/internal/components/monitor"
 	"github.com/Azure/aks-mcp/internal/components/network"
 	"github.com/Azure/aks-mcp/internal/config"
 	"github.com/Azure/aks-mcp/internal/tools"
@@ -92,6 +93,14 @@ func (s *Service) registerAzCommands() {
 		s.mcpServer.AddTool(azTool, tools.CreateToolHandler(commandExecutor, s.cfg))
 	}
 
+	// Register read-only az monitor commands (available at all access levels)
+	for _, cmd := range monitor.GetReadOnlyMonitorCommands() {
+		log.Println("Registering az monitor command:", cmd.Name)
+		azTool := monitor.RegisterMonitorCommand(cmd)
+		commandExecutor := azcli.CreateCommandExecutorFunc(cmd.Name)
+		s.mcpServer.AddTool(azTool, tools.CreateToolHandler(commandExecutor, s.cfg))
+	}
+
 	// Register account management commands (available at all access levels)
 	for _, cmd := range azaks.GetAccountAzCommands() {
 		log.Println("Registering az command:", cmd.Name)
@@ -109,6 +118,14 @@ func (s *Service) registerAzCommands() {
 			commandExecutor := azcli.CreateCommandExecutorFunc(cmd.Name)
 			s.mcpServer.AddTool(azTool, tools.CreateToolHandler(commandExecutor, s.cfg))
 		}
+
+		// Register read-write az monitor commands
+		for _, cmd := range monitor.GetReadWriteMonitorCommands() {
+			log.Println("Registering az monitor command:", cmd.Name)
+			azTool := monitor.RegisterMonitorCommand(cmd)
+			commandExecutor := azcli.CreateCommandExecutorFunc(cmd.Name)
+			s.mcpServer.AddTool(azTool, tools.CreateToolHandler(commandExecutor, s.cfg))
+		}
 	}
 
 	// Register admin commands only if access level is admin
@@ -117,6 +134,14 @@ func (s *Service) registerAzCommands() {
 		for _, cmd := range azaks.GetAdminAzCommands() {
 			log.Println("Registering az command:", cmd.Name)
 			azTool := azaks.RegisterAzCommand(cmd)
+			commandExecutor := azcli.CreateCommandExecutorFunc(cmd.Name)
+			s.mcpServer.AddTool(azTool, tools.CreateToolHandler(commandExecutor, s.cfg))
+		}
+
+		// Register admin az monitor commands
+		for _, cmd := range monitor.GetAdminMonitorCommands() {
+			log.Println("Registering az monitor command:", cmd.Name)
+			azTool := monitor.RegisterMonitorCommand(cmd)
 			commandExecutor := azcli.CreateCommandExecutorFunc(cmd.Name)
 			s.mcpServer.AddTool(azTool, tools.CreateToolHandler(commandExecutor, s.cfg))
 		}

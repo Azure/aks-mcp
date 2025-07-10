@@ -52,6 +52,11 @@ var (
 		"az advisor recommendation list",
 		"az advisor recommendation show",
 
+		// Azure Monitor metrics commands (read-only)
+		"az monitor metrics list",
+		"az monitor metrics list-definitions",
+		"az monitor metrics list-namespaces",
+
 		// Other general commands
 		"az find",
 		"az version",
