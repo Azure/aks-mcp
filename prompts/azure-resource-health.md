@@ -15,17 +15,16 @@ Implement Azure Resource Health monitoring capabilities for AKS clusters to trac
 - `status` (optional): Filter by health status (`Available`, `Unavailable`, `Degraded`, `Unknown`)
 
 **Operations**:
-- **list**: Return resource health events for the specified AKS cluster within the time range
-- **summary**: Generate a summary of health events grouped by status and timeframe
+- **list**: Return raw Azure CLI command results for resource health events
 
 ## Implementation Steps
 
 1. **Use existing executor** from `internal/azcli/executor.go` for Azure CLI commands
 2. **Build resource ID** from subscription, resource group, and cluster name
-3. **Parse JSON output** from Azure CLI responses
+3. **Return raw JSON output** from Azure CLI commands
 4. **Filter for ResourceHealth category** events
 5. **Handle time range validation** and format conversion
-6. **Return structured JSON** with health event details
+6. **Return the raw Azure CLI command result** as JSON
 
 ## Key Azure CLI Command
 
@@ -117,51 +116,21 @@ func HandleResourceHealthQuery(params map[string]interface{}, cfg *config.Config
         return "", fmt.Errorf("failed to execute resource health query: %w", err)
     }
     
-    // Parse and process results
-    return processResourceHealthEvents(result, params)
+    // Return the raw JSON result from Azure CLI
+    return result, nil
 }
 ```
 
 ## Data Types
 
 ```go
-// ResourceHealthEvent represents a resource health event from Azure Monitor
-type ResourceHealthEvent struct {
-    ID               string    `json:"id"`
-    EventTimestamp   time.Time `json:"event_timestamp"`
-    SubmissionTimestamp time.Time `json:"submission_timestamp"`
-    Level            string    `json:"level"`
-    Status           string    `json:"status"`
-    SubStatus        string    `json:"sub_status"`
-    ResourceID       string    `json:"resource_id"`
-    ResourceGroupName string   `json:"resource_group_name"`
-    ClusterName      string    `json:"cluster_name"`
-    Category         string    `json:"category"`
-    Description      string    `json:"description"`
-    Properties       map[string]interface{} `json:"properties,omitempty"`
-}
-
-// ResourceHealthSummary provides aggregated health information
-type ResourceHealthSummary struct {
-    ClusterName      string                    `json:"cluster_name"`
-    ResourceGroup    string                    `json:"resource_group"`
-    TimeRange        TimeRange                 `json:"time_range"`
-    TotalEvents      int                       `json:"total_events"`
-    ByStatus         map[string]int            `json:"by_status"`
-    ByLevel          map[string]int            `json:"by_level"`
-    RecentEvents     []ResourceHealthEvent     `json:"recent_events"`
-    HealthTrend      string                    `json:"health_trend"` // "improving", "stable", "degrading"
-}
-
-// TimeRange represents a time period for queries
-type TimeRange struct {
-    StartTime time.Time `json:"start_time"`
-    EndTime   time.Time `json:"end_time"`
-}
+// Note: Since we return raw Azure CLI JSON output, no custom data types are needed.
+// The Azure CLI returns the standard Azure Monitor activity log format.
+// Refer to Azure Monitor Activity Log schema for the returned JSON structure.
 ```
 
 ## Access Level Requirements
-- **Readonly**: All operations (list, summary)
+- **Readonly**: All operations (list)
 - **Readwrite**: Same as readonly (monitoring is read-only)
 - **Admin**: Same as readonly (monitoring is read-only)
 
@@ -230,18 +199,16 @@ az_monitor_activity_log_resource_health \
 ## Success Criteria
 - ✅ Retrieve resource health events for specific AKS clusters
 - ✅ Filter by time range and health status
-- ✅ Parse and structure Azure Monitor activity log data
+- ✅ Return raw Azure CLI JSON output
 - ✅ Handle time zone and date format conversion
 - ✅ Provide meaningful error messages for invalid parameters
-- ✅ Generate summary reports of health trends
 - ✅ Integrate with existing MCP tool framework
 
 ## Implementation Priority
 1. Basic resource health event retrieval with time filtering
 2. Health status filtering and categorization
-3. Summary and trend analysis features
-4. Integration with existing monitoring tools
-5. Performance optimization for large time ranges
+3. Integration with existing monitoring tools
+4. Performance optimization for large time ranges
 
 ## Error Handling
 - Validate Azure resource ID format
