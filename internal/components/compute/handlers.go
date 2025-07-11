@@ -104,14 +104,14 @@ func GetAllVMSSByClusterHandler(client *azureclient.AzureClient, cfg *config.Con
 
 		// Get VMSS information for each node pool
 		var vmssInfo []map[string]interface{}
-		
+
 		for _, nodePool := range nodePools {
 			if nodePool.Name == nil {
 				continue
 			}
-			
+
 			nodePoolName := *nodePool.Name
-			
+
 			// Get the VMSS ID for this node pool
 			vmssID, err := GetVMSSIDFromNodePool(ctx, cluster, nodePoolName, client)
 			if err != nil {

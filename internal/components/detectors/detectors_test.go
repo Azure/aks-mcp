@@ -9,7 +9,7 @@ func TestValidateTimeParameters(t *testing.T) {
 	now := time.Now()
 	validStart := now.Add(-1 * time.Hour).Format(time.RFC3339)
 	validEnd := now.Format(time.RFC3339)
-	
+
 	tests := []struct {
 		name      string
 		startTime string

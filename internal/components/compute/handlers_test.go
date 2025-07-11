@@ -77,7 +77,7 @@ func TestExtractAKSParameters(t *testing.T) {
 // TestGetVMSSInfoByNodePoolHandler tests the VMSS info by node pool handler with mock data
 func TestGetVMSSInfoByNodePoolHandler(t *testing.T) {
 	cfg := &config.ConfigData{}
-	
+
 	// Test with nil client
 	handler := GetVMSSInfoByNodePoolHandler(nil, cfg)
 	if handler == nil {
@@ -91,7 +91,7 @@ func TestGetVMSSInfoByNodePoolHandler(t *testing.T) {
 		"cluster_name":    "test-cluster",
 		// missing node_pool_name
 	}
-	
+
 	_, err := handler.Handle(params, cfg)
 	if err == nil {
 		t.Error("Expected error with missing node_pool_name parameter, got nil")
@@ -101,7 +101,7 @@ func TestGetVMSSInfoByNodePoolHandler(t *testing.T) {
 // TestGetAllVMSSByClusterHandler tests the all VMSS by cluster handler with mock data
 func TestGetAllVMSSByClusterHandler(t *testing.T) {
 	cfg := &config.ConfigData{}
-	
+
 	// Test with nil client
 	handler := GetAllVMSSByClusterHandler(nil, cfg)
 	if handler == nil {
@@ -112,7 +112,7 @@ func TestGetAllVMSSByClusterHandler(t *testing.T) {
 	params := map[string]interface{}{
 		"invalid": "params",
 	}
-	
+
 	_, err := handler.Handle(params, cfg)
 	if err == nil {
 		t.Error("Expected error with invalid parameters, got nil")

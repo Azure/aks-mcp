@@ -24,9 +24,7 @@ func GetNodePoolsFromAKS(
 
 	// Add the system node pool (default node pool)
 	if cluster.Properties.AgentPoolProfiles != nil {
-		for _, nodePool := range cluster.Properties.AgentPoolProfiles {
-			nodePools = append(nodePools, nodePool)
-		}
+		nodePools = append(nodePools, cluster.Properties.AgentPoolProfiles...)
 	}
 
 	return nodePools, nil
