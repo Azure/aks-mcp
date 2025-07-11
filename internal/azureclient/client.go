@@ -9,6 +9,7 @@ import (
 	"github.com/Azure/aks-mcp/internal/config"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v4"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v2"
 )
@@ -22,6 +23,8 @@ type SubscriptionClients struct {
 	RouteTableClient       *armnetwork.RouteTablesClient
 	NSGClient              *armnetwork.SecurityGroupsClient
 	LoadBalancerClient     *armnetwork.LoadBalancersClient
+	VMSSClient             *armcompute.VirtualMachineScaleSetsClient
+	VMSSVMsClient          *armcompute.VirtualMachineScaleSetVMsClient
 }
 
 // AzureClient represents an Azure API client that can handle multiple subscriptions.
@@ -102,6 +105,16 @@ func (c *AzureClient) GetOrCreateClientsForSubscription(subscriptionID string) (
 		return nil, fmt.Errorf("failed to create load balancer client for subscription %s: %v", subscriptionID, err)
 	}
 
+	vmssClient, err := armcompute.NewVirtualMachineScaleSetsClient(subscriptionID, c.credential, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create VMSS client for subscription %s: %v", subscriptionID, err)
+	}
+
+	vmssVMsClient, err := armcompute.NewVirtualMachineScaleSetVMsClient(subscriptionID, c.credential, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create VMSS VMs client for subscription %s: %v", subscriptionID, err)
+	}
+
 	// Create and store the clients
 	clients = &SubscriptionClients{
 		SubscriptionID:         subscriptionID,
@@ -111,6 +124,8 @@ func (c *AzureClient) GetOrCreateClientsForSubscription(subscriptionID string) (
 		RouteTableClient:       routeTableClient,
 		NSGClient:              nsgClient,
 		LoadBalancerClient:     loadBalancerClient,
+		VMSSClient:             vmssClient,
+		VMSSVMsClient:          vmssVMsClient,
 	}
 
 	c.clientsMap[subscriptionID] = clients
@@ -291,6 +306,35 @@ func (c *AzureClient) GetLoadBalancer(ctx context.Context, subscriptionID, resou
 	return lb, nil
 }
 
+// GetVMSS retrieves information about the specified VMSS.
+func (c *AzureClient) GetVMSS(ctx context.Context, subscriptionID, resourceGroup, vmssName string) (*armcompute.VirtualMachineScaleSet, error) {
+	// Create cache key
+	cacheKey := fmt.Sprintf("resource:vmss:%s:%s:%s", subscriptionID, resourceGroup, vmssName)
+
+	// Check cache first
+	if cached, found := c.cache.Get(cacheKey); found {
+		if vmss, ok := cached.(*armcompute.VirtualMachineScaleSet); ok {
+			return vmss, nil
+		}
+	}
+
+	clients, err := c.GetOrCreateClientsForSubscription(subscriptionID)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := clients.VMSSClient.Get(ctx, resourceGroup, vmssName, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get VMSS: %v", err)
+	}
+
+	vmss := &resp.VirtualMachineScaleSet
+	// Store in cache
+	c.cache.Set(cacheKey, vmss)
+
+	return vmss, nil
+}
+
 // Helper methods for working with resource IDs
 
 // GetResourceByID retrieves a resource by its full Azure resource ID.
@@ -320,6 +364,8 @@ func (c *AzureClient) GetResourceByID(ctx context.Context, resourceID string) (i
 			return c.GetSubnet(ctx, parsed.SubscriptionID, parsed.ResourceGroupName, parsed.Parent.Name, parsed.Name)
 		}
 		return nil, fmt.Errorf("invalid subnet resource ID format: %s", resourceID)
+	case "Microsoft.Compute/virtualMachineScaleSets":
+		return c.GetVMSS(ctx, parsed.SubscriptionID, parsed.ResourceGroupName, parsed.Name)
 	default:
 		return nil, fmt.Errorf("unsupported resource type: %s", parsed.ResourceType)
 	}

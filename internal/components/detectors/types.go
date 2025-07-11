@@ -37,10 +37,10 @@ type DetectorStatus struct {
 
 // DetectorRunResponse represents the API response for running a detector
 type DetectorRunResponse struct {
-	ID         string                 `json:"id"`
-	Name       string                 `json:"name"`
-	Type       string                 `json:"type"`
-	Location   string                 `json:"location"`
+	ID         string                `json:"id"`
+	Name       string                `json:"name"`
+	Type       string                `json:"type"`
+	Location   string                `json:"location"`
 	Properties DetectorRunProperties `json:"properties"`
 }
 
@@ -54,7 +54,7 @@ type DetectorRunProperties struct {
 // DetectorDataset represents detector output data
 type DetectorDataset struct {
 	RenderingProperties RenderingProperties `json:"renderingProperties"`
-	Table              DetectorTable       `json:"table"`
+	Table               DetectorTable       `json:"table"`
 }
 
 // RenderingProperties defines how to display results

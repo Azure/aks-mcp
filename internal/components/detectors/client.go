@@ -28,7 +28,7 @@ func NewDetectorClient(azClient *azureclient.AzureClient) *DetectorClient {
 func (c *DetectorClient) ListDetectors(ctx context.Context, subscriptionID, resourceGroup, clusterName string) (*DetectorListResponse, error) {
 	// Create cache key
 	cacheKey := fmt.Sprintf("detectors:list:%s:%s:%s", subscriptionID, resourceGroup, clusterName)
-	
+
 	// Check cache first
 	if cached, found := c.cache.Get(cacheKey); found {
 		if detectors, ok := cached.(*DetectorListResponse); ok {

@@ -8,8 +8,9 @@ import (
 	"github.com/Azure/aks-mcp/internal/azureclient"
 	"github.com/Azure/aks-mcp/internal/components/advisor"
 	"github.com/Azure/aks-mcp/internal/components/azaks"
-	"github.com/Azure/aks-mcp/internal/components/fleet"
+	"github.com/Azure/aks-mcp/internal/components/compute"
 	"github.com/Azure/aks-mcp/internal/components/detectors"
+	"github.com/Azure/aks-mcp/internal/components/fleet"
 	"github.com/Azure/aks-mcp/internal/components/monitor"
 	"github.com/Azure/aks-mcp/internal/components/network"
 	"github.com/Azure/aks-mcp/internal/config"
@@ -180,6 +181,9 @@ func (s *Service) registerAzureResourceTools() {
 	// Register Detector tools
 	s.registerDetectorTools(azClient)
 
+	// Register Compute-related tools
+	s.registerComputeTools(azClient)
+
 	// TODO: Add other resource categories in the future:
 }
 
@@ -231,6 +235,51 @@ func (s *Service) registerDetectorTools(azClient *azureclient.AzureClient) {
 	log.Println("Registering detector tool: run_detectors_by_category")
 	categoryTool := detectors.RegisterRunDetectorsByCategoryTool()
 	s.mcpServer.AddTool(categoryTool, tools.CreateResourceHandler(detectors.GetRunDetectorsByCategoryHandler(azClient, s.cfg), s.cfg))
+}
+
+// registerComputeTools registers all compute-related Azure resource tools (VMSS/VM)
+func (s *Service) registerComputeTools(azClient *azureclient.AzureClient) {
+	log.Println("Registering Compute tools...")
+
+	// Register VMSS info by node pool tool
+	log.Println("Registering compute tool: get_vmss_info_by_node_pool")
+	vmssInfoTool := compute.RegisterVMSSInfoByNodePoolTool()
+	s.mcpServer.AddTool(vmssInfoTool, tools.CreateResourceHandler(compute.GetVMSSInfoByNodePoolHandler(azClient, s.cfg), s.cfg))
+
+	// Register all VMSS by cluster tool
+	log.Println("Registering compute tool: get_all_vmss_by_cluster")
+	allVmssTool := compute.RegisterAllVMSSByClusterTool()
+	s.mcpServer.AddTool(allVmssTool, tools.CreateResourceHandler(compute.GetAllVMSSByClusterHandler(azClient, s.cfg), s.cfg))
+
+	// Register read-only az vmss commands (available at all access levels)
+	for _, cmd := range compute.GetReadOnlyVmssCommands() {
+		log.Println("Registering az vmss command:", cmd.Name)
+		azTool := compute.RegisterAzComputeCommand(cmd)
+		commandExecutor := azcli.CreateCommandExecutorFunc(cmd.Name)
+		s.mcpServer.AddTool(azTool, tools.CreateToolHandler(commandExecutor, s.cfg))
+	}
+
+	// Register read-write commands if access level is readwrite or admin
+	if s.cfg.AccessLevel == "readwrite" || s.cfg.AccessLevel == "admin" {
+		// Register read-write az vmss commands
+		for _, cmd := range compute.GetReadWriteVmssCommands() {
+			log.Println("Registering az vmss command:", cmd.Name)
+			azTool := compute.RegisterAzComputeCommand(cmd)
+			commandExecutor := azcli.CreateCommandExecutorFunc(cmd.Name)
+			s.mcpServer.AddTool(azTool, tools.CreateToolHandler(commandExecutor, s.cfg))
+		}
+	}
+
+	// Register admin commands only if access level is admin
+	if s.cfg.AccessLevel == "admin" {
+		// Register admin az vmss commands
+		for _, cmd := range compute.GetAdminVmssCommands() {
+			log.Println("Registering az vmss command:", cmd.Name)
+			azTool := compute.RegisterAzComputeCommand(cmd)
+			commandExecutor := azcli.CreateCommandExecutorFunc(cmd.Name)
+			s.mcpServer.AddTool(azTool, tools.CreateToolHandler(commandExecutor, s.cfg))
+		}
+	}
 }
 
 // registerAdvisorTools registers all Azure Advisor-related tools
