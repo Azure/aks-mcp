@@ -13,15 +13,27 @@ var logLevelPrefixes = map[string]string{
 	"error":   "E",
 }
 
+// Audit log categories that use different log level format
+var auditCategories = map[string]bool{
+	"kube-audit":       true,
+	"kube-audit-admin": true,
+}
+
+// isAuditCategory checks if the given category is an audit log category
+func isAuditCategory(category string) bool {
+	return auditCategories[category]
+}
+
 // BuildSafeKQLQuery builds pre-validated KQL queries to prevent injection, scoped to specific AKS cluster
 func BuildSafeKQLQuery(category, logLevel string, maxRecords int, clusterResourceID string) string {
 	// Convert resource ID to uppercase as it's stored in uppercase in Log Analytics
 	upperResourceID := strings.ToUpper(clusterResourceID)
 	baseQuery := fmt.Sprintf("AzureDiagnostics | where Category == '%s' and ResourceId == '%s'", category, upperResourceID)
 
-	if logLevel != "" {
-		// Filter by log level using the predefined mapping
+	if logLevel != "" && !isAuditCategory(category) {
+		// For Kubernetes component logs (not audit), use the log_s prefix pattern
 		// Kubernetes logs use format like "I0715" (Info), "W0715" (Warning), "E0715" (Error)
+		// Audit logs don't follow this pattern, so we skip log level filtering for them
 		if prefix, exists := logLevelPrefixes[strings.ToLower(logLevel)]; exists {
 			baseQuery += fmt.Sprintf(" | where log_s startswith '%s'", prefix)
 		}

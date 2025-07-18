@@ -84,6 +84,36 @@ func TestBuildSafeKQLQuery(t *testing.T) {
 			},
 		},
 		{
+			name:              "query with audit category and log level - should skip log level filtering",
+			category:          "kube-audit",
+			logLevel:          "info",
+			maxRecords:        500,
+			clusterResourceID: "/subscriptions/test/resourcegroups/rg/providers/microsoft.containerservice/managedclusters/cluster",
+			expectedContains: []string{
+				"where Category == 'kube-audit'",
+				"limit 500",
+			},
+			notExpected: []string{
+				"where log_s startswith",
+				"where Level ==",
+			},
+		},
+		{
+			name:              "query with audit-admin category and log level - should skip log level filtering",
+			category:          "kube-audit-admin",
+			logLevel:          "error",
+			maxRecords:        200,
+			clusterResourceID: "/subscriptions/test/resourcegroups/rg/providers/microsoft.containerservice/managedclusters/cluster",
+			expectedContains: []string{
+				"where Category == 'kube-audit-admin'",
+				"limit 200",
+			},
+			notExpected: []string{
+				"where log_s startswith",
+				"where Level ==",
+			},
+		},
+		{
 			name:              "query with cloud controller manager",
 			category:          "cloud-controller-manager",
 			logLevel:          "info",
