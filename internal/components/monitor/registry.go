@@ -99,6 +99,38 @@ func RegisterResourceHealthTool() mcp.Tool {
 	)
 }
 
+// RegisterAppInsightsQueryTool registers the Azure Application Insights query tool
+func RegisterAppInsightsQueryTool() mcp.Tool {
+	return mcp.NewTool("az_monitor_app_insights_query",
+		mcp.WithDescription("Execute KQL queries against Application Insights telemetry data for applications running in AKS clusters"),
+		mcp.WithString("subscription_id",
+			mcp.Required(),
+			mcp.Description("Azure subscription ID"),
+		),
+		mcp.WithString("resource_group",
+			mcp.Required(),
+			mcp.Description("Resource group name containing the Application Insights resource"),
+		),
+		mcp.WithString("app_insights_name",
+			mcp.Required(),
+			mcp.Description("Application Insights resource name"),
+		),
+		mcp.WithString("query",
+			mcp.Required(),
+			mcp.Description("KQL query to execute against Application Insights data (e.g., \"requests | where timestamp > ago(1h) | limit 10\")"),
+		),
+		mcp.WithString("start_time",
+			mcp.Description("Start time for query in ISO 8601 format (e.g., \"2025-01-01T00:00:00Z\")"),
+		),
+		mcp.WithString("end_time",
+			mcp.Description("End time for query (defaults to current time)"),
+		),
+		mcp.WithString("timespan",
+			mcp.Description("Query timespan as ISO 8601 duration (e.g., \"PT1H\" for 1 hour, \"P1D\" for 1 day)"),
+		),
+	)
+}
+
 // RegisterControlPlaneDiagnosticSettingsTool registers the diagnostic settings checker tool
 func RegisterControlPlaneDiagnosticSettingsTool() mcp.Tool {
 	return mcp.NewTool("aks_control_plane_diagnostic_settings",

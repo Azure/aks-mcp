@@ -57,6 +57,7 @@ var (
 		"az monitor metrics list-definitions",
 		"az monitor metrics list-namespaces",
 		"az monitor activity-log list",
+		"az monitor app-insights query",
 
 		// Azure Fleet commands (read-only)
 		"az fleet list",
