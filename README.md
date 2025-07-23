@@ -34,7 +34,8 @@ Configure your MCP servers in supported AI clients like [GitHub Copilot](https:/
     "aks": {
       "command": "<path of binary aks-mcp>",
       "args": [
-        "--transport", "stdio"
+        "--transport", "stdio",
+        "--enabled-components", "azaks,network,advisor"
       ]
     }
   }
@@ -52,12 +53,17 @@ For GitHub Copilot in VS Code, configure the MCP server in your `.vscode/mcp.jso
       "type": "stdio",
       "command": "<path of binary aks-mcp>",
       "args": [
-        "--transport", "stdio"
+        "--transport", "stdio",
+        "--enabled-components", "azaks,network,compute,advisor"
       ]
     }
   }
 }
 ```
+
+**Component Selection Examples:**
+- Minimal configuration (default): `--enabled-components azaks`
+- All components: `--enabled-components azaks,network,compute,monitor,advisor,fleet,detectors,kubernetes`
 
 ### Options
 
@@ -65,12 +71,25 @@ Command line arguments:
 
 ```sh
 Usage of ./aks-mcp:
-      --access-level string   Access level (readonly, readwrite, admin) (default "readonly")
-      --host string           Host to listen for the server (only used with transport sse or streamable-http) (default "127.0.0.1")
-      --port int              Port to listen for the server (only used with transport sse or streamable-http) (default 8000)
-      --timeout int           Timeout for command execution in seconds, default is 600s (default 600)
-      --transport string      Transport mechanism to use (stdio, sse or streamable-http) (default "stdio")
+      --access-level string         Access level (readonly, readwrite, admin) (default "readonly")
+      --additional-tools string     Comma-separated list of additional Kubernetes tools to support (kubectl is always enabled). Available: helm,cilium
+      --allow-namespaces string     Comma-separated list of allowed Kubernetes namespaces (empty means all namespaces)
+      --enabled-components string   Comma-separated list of enabled components (azaks is always enabled). Available: azaks,network,compute,monitor,advisor,fleet,detectors,kubernetes (default "azaks")
+      --host string                 Host to listen for the server (only used with transport sse or streamable-http) (default "127.0.0.1")
+      --port int                    Port to listen for the server (only used with transport sse or streamable-http) (default 8000)
+      --timeout int                 Timeout for command execution in seconds, default is 600s (default 600)
+      --transport string            Transport mechanism to use (stdio, sse or streamable-http) (default "stdio")
 ```
+
+**Component Configuration:**
+- `azaks`: Core AKS commands and control plane tools (always enabled)
+- `network`: VNet, NSG, Load Balancer, and other network-related tools
+- `compute`: VMSS and VM-related tools for AKS node pools
+- `monitor`: Azure Monitor and Application Insights tools
+- `advisor`: Azure Advisor recommendations for AKS clusters
+- `fleet`: Azure Fleet management tools
+- `detectors`: AKS diagnostic detectors and troubleshooting tools
+- `kubernetes`: kubectl, helm, and cilium tools for direct Kubernetes operations
 
 **Environment variables:**
 - Standard Azure authentication environment variables are supported (`AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_SUBSCRIPTION_ID`)

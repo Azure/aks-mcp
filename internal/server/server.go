@@ -54,22 +54,76 @@ func (s *Service) Initialize() error {
 	// azTool := az.RegisterAz()
 	// s.mcpServer.AddTool(azTool, tools.CreateToolHandler(az.NewExecutor(), s.cfg))
 
-	// Register individual az commands
-	s.registerAzCommands()
-
-	// Register Azure resource tools (VNet, NSG, etc.)
-	s.registerAzureResourceTools()
-
-	// Register Azure Advisor tools
-	s.registerAdvisorTools()
-
-	// Register AKS Control Plane tools
-	s.registerControlPlaneTools()
-
-	// Register Kubernetes tools
-	s.registerKubernetesTools()
+	// Register components based on configuration
+	s.registerComponents()
 
 	return nil
+}
+
+// registerComponents registers components based on the enabled components configuration
+func (s *Service) registerComponents() {
+	// azaks is always enabled and includes az commands
+	if s.cfg.EnabledComponents["azaks"] {
+		log.Println("Registering azaks component...")
+		s.registerAzaksTools()
+	}
+
+	// Register network component tools if enabled
+	if s.cfg.EnabledComponents["network"] {
+		log.Println("Registering network component...")
+		azClient, err := azureclient.NewAzureClient(s.cfg)
+		if err != nil {
+			log.Printf("Warning: Failed to create Azure client for network tools: %v", err)
+		} else {
+			s.registerNetworkTools(azClient)
+		}
+	}
+
+	// Register compute component tools if enabled
+	if s.cfg.EnabledComponents["compute"] {
+		log.Println("Registering compute component...")
+		azClient, err := azureclient.NewAzureClient(s.cfg)
+		if err != nil {
+			log.Printf("Warning: Failed to create Azure client for compute tools: %v", err)
+		} else {
+			s.registerComputeTools(azClient)
+		}
+	}
+
+	// Register monitor component tools if enabled
+	if s.cfg.EnabledComponents["monitor"] {
+		log.Println("Registering monitor component...")
+		s.registerMonitorTools()
+	}
+
+	// Register advisor component tools if enabled
+	if s.cfg.EnabledComponents["advisor"] {
+		log.Println("Registering advisor component...")
+		s.registerAdvisorTools()
+	}
+
+	// Register fleet component tools if enabled
+	if s.cfg.EnabledComponents["fleet"] {
+		log.Println("Registering fleet component...")
+		s.registerFleetTools()
+	}
+
+	// Register detectors component tools if enabled
+	if s.cfg.EnabledComponents["detectors"] {
+		log.Println("Registering detectors component...")
+		azClient, err := azureclient.NewAzureClient(s.cfg)
+		if err != nil {
+			log.Printf("Warning: Failed to create Azure client for detector tools: %v", err)
+		} else {
+			s.registerDetectorTools(azClient)
+		}
+	}
+
+	// Register kubernetes component tools if enabled
+	if s.cfg.EnabledComponents["kubernetes"] {
+		log.Println("Registering kubernetes component...")
+		s.registerKubernetesTools()
+	}
 }
 
 // Run starts the service with the specified transport
@@ -97,8 +151,10 @@ func (s *Service) Run() error {
 	}
 }
 
-// registerAzCommands registers individual az commands as separate tools
-func (s *Service) registerAzCommands() {
+// registerAzaksTools registers core AKS commands and account management tools
+func (s *Service) registerAzaksTools() {
+	log.Println("Registering AKS tools...")
+
 	// Register read-only az commands (available at all access levels)
 	for _, cmd := range azaks.GetReadOnlyAzCommands() {
 		log.Println("Registering az command:", cmd.Name)
@@ -106,29 +162,6 @@ func (s *Service) registerAzCommands() {
 		commandExecutor := azcli.CreateCommandExecutorFunc(cmd.Name)
 		s.mcpServer.AddTool(azTool, tools.CreateToolHandler(commandExecutor, s.cfg))
 	}
-
-	// Register read-only az monitor commands (available at all access levels)
-	for _, cmd := range monitor.GetReadOnlyMonitorCommands() {
-		log.Println("Registering az monitor command:", cmd.Name)
-		azTool := monitor.RegisterMonitorCommand(cmd)
-		commandExecutor := azcli.CreateCommandExecutorFunc(cmd.Name)
-		s.mcpServer.AddTool(azTool, tools.CreateToolHandler(commandExecutor, s.cfg))
-	}
-
-	// Register generic az fleet tool with structured parameters (available at all access levels)
-	log.Println("Registering az fleet tool: az_fleet")
-	fleetTool := fleet.RegisterFleet()
-	s.mcpServer.AddTool(fleetTool, tools.CreateToolHandler(azcli.NewFleetExecutor(), s.cfg))
-
-	// Register Azure Resource Health monitoring tool (available at all access levels)
-	log.Println("Registering monitor tool: az_monitor_activity_log_resource_health")
-	resourceHealthTool := monitor.RegisterResourceHealthTool()
-	s.mcpServer.AddTool(resourceHealthTool, tools.CreateResourceHandler(monitor.GetResourceHealthHandler(s.cfg), s.cfg))
-
-	// Register Azure Application Insights monitoring tool (available at all access levels)
-	log.Println("Registering monitor tool: az_monitor_app_insights_query")
-	appInsightsTool := monitor.RegisterAppInsightsQueryTool()
-	s.mcpServer.AddTool(appInsightsTool, tools.CreateResourceHandler(monitor.GetAppInsightsHandler(s.cfg), s.cfg))
 
 	// Register account management commands (available at all access levels)
 	for _, cmd := range azaks.GetAccountAzCommands() {
@@ -147,17 +180,6 @@ func (s *Service) registerAzCommands() {
 			commandExecutor := azcli.CreateCommandExecutorFunc(cmd.Name)
 			s.mcpServer.AddTool(azTool, tools.CreateToolHandler(commandExecutor, s.cfg))
 		}
-
-		// Register read-write az monitor commands
-		for _, cmd := range monitor.GetReadWriteMonitorCommands() {
-			log.Println("Registering az monitor command:", cmd.Name)
-			azTool := monitor.RegisterMonitorCommand(cmd)
-			commandExecutor := azcli.CreateCommandExecutorFunc(cmd.Name)
-			s.mcpServer.AddTool(azTool, tools.CreateToolHandler(commandExecutor, s.cfg))
-		}
-
-		// Fleet commands are handled by the generic az fleet tool registered above
-		// No additional registration needed for read-write access
 	}
 
 	// Register admin commands only if access level is admin
@@ -169,7 +191,47 @@ func (s *Service) registerAzCommands() {
 			commandExecutor := azcli.CreateCommandExecutorFunc(cmd.Name)
 			s.mcpServer.AddTool(azTool, tools.CreateToolHandler(commandExecutor, s.cfg))
 		}
+	}
+}
 
+// registerMonitorTools registers Azure Monitor commands and resource health tools
+func (s *Service) registerMonitorTools() {
+	log.Println("Registering Monitor tools...")
+
+	// Register read-only az monitor commands (available at all access levels)
+	for _, cmd := range monitor.GetReadOnlyMonitorCommands() {
+		log.Println("Registering az monitor command:", cmd.Name)
+		azTool := monitor.RegisterMonitorCommand(cmd)
+		commandExecutor := azcli.CreateCommandExecutorFunc(cmd.Name)
+		s.mcpServer.AddTool(azTool, tools.CreateToolHandler(commandExecutor, s.cfg))
+	}
+
+	// Register Azure Resource Health monitoring tool (available at all access levels)
+	log.Println("Registering monitor tool: az_monitor_activity_log_resource_health")
+	resourceHealthTool := monitor.RegisterResourceHealthTool()
+	s.mcpServer.AddTool(resourceHealthTool, tools.CreateResourceHandler(monitor.GetResourceHealthHandler(s.cfg), s.cfg))
+
+	// Register Azure Application Insights monitoring tool (available at all access levels)
+	log.Println("Registering monitor tool: az_monitor_app_insights_query")
+	appInsightsTool := monitor.RegisterAppInsightsQueryTool()
+	s.mcpServer.AddTool(appInsightsTool, tools.CreateResourceHandler(monitor.GetAppInsightsHandler(s.cfg), s.cfg))
+
+	// Register control plane tools
+	s.registerControlPlaneTools()
+
+	// Register read-write commands if access level is readwrite or admin
+	if s.cfg.AccessLevel == "readwrite" || s.cfg.AccessLevel == "admin" {
+		// Register read-write az monitor commands
+		for _, cmd := range monitor.GetReadWriteMonitorCommands() {
+			log.Println("Registering az monitor command:", cmd.Name)
+			azTool := monitor.RegisterMonitorCommand(cmd)
+			commandExecutor := azcli.CreateCommandExecutorFunc(cmd.Name)
+			s.mcpServer.AddTool(azTool, tools.CreateToolHandler(commandExecutor, s.cfg))
+		}
+	}
+
+	// Register admin commands only if access level is admin
+	if s.cfg.AccessLevel == "admin" {
 		// Register admin az monitor commands
 		for _, cmd := range monitor.GetAdminMonitorCommands() {
 			log.Println("Registering az monitor command:", cmd.Name)
@@ -177,10 +239,17 @@ func (s *Service) registerAzCommands() {
 			commandExecutor := azcli.CreateCommandExecutorFunc(cmd.Name)
 			s.mcpServer.AddTool(azTool, tools.CreateToolHandler(commandExecutor, s.cfg))
 		}
-
-		// Fleet commands are handled by the generic az fleet tool registered above
-		// No additional registration needed for admin access
 	}
+}
+
+// registerFleetTools registers Azure Fleet management tools
+func (s *Service) registerFleetTools() {
+	log.Println("Registering Fleet tools...")
+
+	// Register generic az fleet tool with structured parameters (available at all access levels)
+	log.Println("Registering az fleet tool: az_fleet")
+	fleetTool := fleet.RegisterFleet()
+	s.mcpServer.AddTool(fleetTool, tools.CreateToolHandler(azcli.NewFleetExecutor(), s.cfg))
 }
 
 // registerControlPlaneTools registers all AKS control plane log-related tools
@@ -196,26 +265,6 @@ func (s *Service) registerControlPlaneTools() {
 	log.Println("Registering control plane tool: aks_control_plane_logs")
 	logsTool := monitor.RegisterControlPlaneLogsTool()
 	s.mcpServer.AddTool(logsTool, tools.CreateResourceHandler(diagnostics.GetControlPlaneLogsHandler(s.cfg), s.cfg))
-}
-
-func (s *Service) registerAzureResourceTools() {
-	// Create Azure client for the resource tools (cache is internal to the client)
-	azClient, err := azureclient.NewAzureClient(s.cfg)
-	if err != nil {
-		log.Printf("Warning: Failed to create Azure client: %v", err)
-		return
-	}
-
-	// Register Network-related tools
-	s.registerNetworkTools(azClient)
-
-	// Register Detector tools
-	s.registerDetectorTools(azClient)
-
-	// Register Compute-related tools
-	s.registerComputeTools(azClient)
-
-	// TODO: Add other resource categories in the future:
 }
 
 // registerNetworkTools registers all network-related Azure resource tools

@@ -28,6 +28,10 @@ type ConfigData struct {
 	AdditionalTools map[string]bool
 	// Comma-separated list of allowed Kubernetes namespaces
 	AllowNamespaces string
+
+	// Component-specific options
+	// Map of enabled components (azaks always enabled, others optional)
+	EnabledComponents map[string]bool
 }
 
 // NewConfig creates and returns a new configuration instance
@@ -41,6 +45,9 @@ func NewConfig() *ConfigData {
 		AccessLevel:     "readonly",
 		AdditionalTools: make(map[string]bool),
 		AllowNamespaces: "",
+		EnabledComponents: map[string]bool{
+			"azaks": true, // azaks is always enabled by default
+		},
 	}
 }
 
@@ -60,6 +67,10 @@ func (cfg *ConfigData) ParseFlags() {
 	flag.StringVar(&cfg.AllowNamespaces, "allow-namespaces", "",
 		"Comma-separated list of allowed Kubernetes namespaces (empty means all namespaces)")
 
+	// Component-specific settings
+	enabledComponents := flag.String("enabled-components", "azaks",
+		"Comma-separated list of enabled components (azaks is always enabled). Available: azaks,network,compute,monitor,advisor,fleet,detectors,kubernetes")
+
 	flag.Parse()
 
 	// Update security config
@@ -71,6 +82,22 @@ func (cfg *ConfigData) ParseFlags() {
 		tools := strings.Split(*additionalTools, ",")
 		for _, tool := range tools {
 			cfg.AdditionalTools[strings.TrimSpace(tool)] = true
+		}
+	}
+
+	// Parse enabled components
+	if *enabledComponents != "" {
+		// Reset EnabledComponents but keep azaks always enabled
+		cfg.EnabledComponents = map[string]bool{
+			"azaks": true, // azaks is always enabled
+		}
+
+		components := strings.Split(*enabledComponents, ",")
+		for _, component := range components {
+			componentName := strings.TrimSpace(component)
+			if componentName != "" {
+				cfg.EnabledComponents[componentName] = true
+			}
 		}
 	}
 }
