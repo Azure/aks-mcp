@@ -27,4 +27,5 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v8
         with:
+          args: --build-tags "withoutebpf"
           version: v2.1

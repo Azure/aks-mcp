@@ -24,7 +24,7 @@ type ConfigData struct {
 	AccessLevel string
 
 	// Kubernetes-specific options
-	// Map of additional tools enabled (helm, cilium)
+	// Map of additional tools enabled (helm, cilium, inspektor-gadget)
 	AdditionalTools map[string]bool
 	// Comma-separated list of allowed Kubernetes namespaces
 	AllowNamespaces string
@@ -56,7 +56,7 @@ func (cfg *ConfigData) ParseFlags() {
 
 	// Kubernetes-specific settings
 	additionalTools := flag.String("additional-tools", "",
-		"Comma-separated list of additional Kubernetes tools to support (kubectl is always enabled). Available: helm,cilium")
+		"Comma-separated list of additional Kubernetes tools to support (kubectl is always enabled). Available: helm,cilium,inspektor-gadget")
 	flag.StringVar(&cfg.AllowNamespaces, "allow-namespaces", "",
 		"Comma-separated list of allowed Kubernetes namespaces (empty means all namespaces)")
 

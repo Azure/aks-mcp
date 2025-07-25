@@ -11,6 +11,7 @@ import (
 	"github.com/Azure/aks-mcp/internal/components/compute"
 	"github.com/Azure/aks-mcp/internal/components/detectors"
 	"github.com/Azure/aks-mcp/internal/components/fleet"
+	"github.com/Azure/aks-mcp/internal/components/inspektorgadget"
 	"github.com/Azure/aks-mcp/internal/components/monitor"
 	"github.com/Azure/aks-mcp/internal/components/monitor/diagnostics"
 	"github.com/Azure/aks-mcp/internal/components/network"
@@ -346,6 +347,12 @@ func (s *Service) registerKubernetesTools() {
 		ciliumExecutor := k8s.WrapK8sExecutor(cilium.NewExecutor())
 		s.mcpServer.AddTool(ciliumTool, tools.CreateToolHandler(ciliumExecutor, s.cfg))
 	}
+
+	// Register Inspektor Gadget tools for observability
+	if s.cfg.AdditionalTools["inspektor-gadget"] {
+		log.Println("Registering Kubernetes tool: inspektor-gadget")
+		s.registerInspektorGadgetTools()
+	}
 }
 
 // registerKubectlCommands registers kubectl commands based on access level
@@ -365,5 +372,27 @@ func (s *Service) registerKubectlCommands() {
 		// Create a handler that injects the tool name into params
 		handler := k8stools.CreateToolHandlerWithName(kubectlExecutor, k8sCfg, tool.Name)
 		s.mcpServer.AddTool(tool, handler)
+	}
+}
+
+// registerInspektorGadgetTools registers all Inspektor Gadget tools for observability
+func (s *Service) registerInspektorGadgetTools() {
+	gadgetMgr, err := inspektorgadget.NewGadgetManager()
+	if err != nil {
+		log.Printf("Warning: Failed to create gadget manager: %v", err)
+		return
+	}
+
+	// Register Inspektor Gadget tool
+	log.Println("Registering inspektor-gadget tool: inspektor_gadget")
+	inspektorGadget := inspektorgadget.RegisterInspektorGadgetTool()
+	s.mcpServer.AddTool(inspektorGadget, tools.CreateResourceHandler(inspektorgadget.InspektorGadgetHandler(gadgetMgr, s.cfg), s.cfg))
+
+	if s.cfg.AccessLevel == "readwrite" || s.cfg.AccessLevel == "admin" {
+		// Register Inspektor Gadget deploy/undeploy tool
+		log.Println("Registering inspektor-gadget tool: inspektor_gadget_deploy_undeploy")
+		inspektorGadgetDeployUndeploy := inspektorgadget.RegisterInspektorGadgetDeployUndeployTool()
+		inspektorGadgetLifecycleExecutor := k8s.WrapK8sExecutor(inspektorgadget.NewInspektorGadgetDeployUndeployExecutor(gadgetMgr))
+		s.mcpServer.AddTool(inspektorGadgetDeployUndeploy, tools.CreateToolHandler(inspektorGadgetLifecycleExecutor, s.cfg))
 	}
 }

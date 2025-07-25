@@ -307,6 +307,9 @@ The AKS-MCP server provides the following tools for interacting with AKS cluster
 **Additional Tools (Optional):**
 - `helm`: Helm package manager for Kubernetes (requires `--additional-tools helm`)
 - `cilium`: Cilium CLI for eBPF-based networking and security (requires `--additional-tools cilium`)
+- `inspektor-gadget`: Inspektor Gadget for real-time debugging of Kubernetes clusters (requires `--additional-tools=inspektor-gadget`)
+- `inpektor_gadget_deploy_undeploy`: Deploy or undeploy Inspektor Gadget (requires `--additional-tools=inspektor-gadget` and `--access-level=readwrite` or `--access-level=admin`)
+
 </details>
 
 <details>

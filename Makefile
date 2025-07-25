@@ -20,7 +20,7 @@ LDFLAGS = -ldflags "-X github.com/Azure/aks-mcp/internal/version.GitVersion=$(VE
                    -X github.com/Azure/aks-mcp/internal/version.BuildMetadata=$(BUILD_DATE)"
 
 # Build options
-BUILD_FLAGS = -trimpath
+BUILD_FLAGS = -trimpath -tags withoutebpf
 CGO_ENABLED ?= 0
 
 # Platform targets for cross-compilation
