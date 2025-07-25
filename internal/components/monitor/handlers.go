@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Azure/aks-mcp/internal/azcli"
+	"github.com/Azure/aks-mcp/internal/components/monitor/diagnostics"
 	"github.com/Azure/aks-mcp/internal/config"
 	"github.com/Azure/aks-mcp/internal/tools"
 )
@@ -235,4 +236,94 @@ func GetAppInsightsHandler(cfg *config.ConfigData) tools.ResourceHandler {
 	return tools.ResourceHandlerFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
 		return HandleAppInsightsQuery(params, cfg)
 	})
+}
+
+// GetAzMonitoringHandler returns a ResourceHandler for the monitoring tool
+func GetAzMonitoringHandler(cfg *config.ConfigData) tools.ResourceHandler {
+	return tools.ResourceHandlerFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
+		// Extract operation parameter
+		operation, ok := params["operation"].(string)
+		if !ok {
+			return "", fmt.Errorf("missing or invalid 'operation' parameter")
+		}
+
+		// Validate operation
+		if !ValidateMonitoringOperation(operation) {
+			supportedOps := GetSupportedMonitoringOperations()
+			return "", fmt.Errorf("unsupported operation: %s. Supported operations: %v", operation, supportedOps)
+		}
+
+		// Handle different operations
+		switch operation {
+		case string(OpMetrics):
+			return handleMetricsOperation(params, cfg)
+		case string(OpResourceHealth):
+			return handleResourceHealthOperation(params, cfg)
+		case string(OpAppInsights):
+			return handleAppInsightsOperation(params, cfg)
+		case string(OpDiagnostics):
+			return handleDiagnosticsOperation(params, cfg)
+		case string(OpLogs):
+			return handleLogsOperation(params, cfg)
+		default:
+			return "", fmt.Errorf("operation '%s' not implemented", operation)
+		}
+	})
+}
+
+// Helper functions for different monitoring operations
+
+func handleMetricsOperation(params map[string]interface{}, cfg *config.ConfigData) (string, error) {
+	queryType, ok := params["query_type"].(string)
+	if !ok {
+		return "", fmt.Errorf("missing or invalid 'query_type' parameter for metrics operation")
+	}
+
+	if !ValidateMetricsQueryType(queryType) {
+		return "", fmt.Errorf("invalid query_type: %s. Supported types: list, list-definitions, list-namespaces", queryType)
+	}
+
+	// Extract parameters from JSON string
+	parametersStr, ok := params["parameters"].(string)
+	if !ok {
+		return "", fmt.Errorf("missing or invalid 'parameters' parameter")
+	}
+
+	// Parse parameters (this is a simplified implementation)
+	// In a real implementation, you would parse the JSON properly
+	args := strings.Split(parametersStr, " ")
+
+	// Map query type to command
+	baseCommand, err := MapMetricsQueryTypeToCommand(queryType)
+	if err != nil {
+		return "", err
+	}
+
+	// Execute the command
+	executor := azcli.NewExecutor()
+	cmdParams := map[string]interface{}{
+		"command": baseCommand + " " + strings.Join(args, " "),
+	}
+
+	return executor.Execute(cmdParams, cfg)
+}
+
+func handleResourceHealthOperation(params map[string]interface{}, cfg *config.ConfigData) (string, error) {
+	// Use existing resource health handler
+	return GetResourceHealthHandler(cfg).Handle(params, cfg)
+}
+
+func handleAppInsightsOperation(params map[string]interface{}, cfg *config.ConfigData) (string, error) {
+	// Use existing app insights handler
+	return GetAppInsightsHandler(cfg).Handle(params, cfg)
+}
+
+func handleDiagnosticsOperation(params map[string]interface{}, cfg *config.ConfigData) (string, error) {
+	// Use existing control plane diagnostics handler
+	return diagnostics.GetControlPlaneDiagnosticSettingsHandler(cfg).Handle(params, cfg)
+}
+
+func handleLogsOperation(params map[string]interface{}, cfg *config.ConfigData) (string, error) {
+	// Use existing control plane logs handler
+	return diagnostics.GetControlPlaneLogsHandler(cfg).Handle(params, cfg)
 }

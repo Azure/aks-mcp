@@ -175,9 +175,6 @@ func listRecommendationsViaCLI(subscriptionID, resourceGroup, category string, c
 	if resourceGroup != "" {
 		args = append(args, "--resource-group", resourceGroup)
 	}
-	//if category != "" {
-	//	args = append(args, "--category", category)
-	//}
 
 	// Create command parameters
 	cmdParams := map[string]interface{}{

@@ -2,77 +2,73 @@ package azaks
 
 import (
 	"testing"
+
+	"github.com/Azure/aks-mcp/internal/config"
 )
 
-func TestGetReadOnlyAzCommands_ContainsNodepoolCommands(t *testing.T) {
-	commands := GetReadOnlyAzCommands()
+func TestRegisterAzAksOperations_Tool(t *testing.T) {
+	// Test that the tool is registered correctly
+	cfg := &config.ConfigData{AccessLevel: "readonly"}
+	tool := RegisterAzAksOperations(cfg)
 
-	// Check that nodepool list command is included
-	foundNodepoolList := false
-	foundNodepoolShow := false
-
-	for _, cmd := range commands {
-		if cmd.Name == "az aks nodepool list" {
-			foundNodepoolList = true
-			if cmd.Description == "" {
-				t.Error("Expected nodepool list command to have a description")
-			}
-			if cmd.ArgsExample == "" {
-				t.Error("Expected nodepool list command to have an args example")
-			}
-		}
-		if cmd.Name == "az aks nodepool show" {
-			foundNodepoolShow = true
-			if cmd.Description == "" {
-				t.Error("Expected nodepool show command to have a description")
-			}
-			if cmd.ArgsExample == "" {
-				t.Error("Expected nodepool show command to have an args example")
-			}
-		}
-	}
-
-	if !foundNodepoolList {
-		t.Error("Expected to find 'az aks nodepool list' command in read-only commands")
-	}
-
-	if !foundNodepoolShow {
-		t.Error("Expected to find 'az aks nodepool show' command in read-only commands")
-	}
-}
-
-func TestRegisterAzCommand_NodepoolCommands(t *testing.T) {
-	// Test that nodepool list command can be registered
-	listCmd := AksCommand{
-		Name:        "az aks nodepool list",
-		Description: "List node pools in a managed Kubernetes cluster",
-		ArgsExample: "--cluster-name myAKSCluster --resource-group myResourceGroup",
-	}
-
-	tool := RegisterAzCommand(listCmd)
-
-	if tool.Name != "az_aks_nodepool_list" {
-		t.Errorf("Expected tool name 'az_aks_nodepool_list', got '%s'", tool.Name)
+	if tool.Name != "az_aks_operations" {
+		t.Errorf("Expected tool name 'az_aks_operations', got '%s'", tool.Name)
 	}
 
 	if tool.Description == "" {
 		t.Error("Expected tool description to be set")
 	}
+}
 
-	// Test that nodepool show command can be registered
-	showCmd := AksCommand{
-		Name:        "az aks nodepool show",
-		Description: "Show the details for a node pool in the managed Kubernetes cluster",
-		ArgsExample: "--cluster-name myAKSCluster --resource-group myResourceGroup --name nodepool1",
+func TestGetSupportedOperations_ContainsExpectedOps(t *testing.T) {
+	// Test that supported operations include expected operations
+	operations := GetSupportedOperations()
+
+	expectedOps := []string{
+		"show", "list", "create", "delete", "scale", "update", "upgrade",
+		"nodepool-list", "nodepool-show", "nodepool-add", "nodepool-delete",
+		"account-list", "account-set", "login", "get-credentials",
 	}
 
-	tool2 := RegisterAzCommand(showCmd)
+	for _, expectedOp := range expectedOps {
+		found := false
+		for _, op := range operations {
+			if op == expectedOp {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("Expected operation '%s' not found in supported operations", expectedOp)
+		}
+	}
+}
 
-	if tool2.Name != "az_aks_nodepool_show" {
-		t.Errorf("Expected tool name 'az_aks_nodepool_show', got '%s'", tool2.Name)
+func TestValidateOperationAccess_ChecksAccessLevels(t *testing.T) {
+	// Test access level validation for different operations
+	testCases := []struct {
+		operation   string
+		accessLevel string
+		shouldPass  bool
+	}{
+		{"show", "readonly", true},
+		{"list", "readonly", true},
+		{"create", "readonly", false},
+		{"create", "readwrite", true},
+		{"create", "admin", true},
+		{"get-credentials", "readonly", false},
+		{"get-credentials", "readwrite", false},
+		{"get-credentials", "admin", true},
 	}
 
-	if tool2.Description == "" {
-		t.Error("Expected tool description to be set")
+	for _, tc := range testCases {
+		cfg := &config.ConfigData{AccessLevel: tc.accessLevel}
+		err := ValidateOperationAccess(tc.operation, cfg)
+		if tc.shouldPass && err != nil {
+			t.Errorf("Expected operation '%s' with access level '%s' to pass, but got error: %v", tc.operation, tc.accessLevel, err)
+		}
+		if !tc.shouldPass && err == nil {
+			t.Errorf("Expected operation '%s' with access level '%s' to fail, but no error returned", tc.operation, tc.accessLevel)
+		}
 	}
 }
