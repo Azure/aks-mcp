@@ -1,6 +1,7 @@
 package monitor
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -10,6 +11,31 @@ import (
 	"github.com/Azure/aks-mcp/internal/config"
 	"github.com/Azure/aks-mcp/internal/tools"
 )
+
+// mergeMonitoringParams merges top-level parameters with nested "parameters" JSON string
+func mergeMonitoringParams(params map[string]interface{}) (map[string]interface{}, error) {
+	merged := make(map[string]interface{})
+
+	// Copy all top-level parameters first
+	for key, value := range params {
+		merged[key] = value
+	}
+
+	// Parse and merge parameters from JSON string if present
+	if parametersStr, ok := params["parameters"].(string); ok && parametersStr != "" {
+		var nestedParams map[string]interface{}
+		if err := json.Unmarshal([]byte(parametersStr), &nestedParams); err == nil {
+			// Merge nested parameters, giving precedence to top-level params
+			for key, value := range nestedParams {
+				if _, exists := merged[key]; !exists {
+					merged[key] = value
+				}
+			}
+		}
+	}
+
+	return merged, nil
+}
 
 // HandleResourceHealthQuery handles the resource health query for AKS clusters
 func HandleResourceHealthQuery(params map[string]interface{}, cfg *config.ConfigData) (string, error) {
@@ -309,21 +335,45 @@ func handleMetricsOperation(params map[string]interface{}, cfg *config.ConfigDat
 }
 
 func handleResourceHealthOperation(params map[string]interface{}, cfg *config.ConfigData) (string, error) {
+	// Merge parameters from top-level and nested JSON
+	mergedParams, err := mergeMonitoringParams(params)
+	if err != nil {
+		return "", fmt.Errorf("failed to merge parameters: %w", err)
+	}
+
 	// Use existing resource health handler
-	return GetResourceHealthHandler(cfg).Handle(params, cfg)
+	return GetResourceHealthHandler(cfg).Handle(mergedParams, cfg)
 }
 
 func handleAppInsightsOperation(params map[string]interface{}, cfg *config.ConfigData) (string, error) {
+	// Merge parameters from top-level and nested JSON
+	mergedParams, err := mergeMonitoringParams(params)
+	if err != nil {
+		return "", fmt.Errorf("failed to merge parameters: %w", err)
+	}
+
 	// Use existing app insights handler
-	return GetAppInsightsHandler(cfg).Handle(params, cfg)
+	return GetAppInsightsHandler(cfg).Handle(mergedParams, cfg)
 }
 
 func handleDiagnosticsOperation(params map[string]interface{}, cfg *config.ConfigData) (string, error) {
+	// Merge parameters from top-level and nested JSON
+	mergedParams, err := mergeMonitoringParams(params)
+	if err != nil {
+		return "", fmt.Errorf("failed to merge parameters: %w", err)
+	}
+
 	// Use existing control plane diagnostics handler
-	return diagnostics.GetControlPlaneDiagnosticSettingsHandler(cfg).Handle(params, cfg)
+	return diagnostics.GetControlPlaneDiagnosticSettingsHandler(cfg).Handle(mergedParams, cfg)
 }
 
 func handleLogsOperation(params map[string]interface{}, cfg *config.ConfigData) (string, error) {
+	// Merge parameters from top-level and nested JSON
+	mergedParams, err := mergeMonitoringParams(params)
+	if err != nil {
+		return "", fmt.Errorf("failed to merge parameters: %w", err)
+	}
+
 	// Use existing control plane logs handler
-	return diagnostics.GetControlPlaneLogsHandler(cfg).Handle(params, cfg)
+	return diagnostics.GetControlPlaneLogsHandler(cfg).Handle(mergedParams, cfg)
 }
