@@ -69,23 +69,6 @@ func TestHandleAppInsightsQuery_MissingParameters(t *testing.T) {
 	}
 }
 
-func TestRegisterAppInsightsQueryTool(t *testing.T) {
-	tool := RegisterAppInsightsQueryTool()
-
-	if tool.Name != "az_monitor_app_insights_query" {
-		t.Errorf("Expected tool name 'az_monitor_app_insights_query', got '%s'", tool.Name)
-	}
-
-	if tool.Description == "" {
-		t.Error("Expected tool description to be non-empty")
-	}
-
-	// Check that we have input schema
-	if tool.InputSchema.Properties == nil {
-		t.Error("Expected tool to have input schema properties")
-	}
-}
-
 func TestValidateAppInsightsParams_TimeValidation(t *testing.T) {
 	testCases := []struct {
 		name        string

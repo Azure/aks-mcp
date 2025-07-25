@@ -329,3 +329,167 @@ func GetPrivateEndpointInfoHandler(client *azureclient.AzureClient, cfg *config.
 		return string(jsonData), nil
 	})
 }
+
+// GetAzNetworkResourcesHandler returns a handler for the az_network_resources command
+func GetAzNetworkResourcesHandler(client *azureclient.AzureClient, cfg *config.ConfigData) tools.ResourceHandler {
+	return tools.ResourceHandlerFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
+		// Extract resource_type parameter
+		resourceType, ok := params["resource_type"].(string)
+		if !ok {
+			return "", fmt.Errorf("missing or invalid 'resource_type' parameter")
+		}
+
+		// Validate resource type
+		if !ValidateNetworkResourceType(resourceType) {
+			supportedTypes := GetSupportedNetworkResourceTypes()
+			return "", fmt.Errorf("unsupported resource type: %s. Supported types: %v", resourceType, supportedTypes)
+		}
+
+		// Extract common AKS parameters
+		subID, rg, clusterName, err := common.ExtractAKSParameters(params)
+		if err != nil {
+			return "", err
+		}
+
+		// Handle different resource types
+		switch resourceType {
+		case string(ResourceTypeAll):
+			return handleAllNetworkResources(client, subID, rg, clusterName)
+		case string(ResourceTypeVNet):
+			return handleVNetResource(client, subID, rg, clusterName)
+		case string(ResourceTypeNSG):
+			return handleNSGResource(client, subID, rg, clusterName)
+		case string(ResourceTypeRouteTable):
+			return handleRouteTableResource(client, subID, rg, clusterName)
+		case string(ResourceTypeSubnet):
+			return handleSubnetResource(client, subID, rg, clusterName)
+		case string(ResourceTypeLoadBalancer):
+			return handleLoadBalancerResource(client, subID, rg, clusterName)
+		case string(ResourceTypePrivateEndpoint):
+			return handlePrivateEndpointResource(client, subID, rg, clusterName)
+		default:
+			return "", fmt.Errorf("resource type '%s' not implemented", resourceType)
+		}
+	})
+}
+
+// Helper functions for different resource types
+
+func handleAllNetworkResources(client *azureclient.AzureClient, subID, rg, clusterName string) (string, error) {
+	result := make(map[string]interface{})
+
+	// Get VNet info
+	if vnetResult, err := handleVNetResource(client, subID, rg, clusterName); err == nil {
+		result["vnet"] = json.RawMessage(vnetResult)
+	} else {
+		result["vnet_error"] = err.Error()
+	}
+
+	// Get NSG info
+	if nsgResult, err := handleNSGResource(client, subID, rg, clusterName); err == nil {
+		result["nsg"] = json.RawMessage(nsgResult)
+	} else {
+		result["nsg_error"] = err.Error()
+	}
+
+	// Get Route Table info
+	if routeResult, err := handleRouteTableResource(client, subID, rg, clusterName); err == nil {
+		result["route_table"] = json.RawMessage(routeResult)
+	} else {
+		result["route_table_error"] = err.Error()
+	}
+
+	// Get Subnet info
+	if subnetResult, err := handleSubnetResource(client, subID, rg, clusterName); err == nil {
+		result["subnet"] = json.RawMessage(subnetResult)
+	} else {
+		result["subnet_error"] = err.Error()
+	}
+
+	// Get Load Balancer info
+	if lbResult, err := handleLoadBalancerResource(client, subID, rg, clusterName); err == nil {
+		result["load_balancer"] = json.RawMessage(lbResult)
+	} else {
+		result["load_balancer_error"] = err.Error()
+	}
+
+	// Get Private Endpoint info
+	if peResult, err := handlePrivateEndpointResource(client, subID, rg, clusterName); err == nil {
+		result["private_endpoint"] = json.RawMessage(peResult)
+	} else {
+		result["private_endpoint_error"] = err.Error()
+	}
+
+	resultJSON, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal result to JSON: %v", err)
+	}
+
+	return string(resultJSON), nil
+}
+
+func handleVNetResource(client *azureclient.AzureClient, subID, rg, clusterName string) (string, error) {
+	// Use the existing VNet handler logic
+	handler := GetVNetInfoHandler(client, nil)
+	params := map[string]interface{}{
+		"subscription_id": subID,
+		"resource_group":  rg,
+		"cluster_name":    clusterName,
+	}
+	return handler.Handle(params, nil)
+}
+
+func handleNSGResource(client *azureclient.AzureClient, subID, rg, clusterName string) (string, error) {
+	// Use the existing NSG handler logic
+	handler := GetNSGInfoHandler(client, nil)
+	params := map[string]interface{}{
+		"subscription_id": subID,
+		"resource_group":  rg,
+		"cluster_name":    clusterName,
+	}
+	return handler.Handle(params, nil)
+}
+
+func handleRouteTableResource(client *azureclient.AzureClient, subID, rg, clusterName string) (string, error) {
+	// Use the existing Route Table handler logic
+	handler := GetRouteTableInfoHandler(client, nil)
+	params := map[string]interface{}{
+		"subscription_id": subID,
+		"resource_group":  rg,
+		"cluster_name":    clusterName,
+	}
+	return handler.Handle(params, nil)
+}
+
+func handleSubnetResource(client *azureclient.AzureClient, subID, rg, clusterName string) (string, error) {
+	// Use the existing Subnet handler logic
+	handler := GetSubnetInfoHandler(client, nil)
+	params := map[string]interface{}{
+		"subscription_id": subID,
+		"resource_group":  rg,
+		"cluster_name":    clusterName,
+	}
+	return handler.Handle(params, nil)
+}
+
+func handleLoadBalancerResource(client *azureclient.AzureClient, subID, rg, clusterName string) (string, error) {
+	// Use the existing Load Balancer handler logic
+	handler := GetLoadBalancersInfoHandler(client, nil)
+	params := map[string]interface{}{
+		"subscription_id": subID,
+		"resource_group":  rg,
+		"cluster_name":    clusterName,
+	}
+	return handler.Handle(params, nil)
+}
+
+func handlePrivateEndpointResource(client *azureclient.AzureClient, subID, rg, clusterName string) (string, error) {
+	// Use the existing Private Endpoint handler logic
+	handler := GetPrivateEndpointInfoHandler(client, nil)
+	params := map[string]interface{}{
+		"subscription_id": subID,
+		"resource_group":  rg,
+		"cluster_name":    clusterName,
+	}
+	return handler.Handle(params, nil)
+}

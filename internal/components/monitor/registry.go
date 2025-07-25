@@ -1,187 +1,102 @@
 package monitor
 
 import (
-	"github.com/Azure/aks-mcp/internal/utils"
+	"fmt"
+	"slices"
+
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
-// MonitorCommand defines a specific az monitor command to be registered as a tool
-type MonitorCommand struct {
-	Name        string
-	Description string
-	ArgsExample string // Example of command arguments
-	Category    string // Category for the command (e.g., "metrics", "logs")
-}
+// MonitoringOperationType defines the type of monitoring operation
+type MonitoringOperationType string
 
-// RegisterMonitorCommand registers a specific az monitor command as an MCP tool
-func RegisterMonitorCommand(cmd MonitorCommand) mcp.Tool {
-	// Convert spaces to underscores for valid tool name
-	commandName := cmd.Name
-	validToolName := utils.ReplaceSpacesWithUnderscores(commandName)
+const (
+	OpMetrics        MonitoringOperationType = "metrics"
+	OpResourceHealth MonitoringOperationType = "resource_health"
+	OpAppInsights    MonitoringOperationType = "app_insights"
+	OpDiagnostics    MonitoringOperationType = "diagnostics"
+	OpLogs           MonitoringOperationType = "logs"
+)
 
-	description := "Run " + cmd.Name + " command: " + cmd.Description + "."
+// RegisterAzMonitoring registers the monitoring tool
+func RegisterAzMonitoring() mcp.Tool {
+	description := `Unified tool for Azure monitoring and diagnostics operations for AKS clusters.
 
-	// Add example if available, with proper punctuation
-	if cmd.ArgsExample != "" {
-		description += "\nExample: `" + cmd.ArgsExample + "`"
-	}
+Supported operations:
+- metrics: Query metrics for Azure resources (list, list-definitions, list-namespaces)
+- resource_health: Get resource health events for AKS clusters
+- app_insights: Execute KQL queries against Application Insights data
+- diagnostics: Check AKS cluster diagnostic settings configuration
+- logs: Query AKS control plane logs with safety constraints
 
-	return mcp.NewTool(validToolName,
+Examples:
+- Get metrics: operation="metrics", query_type="list", parameters="{\"resource\":\"...\", \"metric\":\"...\"}"
+- Resource health: operation="resource_health", parameters="{\"start_time\":\"2025-01-01T00:00:00Z\"}"
+- App Insights query: operation="app_insights", parameters="{\"app_insights_name\":\"...\", \"query\":\"...\"}"
+- Check diagnostics: operation="diagnostics"
+- Query logs: operation="logs", parameters="{\"log_category\":\"kube-apiserver\", \"start_time\":\"...\"}"
+`
+
+	return mcp.NewTool("az_monitoring",
 		mcp.WithDescription(description),
-		mcp.WithString("args",
+		mcp.WithString("operation",
 			mcp.Required(),
-			mcp.Description("Arguments for the `"+cmd.Name+"` command"),
+			mcp.Description("The monitoring operation to perform"),
+		),
+		mcp.WithString("query_type",
+			mcp.Description("Specific type of query for metrics operations (list, list-definitions, list-namespaces)"),
+		),
+		mcp.WithString("parameters",
+			mcp.Required(),
+			mcp.Description("JSON string containing operation-specific parameters"),
+		),
+		mcp.WithString("subscription_id",
+			mcp.Description("Azure subscription ID (can be included in parameters)"),
+		),
+		mcp.WithString("resource_group",
+			mcp.Description("Resource group name (can be included in parameters)"),
+		),
+		mcp.WithString("cluster_name",
+			mcp.Description("AKS cluster name (can be included in parameters)"),
 		),
 	)
 }
 
-// GetReadOnlyMonitorCommands returns all read-only az monitor commands
-func GetReadOnlyMonitorCommands() []MonitorCommand {
-	return []MonitorCommand{
-		// Metrics commands
-		{
-			Name:        "az monitor metrics list",
-			Description: "List the metric values for a resource",
-			ArgsExample: "--resource /subscriptions/{subscription}/resourceGroups/{resourceGroup}/providers/Microsoft.Compute/virtualMachines/{vmName} --metric \"Percentage CPU\"",
-			Category:    "metrics",
-		},
-		{
-			Name:        "az monitor metrics list-definitions",
-			Description: "List the metric definitions for a resource",
-			ArgsExample: "--resource /subscriptions/{subscription}/resourceGroups/{resourceGroup}/providers/Microsoft.ContainerService/managedClusters/{clusterName}",
-			Category:    "metrics",
-		},
-		{
-			Name:        "az monitor metrics list-namespaces",
-			Description: "List the metric namespaces for a resource",
-			ArgsExample: "--resource /subscriptions/{subscription}/resourceGroups/{resourceGroup}/providers/Microsoft.ContainerService/managedClusters/{clusterName}",
-			Category:    "metrics",
-		},
+// ValidateMonitoringOperation checks if the monitoring operation is supported
+func ValidateMonitoringOperation(operation string) bool {
+	supportedOps := []string{
+		string(OpMetrics), string(OpResourceHealth), string(OpAppInsights),
+		string(OpDiagnostics), string(OpLogs),
+	}
+	return slices.Contains(supportedOps, operation)
+}
+
+// GetSupportedMonitoringOperations returns all supported monitoring operations
+func GetSupportedMonitoringOperations() []string {
+	return []string{
+		string(OpMetrics), string(OpResourceHealth), string(OpAppInsights),
+		string(OpDiagnostics), string(OpLogs),
 	}
 }
 
-// GetReadWriteMonitorCommands returns all read-write az monitor commands
-func GetReadWriteMonitorCommands() []MonitorCommand {
-	return []MonitorCommand{}
+// ValidateMetricsQueryType checks if the metrics query type is supported
+func ValidateMetricsQueryType(queryType string) bool {
+	supportedTypes := []string{"list", "list-definitions", "list-namespaces"}
+	return slices.Contains(supportedTypes, queryType)
 }
 
-// GetAdminMonitorCommands returns all admin az monitor commands
-func GetAdminMonitorCommands() []MonitorCommand {
-	return []MonitorCommand{}
-}
+// MapMetricsQueryTypeToCommand maps a metrics query type to its corresponding az command
+func MapMetricsQueryTypeToCommand(queryType string) (string, error) {
+	commandMap := map[string]string{
+		"list":             "az monitor metrics list",
+		"list-definitions": "az monitor metrics list-definitions",
+		"list-namespaces":  "az monitor metrics list-namespaces",
+	}
 
-// RegisterResourceHealthTool registers the Azure Resource Health monitoring tool
-func RegisterResourceHealthTool() mcp.Tool {
-	return mcp.NewTool("az_monitor_activity_log_resource_health",
-		mcp.WithDescription("Retrieve resource health events for AKS clusters to monitor service availability and health status"),
-		mcp.WithString("subscription_id",
-			mcp.Required(),
-			mcp.Description("Azure subscription ID"),
-		),
-		mcp.WithString("resource_group",
-			mcp.Required(),
-			mcp.Description("Resource group name containing the AKS cluster"),
-		),
-		mcp.WithString("cluster_name",
-			mcp.Required(),
-			mcp.Description("AKS cluster name"),
-		),
-		mcp.WithString("start_time",
-			mcp.Required(),
-			mcp.Description("Start date for health event query (ISO 8601 format, e.g., \"2025-01-01T00:00:00Z\")"),
-		),
-		mcp.WithString("end_time",
-			mcp.Description("End date for health event query (defaults to current time)"),
-		),
-		mcp.WithString("status",
-			mcp.Description("Filter by health status (Available, Unavailable, Degraded, Unknown)"),
-		),
-	)
-}
+	cmd, exists := commandMap[queryType]
+	if !exists {
+		return "", fmt.Errorf("no command mapping for metrics query type: %s", queryType)
+	}
 
-// RegisterAppInsightsQueryTool registers the Azure Application Insights query tool
-func RegisterAppInsightsQueryTool() mcp.Tool {
-	return mcp.NewTool("az_monitor_app_insights_query",
-		mcp.WithDescription("Execute KQL queries against Application Insights telemetry data for applications running in AKS clusters"),
-		mcp.WithString("subscription_id",
-			mcp.Required(),
-			mcp.Description("Azure subscription ID"),
-		),
-		mcp.WithString("resource_group",
-			mcp.Required(),
-			mcp.Description("Resource group name containing the Application Insights resource"),
-		),
-		mcp.WithString("app_insights_name",
-			mcp.Required(),
-			mcp.Description("Application Insights resource name"),
-		),
-		mcp.WithString("query",
-			mcp.Required(),
-			mcp.Description("KQL query to execute against Application Insights data (e.g., \"requests | where timestamp > ago(1h) | limit 10\")"),
-		),
-		mcp.WithString("start_time",
-			mcp.Description("Start time for query in ISO 8601 format (e.g., \"2025-01-01T00:00:00Z\")"),
-		),
-		mcp.WithString("end_time",
-			mcp.Description("End time for query (defaults to current time)"),
-		),
-		mcp.WithString("timespan",
-			mcp.Description("Query timespan as ISO 8601 duration (e.g., \"PT1H\" for 1 hour, \"P1D\" for 1 day)"),
-		),
-	)
-}
-
-// RegisterControlPlaneDiagnosticSettingsTool registers the diagnostic settings checker tool
-func RegisterControlPlaneDiagnosticSettingsTool() mcp.Tool {
-	return mcp.NewTool("aks_control_plane_diagnostic_settings",
-		mcp.WithDescription("Check if AKS cluster has diagnostic settings configured and identify the Log Analytics workspace"),
-		mcp.WithString("subscription_id",
-			mcp.Required(),
-			mcp.Description("Azure subscription ID"),
-		),
-		mcp.WithString("resource_group",
-			mcp.Required(),
-			mcp.Description("Resource group name containing the AKS cluster"),
-		),
-		mcp.WithString("cluster_name",
-			mcp.Required(),
-			mcp.Description("AKS cluster name"),
-		),
-	)
-}
-
-// RegisterControlPlaneLogsTool registers the logs querying tool
-func RegisterControlPlaneLogsTool() mcp.Tool {
-	return mcp.NewTool("aks_control_plane_logs",
-		mcp.WithDescription("Query AKS control plane logs with safety constraints and time range validation"),
-		mcp.WithString("subscription_id",
-			mcp.Required(),
-			mcp.Description("Azure subscription ID"),
-		),
-		mcp.WithString("resource_group",
-			mcp.Required(),
-			mcp.Description("Resource group name containing the AKS cluster"),
-		),
-		mcp.WithString("cluster_name",
-			mcp.Required(),
-			mcp.Description("AKS cluster name"),
-		),
-		mcp.WithString("log_category",
-			mcp.Required(),
-			mcp.Description("Control plane log category (kube-apiserver, kube-audit, kube-audit-admin, kube-controller-manager, kube-scheduler, cluster-autoscaler, cloud-controller-manager, guard, csi-azuredisk-controller, csi-azurefile-controller, csi-snapshot-controller, fleet-member-agent, fleet-member-net-controller-manager, fleet-mcs-controller-manager)"),
-		),
-		mcp.WithString("start_time",
-			mcp.Required(),
-			mcp.Description("Start time in ISO 8601 format (max 7 days ago, e.g., '2025-07-14T00:00:00Z')"),
-		),
-		mcp.WithString("end_time",
-			mcp.Description("End time in ISO 8601 format (defaults to now, max 24 hours from start_time)"),
-		),
-		mcp.WithString("max_records",
-			mcp.Description("Maximum number of log records to return (default: 100, max: 1000)"),
-		),
-		mcp.WithString("log_level",
-			mcp.Description("Filter by log level (error, warning, info) - optional"),
-		),
-	)
+	return cmd, nil
 }
