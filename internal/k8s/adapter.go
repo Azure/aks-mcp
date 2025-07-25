@@ -13,8 +13,9 @@ func ConvertConfig(cfg *config.ConfigData) *k8sconfig.ConfigData {
 	// Create K8s security config
 	k8sSecurityConfig := k8ssecurity.NewSecurityConfig()
 
-	// Map allowed namespaces
+	// Map allowed namespaces and access level
 	k8sSecurityConfig.SetAllowedNamespaces(cfg.AllowNamespaces)
+	k8sSecurityConfig.AccessLevel = k8ssecurity.AccessLevel(cfg.AccessLevel)
 
 	// Create K8s config
 	k8sCfg := &k8sconfig.ConfigData{
