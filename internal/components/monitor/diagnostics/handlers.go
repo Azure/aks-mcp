@@ -1,11 +1,13 @@
 package diagnostics
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"log"
-	"strings"
 
 	"github.com/Azure/aks-mcp/internal/azcli"
+	"github.com/Azure/aks-mcp/internal/azureclient"
 	"github.com/Azure/aks-mcp/internal/components/common"
 	"github.com/Azure/aks-mcp/internal/config"
 	"github.com/Azure/aks-mcp/internal/tools"
@@ -28,25 +30,26 @@ func HandleControlPlaneDiagnosticSettings(params map[string]interface{}, cfg *co
 	// Build cluster resource ID using utility function
 	clusterResourceID := buildClusterResourceID(subscriptionID, resourceGroup, clusterName)
 
-	// Execute Azure CLI command to get diagnostic settings
-	executor := azcli.NewExecutor()
-	args := []string{
-		"monitor", "diagnostic-settings", "list",
-		"--resource", clusterResourceID,
-		"--output", "json",
+	// Create Azure client
+	azureClient, err := azureclient.NewAzureClient(cfg)
+	if err != nil {
+		return "", fmt.Errorf("failed to create Azure client: %w", err)
 	}
 
-	cmdParams := map[string]interface{}{
-		"command": "az " + strings.Join(args, " "),
-	}
-
-	result, err := executor.Execute(cmdParams, cfg)
+	// Get diagnostic settings using Azure SDK
+	ctx := context.Background()
+	diagnosticSettings, err := azureClient.GetDiagnosticSettings(ctx, subscriptionID, clusterResourceID)
 	if err != nil {
 		return "", fmt.Errorf("failed to get diagnostic settings for cluster %s in resource group %s: %w", clusterName, resourceGroup, err)
 	}
 
-	// Return raw JSON result from Azure CLI
-	return result, nil
+	// Convert to JSON for backward compatibility
+	result, err := json.Marshal(diagnosticSettings)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal diagnostic settings to JSON: %w", err)
+	}
+
+	return string(result), nil
 }
 
 // HandleControlPlaneLogs queries specific control plane logs

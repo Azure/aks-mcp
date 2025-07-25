@@ -11,21 +11,23 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v4"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v2"
 )
 
 // SubscriptionClients contains Azure clients for a specific subscription.
 type SubscriptionClients struct {
-	SubscriptionID         string
-	ContainerServiceClient *armcontainerservice.ManagedClustersClient
-	VNetClient             *armnetwork.VirtualNetworksClient
-	SubnetsClient          *armnetwork.SubnetsClient
-	RouteTableClient       *armnetwork.RouteTablesClient
-	NSGClient              *armnetwork.SecurityGroupsClient
-	LoadBalancerClient     *armnetwork.LoadBalancersClient
-	PrivateEndpointsClient *armnetwork.PrivateEndpointsClient
-	VMSSClient             *armcompute.VirtualMachineScaleSetsClient
-	VMSSVMsClient          *armcompute.VirtualMachineScaleSetVMsClient
+	SubscriptionID           string
+	ContainerServiceClient   *armcontainerservice.ManagedClustersClient
+	VNetClient               *armnetwork.VirtualNetworksClient
+	SubnetsClient            *armnetwork.SubnetsClient
+	RouteTableClient         *armnetwork.RouteTablesClient
+	NSGClient                *armnetwork.SecurityGroupsClient
+	LoadBalancerClient       *armnetwork.LoadBalancersClient
+	PrivateEndpointsClient   *armnetwork.PrivateEndpointsClient
+	VMSSClient               *armcompute.VirtualMachineScaleSetsClient
+	VMSSVMsClient            *armcompute.VirtualMachineScaleSetVMsClient
+	DiagnosticSettingsClient *armmonitor.DiagnosticSettingsClient
 }
 
 // AzureClient represents an Azure API client that can handle multiple subscriptions.
@@ -121,18 +123,24 @@ func (c *AzureClient) GetOrCreateClientsForSubscription(subscriptionID string) (
 		return nil, fmt.Errorf("failed to create VMSS VMs client for subscription %s: %v", subscriptionID, err)
 	}
 
+	diagnosticSettingsClient, err := armmonitor.NewDiagnosticSettingsClient(c.credential, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create diagnostic settings client for subscription %s: %v", subscriptionID, err)
+	}
+
 	// Create and store the clients
 	clients = &SubscriptionClients{
-		SubscriptionID:         subscriptionID,
-		ContainerServiceClient: containerServiceClient,
-		VNetClient:             vnetClient,
-		SubnetsClient:          subnetsClient,
-		RouteTableClient:       routeTableClient,
-		NSGClient:              nsgClient,
-		LoadBalancerClient:     loadBalancerClient,
-		PrivateEndpointsClient: privateEndpointsClient,
-		VMSSClient:             vmssClient,
-		VMSSVMsClient:          vmssVMsClient,
+		SubscriptionID:           subscriptionID,
+		ContainerServiceClient:   containerServiceClient,
+		VNetClient:               vnetClient,
+		SubnetsClient:            subnetsClient,
+		RouteTableClient:         routeTableClient,
+		NSGClient:                nsgClient,
+		LoadBalancerClient:       loadBalancerClient,
+		PrivateEndpointsClient:   privateEndpointsClient,
+		VMSSClient:               vmssClient,
+		VMSSVMsClient:            vmssVMsClient,
+		DiagnosticSettingsClient: diagnosticSettingsClient,
 	}
 
 	c.clientsMap[subscriptionID] = clients
@@ -425,4 +433,38 @@ func (c *AzureClient) GetResourceByID(ctx context.Context, resourceID string) (i
 // GetCache returns the Azure cache instance
 func (c *AzureClient) GetCache() *AzureCache {
 	return c.cache
+}
+
+// GetDiagnosticSettings retrieves diagnostic settings for the specified resource.
+func (c *AzureClient) GetDiagnosticSettings(ctx context.Context, subscriptionID, resourceURI string) ([]*armmonitor.DiagnosticSettingsResource, error) {
+	// Create cache key
+	cacheKey := fmt.Sprintf("resource:diagnosticsettings:%s:%s", subscriptionID, resourceURI)
+
+	// Check cache first
+	if cached, found := c.cache.Get(cacheKey); found {
+		if settings, ok := cached.([]*armmonitor.DiagnosticSettingsResource); ok {
+			return settings, nil
+		}
+	}
+
+	clients, err := c.GetOrCreateClientsForSubscription(subscriptionID)
+	if err != nil {
+		return nil, err
+	}
+
+	pager := clients.DiagnosticSettingsClient.NewListPager(resourceURI, nil)
+	var diagnosticSettings []*armmonitor.DiagnosticSettingsResource
+
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get diagnostic settings: %v", err)
+		}
+		diagnosticSettings = append(diagnosticSettings, page.Value...)
+	}
+
+	// Store in cache
+	c.cache.Set(cacheKey, diagnosticSettings)
+
+	return diagnosticSettings, nil
 }
