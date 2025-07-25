@@ -173,3 +173,51 @@ func TestGetWorkspaceGUID_EdgeCases(t *testing.T) {
 		})
 	}
 }
+
+func TestFindDiagnosticSettingForCategory(t *testing.T) {
+	cfg := &config.ConfigData{
+		SecurityConfig: &security.SecurityConfig{
+			AccessLevel: "readonly",
+		},
+	}
+
+	tests := []struct {
+		name          string
+		logCategory   string
+		expectError   bool
+		expectedError string
+	}{
+		{
+			name:          "kube-apiserver category",
+			logCategory:   "kube-apiserver",
+			expectError:   true, // Will fail during Azure CLI execution in test environment
+			expectedError: "",
+		},
+		{
+			name:          "kube-audit category",
+			logCategory:   "kube-audit",
+			expectError:   true, // Will fail during Azure CLI execution in test environment
+			expectedError: "",
+		},
+		{
+			name:          "invalid category",
+			logCategory:   "invalid-category",
+			expectError:   true, // Will fail during Azure CLI execution in test environment
+			expectedError: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, _, err := FindDiagnosticSettingForCategory("test-sub", "test-rg", "test-cluster", tt.logCategory, cfg)
+
+			if tt.expectError && err == nil {
+				t.Errorf("Expected error for category %s, got nil", tt.logCategory)
+			}
+
+			if !tt.expectError && err != nil {
+				t.Errorf("Unexpected error for category %s: %v", tt.logCategory, err)
+			}
+		})
+	}
+}

@@ -69,8 +69,15 @@ func HandleControlPlaneLogs(params map[string]interface{}, cfg *config.ConfigDat
 		return "", err
 	}
 
-	// Get workspace GUID from diagnostic settings
-	workspaceGUID, err := ExtractWorkspaceGUIDFromDiagnosticSettings(subscriptionID, resourceGroup, clusterName, cfg)
+	// Find the diagnostic setting that has the requested log category enabled
+	// This handles cases where multiple diagnostic settings exist for the same cluster
+	workspaceResourceID, isResourceSpecific, err := FindDiagnosticSettingForCategory(subscriptionID, resourceGroup, clusterName, logCategory, cfg)
+	if err != nil {
+		return "", fmt.Errorf("failed to find diagnostic setting for log category %s in cluster %s: %w", logCategory, clusterName, err)
+	}
+
+	// Get workspace GUID from the workspace resource ID
+	workspaceGUID, err := getWorkspaceGUID(workspaceResourceID, cfg)
 	if err != nil {
 		return "", fmt.Errorf("failed to get workspace GUID for cluster %s: %w", clusterName, err)
 	}
@@ -78,8 +85,8 @@ func HandleControlPlaneLogs(params map[string]interface{}, cfg *config.ConfigDat
 	// Build cluster resource ID for scoping using utility function
 	clusterResourceID := buildClusterResourceID(subscriptionID, resourceGroup, clusterName)
 
-	// Build safe KQL query scoped to this specific AKS cluster
-	kqlQuery := BuildSafeKQLQuery(logCategory, logLevel, maxRecords, clusterResourceID)
+	// Build safe KQL query scoped to this specific AKS cluster with appropriate table mode
+	kqlQuery := BuildSafeKQLQuery(logCategory, logLevel, maxRecords, clusterResourceID, isResourceSpecific)
 
 	// Calculate timespan for the query
 	timespan, err := CalculateTimespan(startTime, endTime)
