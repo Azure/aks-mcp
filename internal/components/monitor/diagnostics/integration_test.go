@@ -19,7 +19,7 @@ func TestDiagnosticSettings_Integration(t *testing.T) {
 
 	// Test with invalid params to ensure delegation works
 	params := map[string]interface{}{}
-	_, err := HandleControlPlaneDiagnosticSettings(params, cfg)
+	_, err := HandleControlPlaneDiagnosticSettings(params, nil, cfg) // Pass nil Azure client for testing
 	if err == nil {
 		t.Error("Expected error for missing parameters, got nil")
 	}
@@ -38,7 +38,7 @@ func TestControlPlaneLogs_Integration(t *testing.T) {
 
 	// Test with invalid params to ensure delegation works
 	params := map[string]interface{}{}
-	_, err := HandleControlPlaneLogs(params, cfg)
+	_, err := HandleControlPlaneLogs(params, nil, cfg) // Pass nil Azure client for testing
 	if err == nil {
 		t.Error("Expected error for missing parameters, got nil")
 	}
@@ -54,7 +54,7 @@ func TestDiagnosticSettingsHandler_Integration(t *testing.T) {
 			AccessLevel: "readonly",
 		},
 	}
-	handler := GetControlPlaneDiagnosticSettingsHandler(cfg)
+	handler := GetControlPlaneDiagnosticSettingsHandler(nil, cfg) // Pass nil Azure client for testing
 
 	if handler == nil {
 		t.Error("Expected handler to be created, got nil")
@@ -78,7 +78,7 @@ func TestControlPlaneLogsHandler_Integration(t *testing.T) {
 			AccessLevel: "readonly",
 		},
 	}
-	handler := GetControlPlaneLogsHandler(cfg)
+	handler := GetControlPlaneLogsHandler(nil, cfg) // Pass nil Azure client for testing
 
 	if handler == nil {
 		t.Error("Expected handler to be created, got nil")

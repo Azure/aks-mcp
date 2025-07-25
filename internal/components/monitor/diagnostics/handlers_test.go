@@ -14,7 +14,7 @@ func TestGetControlPlaneDiagnosticSettingsHandler(t *testing.T) {
 			AccessLevel: "readonly",
 		},
 	}
-	handler := GetControlPlaneDiagnosticSettingsHandler(cfg)
+	handler := GetControlPlaneDiagnosticSettingsHandler(nil, cfg) // Pass nil Azure client for testing
 
 	if handler == nil {
 		t.Error("Expected handler to be created, got nil")
@@ -38,7 +38,7 @@ func TestGetControlPlaneLogsHandler(t *testing.T) {
 			AccessLevel: "readonly",
 		},
 	}
-	handler := GetControlPlaneLogsHandler(cfg)
+	handler := GetControlPlaneLogsHandler(nil, cfg) // Pass nil Azure client for testing
 
 	if handler == nil {
 		t.Error("Expected handler to be created, got nil")
@@ -119,7 +119,7 @@ func TestHandleControlPlaneDiagnosticSettings_ParameterValidation(t *testing.T) 
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := HandleControlPlaneDiagnosticSettings(tt.params, cfg)
+			_, err := HandleControlPlaneDiagnosticSettings(tt.params, nil, cfg) // Pass nil Azure client for testing
 
 			if tt.wantError {
 				if err == nil {
@@ -149,7 +149,7 @@ func TestHandleControlPlaneLogs_ParameterValidation(t *testing.T) {
 
 	// Test with invalid params to ensure validation works
 	params := map[string]interface{}{}
-	_, err := HandleControlPlaneLogs(params, cfg)
+	_, err := HandleControlPlaneLogs(params, nil, cfg) // Pass nil Azure client for testing
 	if err == nil {
 		t.Error("Expected error for missing parameters, got nil")
 	}

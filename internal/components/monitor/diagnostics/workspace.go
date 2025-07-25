@@ -12,14 +12,20 @@ import (
 )
 
 // ExtractWorkspaceGUIDFromDiagnosticSettings extracts workspace GUID from diagnostic settings
-func ExtractWorkspaceGUIDFromDiagnosticSettings(subscriptionID, resourceGroup, clusterName string, cfg *config.ConfigData) (string, error) {
+func ExtractWorkspaceGUIDFromDiagnosticSettings(subscriptionID, resourceGroup, clusterName string, azClient *azureclient.AzureClient, cfg *config.ConfigData) (string, error) {
 	// Build cluster resource ID
 	clusterResourceID := buildClusterResourceID(subscriptionID, resourceGroup, clusterName)
 
-	// Create Azure client
-	azureClient, err := azureclient.NewAzureClient(cfg)
-	if err != nil {
-		return "", fmt.Errorf("failed to create Azure client: %w", err)
+	// Use provided Azure client or create one if not provided
+	var azureClient *azureclient.AzureClient
+	if azClient != nil {
+		azureClient = azClient
+	} else {
+		var err error
+		azureClient, err = azureclient.NewAzureClient(cfg)
+		if err != nil {
+			return "", fmt.Errorf("failed to create Azure client: %w", err)
+		}
 	}
 
 	// Get diagnostic settings using Azure SDK
@@ -88,14 +94,20 @@ func getWorkspaceGUID(workspaceResourceID string, cfg *config.ConfigData) (strin
 
 // FindDiagnosticSettingForCategory finds the first diagnostic setting that has the specified log category enabled
 // Returns the workspace ID and whether it uses resource-specific tables
-func FindDiagnosticSettingForCategory(subscriptionID, resourceGroup, clusterName, logCategory string, cfg *config.ConfigData) (string, bool, error) {
+func FindDiagnosticSettingForCategory(subscriptionID, resourceGroup, clusterName, logCategory string, azClient *azureclient.AzureClient, cfg *config.ConfigData) (string, bool, error) {
 	// Build cluster resource ID
 	clusterResourceID := buildClusterResourceID(subscriptionID, resourceGroup, clusterName)
 
-	// Create Azure client
-	azureClient, err := azureclient.NewAzureClient(cfg)
-	if err != nil {
-		return "", false, fmt.Errorf("failed to create Azure client: %w", err)
+	// Use provided Azure client or create one if not provided
+	var azureClient *azureclient.AzureClient
+	if azClient != nil {
+		azureClient = azClient
+	} else {
+		var err error
+		azureClient, err = azureclient.NewAzureClient(cfg)
+		if err != nil {
+			return "", false, fmt.Errorf("failed to create Azure client: %w", err)
+		}
 	}
 
 	// Get diagnostic settings using Azure SDK

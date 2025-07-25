@@ -20,7 +20,7 @@ func buildClusterResourceID(subscriptionID, resourceGroup, clusterName string) s
 }
 
 // HandleControlPlaneDiagnosticSettings checks diagnostic settings for AKS cluster
-func HandleControlPlaneDiagnosticSettings(params map[string]interface{}, cfg *config.ConfigData) (string, error) {
+func HandleControlPlaneDiagnosticSettings(params map[string]interface{}, azClient *azureclient.AzureClient, cfg *config.ConfigData) (string, error) {
 	// Extract and validate parameters using common helper
 	subscriptionID, resourceGroup, clusterName, err := common.ExtractAKSParameters(params)
 	if err != nil {
@@ -30,10 +30,15 @@ func HandleControlPlaneDiagnosticSettings(params map[string]interface{}, cfg *co
 	// Build cluster resource ID using utility function
 	clusterResourceID := buildClusterResourceID(subscriptionID, resourceGroup, clusterName)
 
-	// Create Azure client
-	azureClient, err := azureclient.NewAzureClient(cfg)
-	if err != nil {
-		return "", fmt.Errorf("failed to create Azure client: %w", err)
+	// Use provided Azure client or create one if not provided
+	var azureClient *azureclient.AzureClient
+	if azClient != nil {
+		azureClient = azClient
+	} else {
+		azureClient, err = azureclient.NewAzureClient(cfg)
+		if err != nil {
+			return "", fmt.Errorf("failed to create Azure client: %w", err)
+		}
 	}
 
 	// Get diagnostic settings using Azure SDK
@@ -53,7 +58,7 @@ func HandleControlPlaneDiagnosticSettings(params map[string]interface{}, cfg *co
 }
 
 // HandleControlPlaneLogs queries specific control plane logs
-func HandleControlPlaneLogs(params map[string]interface{}, cfg *config.ConfigData) (string, error) {
+func HandleControlPlaneLogs(params map[string]interface{}, azClient *azureclient.AzureClient, cfg *config.ConfigData) (string, error) {
 	// Extract and validate AKS parameters using common helper
 	subscriptionID, resourceGroup, clusterName, err := common.ExtractAKSParameters(params)
 	if err != nil {
@@ -74,7 +79,7 @@ func HandleControlPlaneLogs(params map[string]interface{}, cfg *config.ConfigDat
 
 	// Find the diagnostic setting that has the requested log category enabled
 	// This handles cases where multiple diagnostic settings exist for the same cluster
-	workspaceResourceID, isResourceSpecific, err := FindDiagnosticSettingForCategory(subscriptionID, resourceGroup, clusterName, logCategory, cfg)
+	workspaceResourceID, isResourceSpecific, err := FindDiagnosticSettingForCategory(subscriptionID, resourceGroup, clusterName, logCategory, azClient, cfg)
 	if err != nil {
 		return "", fmt.Errorf("failed to find diagnostic setting for log category %s in cluster %s: %w", logCategory, clusterName, err)
 	}
@@ -123,15 +128,15 @@ func HandleControlPlaneLogs(params map[string]interface{}, cfg *config.ConfigDat
 // Resource handler functions for control plane diagnostics tools
 
 // GetControlPlaneDiagnosticSettingsHandler returns handler for diagnostic settings tool
-func GetControlPlaneDiagnosticSettingsHandler(cfg *config.ConfigData) tools.ResourceHandler {
+func GetControlPlaneDiagnosticSettingsHandler(azClient *azureclient.AzureClient, cfg *config.ConfigData) tools.ResourceHandler {
 	return tools.ResourceHandlerFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
-		return HandleControlPlaneDiagnosticSettings(params, cfg)
+		return HandleControlPlaneDiagnosticSettings(params, azClient, cfg)
 	})
 }
 
 // GetControlPlaneLogsHandler returns handler for logs querying tool
-func GetControlPlaneLogsHandler(cfg *config.ConfigData) tools.ResourceHandler {
+func GetControlPlaneLogsHandler(azClient *azureclient.AzureClient, cfg *config.ConfigData) tools.ResourceHandler {
 	return tools.ResourceHandlerFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
-		return HandleControlPlaneLogs(params, cfg)
+		return HandleControlPlaneLogs(params, azClient, cfg)
 	})
 }

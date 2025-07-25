@@ -92,7 +92,7 @@ func TestExtractWorkspaceGUIDFromDiagnosticSettings_InvalidParameters(t *testing
 	}
 
 	// This will fail at the diagnostic settings call, but we can test the error handling
-	_, err := ExtractWorkspaceGUIDFromDiagnosticSettings("invalid", "invalid", "invalid", cfg)
+	_, err := ExtractWorkspaceGUIDFromDiagnosticSettings("invalid", "invalid", "invalid", nil, cfg) // Pass nil Azure client for testing
 	if err == nil {
 		t.Error("Expected error for invalid parameters, got nil")
 	}
@@ -115,7 +115,7 @@ func TestExtractWorkspaceGUIDFromDiagnosticSettings_JSONParsing(t *testing.T) {
 	}
 
 	// Test with empty strings (should fail validation)
-	_, err := ExtractWorkspaceGUIDFromDiagnosticSettings("", "", "", cfg)
+	_, err := ExtractWorkspaceGUIDFromDiagnosticSettings("", "", "", nil, cfg) // Pass nil Azure client for testing
 	if err == nil {
 		t.Error("Expected error for empty parameters, got nil")
 	}
@@ -209,7 +209,7 @@ func TestFindDiagnosticSettingForCategory(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, _, err := FindDiagnosticSettingForCategory("test-sub", "test-rg", "test-cluster", tt.logCategory, cfg)
+			_, _, err := FindDiagnosticSettingForCategory("test-sub", "test-rg", "test-cluster", tt.logCategory, nil, cfg) // Pass nil Azure client for testing
 
 			if tt.expectError && err == nil {
 				t.Errorf("Expected error for category %s, got nil", tt.logCategory)

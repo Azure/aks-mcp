@@ -29,6 +29,7 @@ import (
 type Service struct {
 	cfg       *config.ConfigData
 	mcpServer *server.MCPServer
+	azClient  *azureclient.AzureClient
 }
 
 // NewService creates a new MCP Kubernetes service
@@ -41,6 +42,14 @@ func NewService(cfg *config.ConfigData) *Service {
 // Initialize initializes the service
 func (s *Service) Initialize() error {
 	// Initialize configuration
+
+	// Create shared Azure client
+	azClient, err := azureclient.NewAzureClient(s.cfg)
+	if err != nil {
+		log.Fatalf("Failed to create Azure client: %v", err)
+	}
+	s.azClient = azClient
+	log.Println("Azure client initialized successfully")
 
 	// Create MCP server
 	s.mcpServer = server.NewMCPServer(
@@ -191,30 +200,23 @@ func (s *Service) registerControlPlaneTools() {
 	// Register diagnostic settings tool
 	log.Println("Registering control plane tool: aks_control_plane_diagnostic_settings")
 	diagnosticTool := monitor.RegisterControlPlaneDiagnosticSettingsTool()
-	s.mcpServer.AddTool(diagnosticTool, tools.CreateResourceHandler(diagnostics.GetControlPlaneDiagnosticSettingsHandler(s.cfg), s.cfg))
+	s.mcpServer.AddTool(diagnosticTool, tools.CreateResourceHandler(diagnostics.GetControlPlaneDiagnosticSettingsHandler(s.azClient, s.cfg), s.cfg))
 
 	// Register logs querying tool
 	log.Println("Registering control plane tool: aks_control_plane_logs")
 	logsTool := monitor.RegisterControlPlaneLogsTool()
-	s.mcpServer.AddTool(logsTool, tools.CreateResourceHandler(diagnostics.GetControlPlaneLogsHandler(s.cfg), s.cfg))
+	s.mcpServer.AddTool(logsTool, tools.CreateResourceHandler(diagnostics.GetControlPlaneLogsHandler(s.azClient, s.cfg), s.cfg))
 }
 
 func (s *Service) registerAzureResourceTools() {
-	// Create Azure client for the resource tools (cache is internal to the client)
-	azClient, err := azureclient.NewAzureClient(s.cfg)
-	if err != nil {
-		log.Printf("Warning: Failed to create Azure client: %v", err)
-		return
-	}
-
 	// Register Network-related tools
-	s.registerNetworkTools(azClient)
+	s.registerNetworkTools(s.azClient)
 
 	// Register Detector tools
-	s.registerDetectorTools(azClient)
+	s.registerDetectorTools(s.azClient)
 
 	// Register Compute-related tools
-	s.registerComputeTools(azClient)
+	s.registerComputeTools(s.azClient)
 
 	// TODO: Add other resource categories in the future:
 }
