@@ -296,7 +296,7 @@ Create a `.vscode/mcp.json` file in your workspace with the path to your downloa
   "servers": {
     "aks-mcp-server": {
       "type": "stdio",
-      "command": "<enter the file path",
+      "command": "<enter the file path>",
       "args": [
         "--transport", "stdio"
       ]
