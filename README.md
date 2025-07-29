@@ -208,35 +208,80 @@ Real-time observability tool for Azure Kubernetes Service (AKS) clusters using e
 
 ### VS Code with GitHub Copilot (Recommended)
 
-#### 🚀 1-Click Installation
+#### 🚀 Quick Setup Guide
 
-Install AKS-MCP server directly into VS Code with one click:
+**Step 1: Download the Binary**
 
-[![Install AKS-MCP Server](https://img.shields.io/badge/Install-AKS--MCP%20Server-blue?style=for-the-badge&logo=visual-studio-code)](https://vscode.dev/redirect/mcp/install?name=AKS-MCP%20Server&config=%7B%22type%22%3A%20%22stdio%22%2C%20%22command%22%3A%20%22bash%22%2C%20%22args%22%3A%20%5B%22-c%22%2C%20%22curl%20-sL%20https%3A//github.com/Azure/aks-mcp/releases/latest/download/aks-mcp-linux-amd64%20-o%20aks-mcp%20%26%26%20chmod%20%2Bx%20aks-mcp%20%26%26%20./aks-mcp%20--transport%20stdio%22%5D%7D)
+Choose your platform and download the latest AKS-MCP binary:
 
-> **✨ Seamless Installation**: This automatically downloads the latest AKS-MCP binary from GitHub releases and configures it in VS Code. After installation, restart VS Code to activate the server.
+| Platform | Architecture | Download Link |
+|----------|-------------|---------------|
+| **Windows** | AMD64 | [📥 aks-mcp-windows-amd64.exe](https://github.com/Azure/aks-mcp/releases/latest/download/aks-mcp-windows-amd64.exe) |
+| | ARM64 | [📥 aks-mcp-windows-arm64.exe](https://github.com/Azure/aks-mcp/releases/latest/download/aks-mcp-windows-arm64.exe) |
+| **macOS** | Intel (AMD64) | [📥 aks-mcp-darwin-amd64](https://github.com/Azure/aks-mcp/releases/latest/download/aks-mcp-darwin-amd64) |
+| | Apple Silicon (ARM64) | [📥 aks-mcp-darwin-arm64](https://github.com/Azure/aks-mcp/releases/latest/download/aks-mcp-darwin-arm64) |
+| **Linux** | AMD64 | [📥 aks-mcp-linux-amd64](https://github.com/Azure/aks-mcp/releases/latest/download/aks-mcp-linux-amd64) |
+| | ARM64 | [📥 aks-mcp-linux-arm64](https://github.com/Azure/aks-mcp/releases/latest/download/aks-mcp-linux-arm64) |
 
-#### 💻 Platform-Specific 1-Click Installation
+**Step 2: Configure VS Code**
 
-| Platform | Architecture | 1-Click Installation |
-|----------|-------------|---------------------|
-| **Windows** | AMD64 | [![Install for Windows x64](https://img.shields.io/badge/Install%20for-Windows%20x64-0078d4?style=for-the-badge&logo=windows)](https://vscode.dev/redirect/mcp/install?name=AKS-MCP%20Server&config=%7B%22type%22%3A%20%22stdio%22%2C%20%22command%22%3A%20%22powershell%22%2C%20%22args%22%3A%20%5B%22-c%22%2C%20%22Invoke-WebRequest%20-Uri%20https%3A//github.com/Azure/aks-mcp/releases/latest/download/aks-mcp-windows-amd64.exe%20-OutFile%20aks-mcp.exe%3B%20./aks-mcp.exe%20--transport%20stdio%22%5D%7D) |
-| | ARM64 | [![Install for Windows ARM64](https://img.shields.io/badge/Install%20for-Windows%20ARM64-0078d4?style=for-the-badge&logo=windows)](https://vscode.dev/redirect/mcp/install?name=AKS-MCP%20Server&config=%7B%22type%22%3A%20%22stdio%22%2C%20%22command%22%3A%20%22powershell%22%2C%20%22args%22%3A%20%5B%22-c%22%2C%20%22Invoke-WebRequest%20-Uri%20https%3A//github.com/Azure/aks-mcp/releases/latest/download/aks-mcp-windows-arm64.exe%20-OutFile%20aks-mcp.exe%3B%20./aks-mcp.exe%20--transport%20stdio%22%5D%7D) |
-| **macOS** | Intel (AMD64) | [![Install for macOS Intel](https://img.shields.io/badge/Install%20for-macOS%20Intel-000000?style=for-the-badge&logo=apple)](https://vscode.dev/redirect/mcp/install?name=AKS-MCP%20Server&config=%7B%22type%22%3A%20%22stdio%22%2C%20%22command%22%3A%20%22bash%22%2C%20%22args%22%3A%20%5B%22-c%22%2C%20%22curl%20-sL%20https%3A//github.com/Azure/aks-mcp/releases/latest/download/aks-mcp-darwin-amd64%20-o%20aks-mcp%20%26%26%20chmod%20%2Bx%20aks-mcp%20%26%26%20./aks-mcp%20--transport%20stdio%22%5D%7D) |
-| | Apple Silicon (ARM64) | [![Install for macOS M1/M2](https://img.shields.io/badge/Install%20for-macOS%20M1%2FM2-000000?style=for-the-badge&logo=apple)](https://vscode.dev/redirect/mcp/install?name=AKS-MCP%20Server&config=%7B%22type%22%3A%20%22stdio%22%2C%20%22command%22%3A%20%22bash%22%2C%20%22args%22%3A%20%5B%22-c%22%2C%20%22curl%20-sL%20https%3A//github.com/Azure/aks-mcp/releases/latest/download/aks-mcp-darwin-arm64%20-o%20aks-mcp%20%26%26%20chmod%20%2Bx%20aks-mcp%20%26%26%20./aks-mcp%20--transport%20stdio%22%5D%7D) |
-| **Linux** | AMD64 | [![Install for Linux x64](https://img.shields.io/badge/Install%20for-Linux%20x64-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://vscode.dev/redirect/mcp/install?name=AKS-MCP%20Server&config=%7B%22type%22%3A%20%22stdio%22%2C%20%22command%22%3A%20%22bash%22%2C%20%22args%22%3A%20%5B%22-c%22%2C%20%22curl%20-sL%20https%3A//github.com/Azure/aks-mcp/releases/latest/download/aks-mcp-linux-amd64%20-o%20aks-mcp%20%26%26%20chmod%20%2Bx%20aks-mcp%20%26%26%20./aks-mcp%20--transport%20stdio%22%5D%7D) |
-| | ARM64 | [![Install for Linux ARM64](https://img.shields.io/badge/Install%20for-Linux%20ARM64-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://vscode.dev/redirect/mcp/install?name=AKS-MCP%20Server&config=%7B%22type%22%3A%20%22stdio%22%2C%20%22command%22%3A%20%22bash%22%2C%20%22args%22%3A%20%5B%22-c%22%2C%20%22curl%20-sL%20https%3A//github.com/Azure/aks-mcp/releases/latest/download/aks-mcp-linux-arm64%20-o%20aks-mcp%20%26%26%20chmod%20%2Bx%20aks-mcp%20%26%26%20./aks-mcp%20--transport%20stdio%22%5D%7D) |
+After downloading, create a `.vscode/mcp.json` file in your workspace root with the path to your downloaded binary.
+
+**Option A: 1-Click Installation**
+
+Click the appropriate button for your platform to automatically install AKS-MCP:
+
+| Platform | One-Click Installation |
+|----------|----------------------|
+| **Windows** | [![Install for Windows](https://img.shields.io/badge/🪟%20Install%20Now-PowerShell-0078d4?style=for-the-badge)](https://github.com/Azure/aks-mcp/blob/main/scripts/install-windows.ps1) |
+| **macOS/Linux** | [![Install for macOS/Linux](https://img.shields.io/badge/🍎%20Install%20Now-Bash-000000?style=for-the-badge)](https://github.com/Azure/aks-mcp/blob/main/scripts/install-unix.sh) |
+
+**Quick Commands:**
+
+Copy and paste these one-liners in your terminal for instant installation:
+
+**Windows (PowerShell):**
+```powershell
+iwr -useb https://raw.githubusercontent.com/Azure/aks-mcp/main/scripts/install-windows.ps1 | iex
+```
+
+**macOS/Linux (Bash):**
+```bash
+curl -fsSL https://raw.githubusercontent.com/Azure/aks-mcp/main/scripts/install-unix.sh | bash
+```
+
+> **💡 One-Click Setup**: These commands automatically download the binary and create your VS Code MCP configuration!
+
+**Option B: Manual Script Execution**
+
+Copy and run these scripts directly in your terminal:
+
+*Windows (PowerShell):*
+```powershell
+# Download binary and create VS Code configuration
+mkdir -p .vscode ; Invoke-WebRequest -Uri "https://github.com/Azure/aks-mcp/releases/latest/download/aks-mcp-windows-amd64.exe" -OutFile "aks-mcp.exe" ; @{servers=@{"aks-mcp-server"=@{type="stdio";command="$PWD\aks-mcp.exe";args=@("--transport","stdio")}}} | ConvertTo-Json -Depth 3 | Out-File ".vscode/mcp.json" -Encoding UTF8
+```
+
+*macOS/Linux (Bash):*
+```bash
+# Download binary and create VS Code configuration  
+mkdir -p .vscode && curl -sL https://github.com/Azure/aks-mcp/releases/latest/download/aks-mcp-linux-amd64 -o aks-mcp && chmod +x aks-mcp && echo '{"servers":{"aks-mcp-server":{"type":"stdio","command":"'$PWD'/aks-mcp","args":["--transport","stdio"]}}}' > .vscode/mcp.json
+```
+
+**Option C: Manual Configuration**
+
+> **✨ Simple Setup**: Download the binary for your platform, then use the manual configuration below to set up the MCP server in VS Code.
 
 #### Manual VS Code Configuration
 
-Alternatively, create a `.vscode/mcp.json` file in your workspace:
+Create a `.vscode/mcp.json` file in your workspace with the path to your downloaded binary:
 
 ```json
 {
   "servers": {
     "aks-mcp-server": {
       "type": "stdio",
-      "command": "<path of binary aks-mcp>",
+      "command": "/path/to/aks-mcp",
       "args": [
         "--transport", "stdio"
       ]
@@ -245,9 +290,15 @@ Alternatively, create a `.vscode/mcp.json` file in your workspace:
 }
 ```
 
+**Example paths by platform:**
+- **Windows**: `"command": "C:\\Users\\YourName\\Downloads\\aks-mcp-windows-amd64.exe"`
+- **macOS/Linux**: `"command": "/home/yourname/bin/aks-mcp"` (make sure to `chmod +x` the binary)
+
+> **💡 Pro Tip**: Place the binary in a permanent location like `~/bin/` (macOS/Linux) or `C:\tools\` (Windows) and update the path accordingly.
+
 #### 🚀 Getting Started with VS Code
 
-After installing the AKS-MCP server:
+After downloading the binary and creating your `.vscode/mcp.json` configuration:
 
 1. **Restart VS Code** - Close and reopen VS Code to load the new MCP server configuration
 2. Open GitHub Copilot in VS Code and [switch to Agent mode](https://code.visualstudio.com/docs/copilot/chat/chat-agent-mode)
@@ -256,7 +307,7 @@ After installing the AKS-MCP server:
 5. Try a prompt like: *"List all my AKS clusters in subscription xxx"*
 6. The agent will automatically use AKS-MCP tools to complete your request
 
-> **💡 Tip**: If you don't see the AKS-MCP tools after restarting, check the VS Code output panel for any MCP server connection errors.
+> **💡 Tip**: If you don't see the AKS-MCP tools after restarting, check the VS Code output panel for any MCP server connection errors and verify your binary path in `.vscode/mcp.json`.
 
 **Note**: Ensure you have authenticated with Azure CLI (`az login`) for the server to access your Azure resources.
 
