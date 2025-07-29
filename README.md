@@ -1,6 +1,10 @@
-# AKS-MCP
+﻿# AKS-MCP
 
-The AKS-MCP is a Model Context Protocol (MCP) server that enables AI assistants to interact with Azure Kubernetes Service (AKS) clusters. It serves as a bridge between AI tools (like GitHub Copilot, Claude, and other MCP-compatible AI assistants) and AKS, translating natural language requests into AKS operations and returning the results in a format the AI tools can understand.
+The AKS-MCP is a Model Context Protocol (MCP) server that enables AI assistants
+to interact with Azure Kubernetes Service (AKS) clusters. It serves as a bridge
+between AI tools (like GitHub Copilot, Claude, and other MCP-compatible AI
+assistants) and AKS, translating natural language requests into AKS operations
+and returning the results in a format the AI tools can understand.
 
 It allows AI tools to:
 
@@ -10,11 +14,16 @@ It allows AI tools to:
 
 ## How it works
 
-AKS-MCP connects to Azure using the Azure SDK and provides a set of tools that AI assistants can use to interact with AKS resources. It leverages the Model Context Protocol (MCP) to facilitate this communication, enabling AI tools to make API calls to Azure and interpret the responses.
+AKS-MCP connects to Azure using the Azure SDK and provides a set of tools that
+AI assistants can use to interact with AKS resources. It leverages the Model
+Context Protocol (MCP) to facilitate this communication, enabling AI tools to
+make API calls to Azure and interpret the responses.
 
 ## Available Tools
 
-The AKS-MCP server provides consolidated tools for interacting with AKS clusters. These tools have been designed to provide comprehensive functionality through unified interfaces:
+The AKS-MCP server provides consolidated tools for interacting with AKS
+clusters. These tools have been designed to provide comprehensive functionality
+through unified interfaces:
 
 <details>
 <summary>AKS Cluster Management</summary>
@@ -24,6 +33,7 @@ The AKS-MCP server provides consolidated tools for interacting with AKS clusters
 Unified tool for managing Azure Kubernetes Service (AKS) clusters and related operations.
 
 **Available Operations:**
+
 - **Read-Only** (all access levels):
   - `show`: Show cluster details
   - `list`: List clusters in subscription/resource group
@@ -59,6 +69,7 @@ Unified tool for managing Azure Kubernetes Service (AKS) clusters and related op
 Unified tool for getting Azure network resource information used by AKS clusters.
 
 **Available Resource Types:**
+
 - `all`: Get information about all network resources
 - `vnet`: Virtual Network information
 - `subnet`: Subnet information  
@@ -77,11 +88,13 @@ Unified tool for getting Azure network resource information used by AKS clusters
 Unified tool for Azure monitoring and diagnostics operations for AKS clusters.
 
 **Available Operations:**
+
 - `metrics`: List metric values for resources
 - `resource_health`: Retrieve resource health events for AKS clusters
 - `app_insights`: Execute KQL queries against Application Insights telemetry data
 - `diagnostics`: Check if AKS cluster has diagnostic settings configured
-- `control_plane_logs`: Query AKS control plane logs with safety constraints and time range validation
+- `control_plane_logs`: Query AKS control plane logs with safety constraints
+  and time range validation
 
 </details>
 
@@ -89,9 +102,11 @@ Unified tool for Azure monitoring and diagnostics operations for AKS clusters.
 <summary>Compute Resources</summary>
 
 **Tool:** `get_aks_vmss_info`
+
 - Get detailed VMSS configuration for node pools in the AKS cluster
 
 **Tool:** `az_vmss_run-command_invoke` *(readwrite/admin only)*
+
 - Execute commands on Virtual Machine Scale Set instances
 
 </details>
@@ -104,13 +119,15 @@ Unified tool for Azure monitoring and diagnostics operations for AKS clusters.
 Comprehensive Azure Fleet management for multi-cluster scenarios.
 
 **Available Operations:**
+
 - **Fleet Operations**: list, show, create, update, delete, get-credentials
 - **Member Operations**: list, show, create, update, delete
 - **Update Run Operations**: list, show, create, start, stop, delete
 - **Update Strategy Operations**: list, show, create, delete
 - **ClusterResourcePlacement Operations**: list, show, get, create, delete
 
-Supports both Azure Fleet management and Kubernetes ClusterResourcePlacement CRD operations.
+Supports both Azure Fleet management and Kubernetes ClusterResourcePlacement
+CRD operations.
 
 </details>
 
@@ -118,14 +135,19 @@ Supports both Azure Fleet management and Kubernetes ClusterResourcePlacement CRD
 <summary>Diagnostic Detectors</summary>
 
 **Tool:** `list_detectors`
+
 - List all available AKS cluster detectors
 
 **Tool:** `run_detector`
+
 - Run a specific AKS diagnostic detector
 
 **Tool:** `run_detectors_by_category`
+
 - Run all detectors in a specific category
-- **Categories**: Best Practices, Cluster and Control Plane Availability and Performance, Connectivity Issues, Create/Upgrade/Delete and Scale, Deprecations, Identity and Security, Node Health, Storage
+- **Categories**: Best Practices, Cluster and Control Plane Availability and
+  Performance, Connectivity Issues, Create/Upgrade/Delete and Scale,
+  Deprecations, Identity and Security, Node Health, Storage
 
 </details>
 
@@ -137,30 +159,37 @@ Supports both Azure Fleet management and Kubernetes ClusterResourcePlacement CRD
 Retrieve and manage Azure Advisor recommendations for AKS clusters.
 
 **Available Operations:**
+
 - `list`: List recommendations with filtering options
 - `report`: Generate recommendation reports
-- **Filter Options**: resource_group, cluster_names, category (Cost, HighAvailability, Performance, Security), severity (High, Medium, Low)
+- **Filter Options**: resource_group, cluster_names, category (Cost,
+  HighAvailability, Performance, Security), severity (High, Medium, Low)
 
 </details>
 
 <details>
 <summary>Kubernetes Tools</summary>
 
-*Note: kubectl commands are available with all access levels. Additional tools require explicit enablement via `--additional-tools`*
+*Note: kubectl commands are available with all access levels. Additional tools
+require explicit enablement via `--additional-tools`*
 
 **kubectl Commands (Read-Only):**
+
 - `kubectl_get`, `kubectl_describe`, `kubectl_explain`, `kubectl_logs`
 - `kubectl_api-resources`, `kubectl_api-versions`, `kubectl_diff`
 - `kubectl_cluster-info`, `kubectl_top`, `kubectl_events`, `kubectl_auth`
 
 **kubectl Commands (Read-Write/Admin):**
-- `kubectl_create`, `kubectl_delete`, `kubectl_apply`, `kubectl_expose`, `kubectl_run`
+
+- `kubectl_create`, `kubectl_delete`, `kubectl_apply`, `kubectl_expose`,
+  `kubectl_run`
 - `kubectl_set`, `kubectl_rollout`, `kubectl_scale`, `kubectl_autoscale`
 - `kubectl_label`, `kubectl_annotate`, `kubectl_patch`, `kubectl_replace`
 - `kubectl_cp`, `kubectl_exec`, `kubectl_cordon`, `kubectl_uncordon`
 - `kubectl_drain`, `kubectl_taint`, `kubectl_certificate`
 
 **Additional Tools (Optional):**
+
 - `helm`: Helm package manager (requires `--additional-tools helm`)
 - `cilium`: Cilium CLI for eBPF networking (requires `--additional-tools cilium`)
 
@@ -171,9 +200,11 @@ Retrieve and manage Azure Advisor recommendations for AKS clusters.
 
 **Tool:** `inspektor_gadget` *(requires `--additional-tools inspektor-gadget`)*
 
-Real-time observability tool for Azure Kubernetes Service (AKS) clusters using eBPF.
+Real-time observability tool for Azure Kubernetes Service (AKS) clusters using
+eBPF.
 
 **Available Actions:**
+
 - `deploy`: Deploy Inspektor Gadget to cluster
 - `undeploy`: Remove Inspektor Gadget from cluster
 - `is_deployed`: Check deployment status
@@ -184,6 +215,7 @@ Real-time observability tool for Azure Kubernetes Service (AKS) clusters using e
 - `list_gadgets`: List available gadgets
 
 **Available Gadgets:**
+
 - `observe_dns`: Monitor DNS requests and responses
 - `observe_tcp`: Monitor TCP connections
 - `observe_file_open`: Monitor file system operations
@@ -200,6 +232,7 @@ Real-time observability tool for Azure Kubernetes Service (AKS) clusters using e
 ### Prerequisites
 
 1. Set up [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) and authenticate:
+
    ```bash
    az login
    ```
@@ -210,7 +243,7 @@ Real-time observability tool for Azure Kubernetes Service (AKS) clusters using e
 
 #### 🚀 Quick Setup Guide
 
-**Step 1: Download the Binary**
+#### Step 1: Download the Binary
 
 Choose your platform and download the latest AKS-MCP binary:
 
@@ -223,56 +256,38 @@ Choose your platform and download the latest AKS-MCP binary:
 | **Linux** | AMD64 | [📥 aks-mcp-linux-amd64](https://github.com/Azure/aks-mcp/releases/latest/download/aks-mcp-linux-amd64) |
 | | ARM64 | [📥 aks-mcp-linux-arm64](https://github.com/Azure/aks-mcp/releases/latest/download/aks-mcp-linux-arm64) |
 
-**Step 2: Configure VS Code**
+#### Step 2: Configure VS Code
 
 After downloading, create a `.vscode/mcp.json` file in your workspace root with the path to your downloaded binary.
 
-**Option A: 1-Click Installation**
+##### Option A: Automated Setup Script
 
-Click the appropriate button for your platform to automatically install AKS-MCP:
-
-| Platform | One-Click Installation |
-|----------|----------------------|
-| **Windows** | [![Install for Windows](https://img.shields.io/badge/🪟%20Install%20Now-PowerShell-0078d4?style=for-the-badge)](https://github.com/Azure/aks-mcp/blob/main/scripts/install-windows.ps1) |
-| **macOS/Linux** | [![Install for macOS/Linux](https://img.shields.io/badge/🍎%20Install%20Now-Bash-000000?style=for-the-badge)](https://github.com/Azure/aks-mcp/blob/main/scripts/install-unix.sh) |
-
-**Quick Commands:**
-
-Copy and paste these one-liners in your terminal for instant installation:
-
-**Windows (PowerShell):**
-```powershell
-iwr -useb https://raw.githubusercontent.com/Azure/aks-mcp/main/scripts/install-windows.ps1 | iex
-```
-
-**macOS/Linux (Bash):**
-```bash
-curl -fsSL https://raw.githubusercontent.com/Azure/aks-mcp/main/scripts/install-unix.sh | bash
-```
-
-> **💡 One-Click Setup**: These commands automatically download the binary and create your VS Code MCP configuration!
-
-**Option B: Manual Script Execution**
-
-Copy and run these scripts directly in your terminal:
+For quick setup, you can use these one-liner scripts that download the binary
+and create the configuration:
 
 *Windows (PowerShell):*
+
 ```powershell
 # Download binary and create VS Code configuration
 mkdir -p .vscode ; Invoke-WebRequest -Uri "https://github.com/Azure/aks-mcp/releases/latest/download/aks-mcp-windows-amd64.exe" -OutFile "aks-mcp.exe" ; @{servers=@{"aks-mcp-server"=@{type="stdio";command="$PWD\aks-mcp.exe";args=@("--transport","stdio")}}} | ConvertTo-Json -Depth 3 | Out-File ".vscode/mcp.json" -Encoding UTF8
 ```
 
 *macOS/Linux (Bash):*
+
 ```bash
 # Download binary and create VS Code configuration  
 mkdir -p .vscode && curl -sL https://github.com/Azure/aks-mcp/releases/latest/download/aks-mcp-linux-amd64 -o aks-mcp && chmod +x aks-mcp && echo '{"servers":{"aks-mcp-server":{"type":"stdio","command":"'$PWD'/aks-mcp","args":["--transport","stdio"]}}}' > .vscode/mcp.json
 ```
 
-**Option C: Manual Configuration**
+##### Option B: Manual Configuration
 
 > **✨ Simple Setup**: Download the binary for your platform, then use the manual configuration below to set up the MCP server in VS Code.
 
 #### Manual VS Code Configuration
+
+You can configure the AKS-MCP server in two ways:
+
+**1. Workspace-specific configuration** (recommended for project-specific usage):
 
 Create a `.vscode/mcp.json` file in your workspace with the path to your downloaded binary:
 
@@ -281,7 +296,7 @@ Create a `.vscode/mcp.json` file in your workspace with the path to your downloa
   "servers": {
     "aks-mcp-server": {
       "type": "stdio",
-      "command": "/path/to/aks-mcp",
+      "command": "<enter the file path",
       "args": [
         "--transport", "stdio"
       ]
@@ -290,19 +305,34 @@ Create a `.vscode/mcp.json` file in your workspace with the path to your downloa
 }
 ```
 
-**Example paths by platform:**
-- **Windows**: `"command": "C:\\Users\\YourName\\Downloads\\aks-mcp-windows-amd64.exe"`
-- **macOS/Linux**: `"command": "/home/yourname/bin/aks-mcp"` (make sure to `chmod +x` the binary)
+**2. User-level configuration** (persistent across all workspaces):
 
-> **💡 Pro Tip**: Place the binary in a permanent location like `~/bin/` (macOS/Linux) or `C:\tools\` (Windows) and update the path accordingly.
+For a persistent configuration that works across all your VS Code workspaces, add the MCP server to your VS Code user settings:
 
-#### 🚀 Getting Started with VS Code
+1. Open VS Code Settings (Ctrl+, or Cmd+,)
+2. Search for "mcp" in the settings
+3. Add the following to your User Settings JSON:
 
-After downloading the binary and creating your `.vscode/mcp.json` configuration:
+```json
+{
+  "github.copilot.chat.mcp.servers": {
+    "aks-mcp-server": {
+      "type": "stdio",
+      "command": "<enter the file path>",
+      "args": [
+        "--transport", "stdio"
+      ]
+    }
+  }
+}
+```
 
-1. **Restart VS Code** - Close and reopen VS Code to load the new MCP server configuration
+#### Step 3: Load the AKS-MCP server tools to Github Copilot
+
+1. If running on an older version of VS Code: restart VS Code i.e. close and
+   reopen VS Code to load the new MCP server configuration.
 2. Open GitHub Copilot in VS Code and [switch to Agent mode](https://code.visualstudio.com/docs/copilot/chat/chat-agent-mode)
-3. Click the **Tools** button to view available tools
+3. Click the **Tools** button or run /list in the Github Copilot window to see the list of available toools
 4. You should see the AKS-MCP tools in the list
 5. Try a prompt like: *"List all my AKS clusters in subscription xxx"*
 6. The agent will automatically use AKS-MCP tools to complete your request
