@@ -332,7 +332,7 @@ For a persistent configuration that works across all your VS Code workspaces, ad
 1. If running on an older version of VS Code: restart VS Code i.e. close and
    reopen VS Code to load the new MCP server configuration.
 2. Open GitHub Copilot in VS Code and [switch to Agent mode](https://code.visualstudio.com/docs/copilot/chat/chat-agent-mode)
-3. Click the **Tools** button or run /list in the Github Copilot window to see the list of available toools
+3. Click the **Tools** button or run /list in the Github Copilot window to see the list of available tools
 4. You should see the AKS-MCP tools in the list
 5. Try a prompt like: *"List all my AKS clusters in subscription xxx"*
 6. The agent will automatically use AKS-MCP tools to complete your request
