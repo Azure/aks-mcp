@@ -41,12 +41,26 @@ func NewService(cfg *config.ConfigData) *Service {
 
 // Initialize initializes the service
 func (s *Service) Initialize() error {
-	// Initialize configuration
+	log.Println("Initializing AKS MCP service...")
 
+	// Phase 1: Initialize core infrastructure
+	if err := s.initializeInfrastructure(); err != nil {
+		return err
+	}
+
+	// Phase 2: Register all component tools
+	s.registerAllComponents()
+
+	log.Println("AKS MCP service initialization completed successfully")
+	return nil
+}
+
+// initializeInfrastructure sets up the Azure client and MCP server
+func (s *Service) initializeInfrastructure() error {
 	// Create shared Azure client
 	azClient, err := azureclient.NewAzureClient(s.cfg)
 	if err != nil {
-		log.Fatalf("Failed to create Azure client: %v", err)
+		return fmt.Errorf("failed to create Azure client: %v", err)
 	}
 	s.azClient = azClient
 	log.Println("Azure client initialized successfully")
@@ -59,20 +73,18 @@ func (s *Service) Initialize() error {
 		server.WithLogging(),
 		server.WithRecovery(),
 	)
-
-	// Register individual az commands
-	s.registerAzCommands()
-
-	// Register Azure resource tools (VNet, NSG, etc.)
-	s.registerAzureResourceTools()
-
-	// Register Azure Advisor tools
-	s.registerAdvisorTools()
-
-	// Register Kubernetes tools
-	s.registerKubernetesTools()
+	log.Println("MCP server initialized successfully")
 
 	return nil
+}
+
+// registerAllComponents registers all component tools organized by category
+func (s *Service) registerAllComponents() {
+	// Azure Components
+	s.registerAzureComponents()
+
+	// Kubernetes Components
+	s.registerKubernetesComponents()
 }
 
 // Run starts the service with the specified transport
@@ -100,150 +112,51 @@ func (s *Service) Run() error {
 	}
 }
 
-// registerAzCommands registers AKS operations tool
-func (s *Service) registerAzCommands() {
-	// Register AKS operations tool
-	log.Println("Registering tool: az_aks_operations")
-	aksOperationsTool := azaks.RegisterAzAksOperations(s.cfg)
-	s.mcpServer.AddTool(aksOperationsTool, tools.CreateToolHandler(azaks.NewAksOperationsExecutor(), s.cfg))
+// registerAzureComponents registers all Azure tools (AKS operations, monitoring, fleet, network, compute, detectors, advisor)
+func (s *Service) registerAzureComponents() {
+	log.Println("Registering Azure Components...")
 
-	// Register monitoring tool
-	log.Println("Registering tool: az_monitoring")
-	monitoringTool := monitor.RegisterAzMonitoring()
-	s.mcpServer.AddTool(monitoringTool, tools.CreateResourceHandler(monitor.GetAzMonitoringHandler(s.azClient, s.cfg), s.cfg))
+	// AKS Operations Component
+	s.registerAksOpsComponent()
 
-	// Register generic az fleet tool with structured parameters (available at all access levels)
-	log.Println("Registering az fleet tool: az_fleet")
-	fleetTool := fleet.RegisterFleet()
-	s.mcpServer.AddTool(fleetTool, tools.CreateToolHandler(azcli.NewFleetExecutor(), s.cfg))
+	// Monitoring Component
+	s.registerMonitoringComponent()
+
+	// Fleet Management Component
+	s.registerFleetComponent()
+
+	// Network Resources Component
+	s.registerNetworkComponent()
+
+	// Compute Resources Component
+	s.registerComputeComponent()
+
+	// Detector Resources Component
+	s.registerDetectorComponent()
+
+	// Azure Advisor Component
+	s.registerAdvisorComponent()
+
+	log.Println("Azure Components registered successfully")
 }
 
-func (s *Service) registerAzureResourceTools() {
-	// Register Network-related tools
-	s.registerNetworkTools(s.azClient)
+// registerKubernetesComponents registers Kubernetes-related tools (kubectl, helm, cilium, observability)
+func (s *Service) registerKubernetesComponents() {
+	log.Println("Registering Kubernetes Components...")
 
-	// Register Detector tools
-	s.registerDetectorTools(s.azClient)
+	// Core Kubernetes Component (kubectl)
+	s.registerKubectlComponent()
 
-	// Register Compute-related tools
-	s.registerComputeTools(s.azClient)
+	// Optional Kubernetes Components (based on configuration)
+	s.registerOptionalKubernetesComponents()
 
-	// TODO: Add other resource categories in the future:
+	log.Println("Kubernetes Components registered successfully")
 }
 
-// registerNetworkTools registers the network resources tool
-func (s *Service) registerNetworkTools(azClient *azureclient.AzureClient) {
-	log.Println("Registering Network tool...")
+// registerKubectlComponent registers core kubectl commands based on access level
+func (s *Service) registerKubectlComponent() {
+	log.Println("Registering Core Kubernetes Component (kubectl)")
 
-	// Register network resources tool
-	log.Println("Registering network tool: az_network_resources")
-	networkTool := network.RegisterAzNetworkResources()
-	s.mcpServer.AddTool(networkTool, tools.CreateResourceHandler(network.GetAzNetworkResourcesHandler(azClient, s.cfg), s.cfg))
-
-}
-
-// registerDetectorTools registers all detector-related Azure resource tools
-func (s *Service) registerDetectorTools(azClient *azureclient.AzureClient) {
-	log.Println("Registering Detector tools...")
-
-	// Register list detectors tool
-	log.Println("Registering detector tool: list_detectors")
-	listTool := detectors.RegisterListDetectorsTool()
-	s.mcpServer.AddTool(listTool, tools.CreateResourceHandler(detectors.GetListDetectorsHandler(azClient, s.cfg), s.cfg))
-
-	// Register run detector tool
-	log.Println("Registering detector tool: run_detector")
-	runTool := detectors.RegisterRunDetectorTool()
-	s.mcpServer.AddTool(runTool, tools.CreateResourceHandler(detectors.GetRunDetectorHandler(azClient, s.cfg), s.cfg))
-
-	// Register run detectors by category tool
-	log.Println("Registering detector tool: run_detectors_by_category")
-	categoryTool := detectors.RegisterRunDetectorsByCategoryTool()
-	s.mcpServer.AddTool(categoryTool, tools.CreateResourceHandler(detectors.GetRunDetectorsByCategoryHandler(azClient, s.cfg), s.cfg))
-}
-
-// registerComputeTools registers all compute-related Azure resource tools (VMSS/VM)
-func (s *Service) registerComputeTools(azClient *azureclient.AzureClient) {
-	log.Println("Registering Compute tools...")
-
-	// Register AKS VMSS info tool (supports both single node pool and all node pools)
-	log.Println("Registering compute tool: get_aks_vmss_info")
-	vmssInfoTool := compute.RegisterAKSVMSSInfoTool()
-	s.mcpServer.AddTool(vmssInfoTool, tools.CreateResourceHandler(compute.GetAKSVMSSInfoHandler(azClient, s.cfg), s.cfg))
-
-	// Register read-only az vmss commands (available at all access levels)
-	for _, cmd := range compute.GetReadOnlyVmssCommands() {
-		log.Println("Registering az vmss command:", cmd.Name)
-		azTool := compute.RegisterAzComputeCommand(cmd)
-		commandExecutor := azcli.CreateCommandExecutorFunc(cmd.Name)
-		s.mcpServer.AddTool(azTool, tools.CreateToolHandler(commandExecutor, s.cfg))
-	}
-
-	// Register read-write commands if access level is readwrite or admin
-	if s.cfg.AccessLevel == "readwrite" || s.cfg.AccessLevel == "admin" {
-		// Register read-write az vmss commands
-		for _, cmd := range compute.GetReadWriteVmssCommands() {
-			log.Println("Registering az vmss command:", cmd.Name)
-			azTool := compute.RegisterAzComputeCommand(cmd)
-			commandExecutor := azcli.CreateCommandExecutorFunc(cmd.Name)
-			s.mcpServer.AddTool(azTool, tools.CreateToolHandler(commandExecutor, s.cfg))
-		}
-	}
-
-	// Register admin commands only if access level is admin
-	if s.cfg.AccessLevel == "admin" {
-		// Register admin az vmss commands
-		for _, cmd := range compute.GetAdminVmssCommands() {
-			log.Println("Registering az vmss command:", cmd.Name)
-			azTool := compute.RegisterAzComputeCommand(cmd)
-			commandExecutor := azcli.CreateCommandExecutorFunc(cmd.Name)
-			s.mcpServer.AddTool(azTool, tools.CreateToolHandler(commandExecutor, s.cfg))
-		}
-	}
-}
-
-// registerAdvisorTools registers all Azure Advisor-related tools
-func (s *Service) registerAdvisorTools() {
-	log.Println("Registering Advisor tools...")
-
-	// Register Azure Advisor recommendation tool (available at all access levels)
-	log.Println("Registering advisor tool: az_advisor_recommendation")
-	advisorTool := advisor.RegisterAdvisorRecommendationTool()
-	s.mcpServer.AddTool(advisorTool, tools.CreateResourceHandler(advisor.GetAdvisorRecommendationHandler(s.cfg), s.cfg))
-}
-
-// registerKubernetesTools registers Kubernetes-related tools (kubectl, helm, cilium)
-func (s *Service) registerKubernetesTools() {
-	log.Println("Registering Kubernetes tools...")
-
-	// Register kubectl commands based on access level
-	s.registerKubectlCommands()
-
-	// Register helm if enabled
-	if s.cfg.AdditionalTools["helm"] {
-		log.Println("Registering Kubernetes tool: helm")
-		helmTool := helm.RegisterHelm()
-		helmExecutor := k8s.WrapK8sExecutor(helm.NewExecutor())
-		s.mcpServer.AddTool(helmTool, tools.CreateToolHandler(helmExecutor, s.cfg))
-	}
-
-	// Register cilium if enabled
-	if s.cfg.AdditionalTools["cilium"] {
-		log.Println("Registering Kubernetes tool: cilium")
-		ciliumTool := cilium.RegisterCilium()
-		ciliumExecutor := k8s.WrapK8sExecutor(cilium.NewExecutor())
-		s.mcpServer.AddTool(ciliumTool, tools.CreateToolHandler(ciliumExecutor, s.cfg))
-	}
-
-	// Register Inspektor Gadget tools for observability
-	if s.cfg.AdditionalTools["inspektor-gadget"] {
-		log.Println("Registering Kubernetes tool: inspektor-gadget")
-		s.registerInspektorGadgetTools()
-	}
-}
-
-// registerKubectlCommands registers kubectl commands based on access level
-func (s *Service) registerKubectlCommands() {
 	// Get kubectl tools filtered by access level
 	kubectlTools := kubectl.RegisterKubectlTools(s.cfg.AccessLevel)
 
@@ -262,8 +175,27 @@ func (s *Service) registerKubectlCommands() {
 	}
 }
 
-// registerInspektorGadgetTools registers all Inspektor Gadget tools for observability
-func (s *Service) registerInspektorGadgetTools() {
+// registerOptionalKubernetesComponents registers optional Kubernetes tools based on configuration
+func (s *Service) registerOptionalKubernetesComponents() {
+	log.Println("Registering Optional Kubernetes Components")
+
+	// Register helm if enabled
+	s.registerHelmComponent()
+
+	// Register cilium if enabled
+	s.registerCiliumComponent()
+
+	// Register Inspektor Gadget tools for observability
+	s.registerInspektorGadgetIfEnabled()
+
+	// Log if no optional components are enabled
+	if !s.cfg.AdditionalTools["helm"] && !s.cfg.AdditionalTools["cilium"] && !s.cfg.AdditionalTools["inspektor-gadget"] {
+		log.Println("No optional Kubernetes components enabled")
+	}
+}
+
+// registerInspektorGadgetComponent registers Inspektor Gadget tools for observability
+func (s *Service) registerInspektorGadgetComponent() {
 	gadgetMgr, err := inspektorgadget.NewGadgetManager()
 	if err != nil {
 		log.Printf("Warning: Failed to create gadget manager: %v", err)
@@ -273,4 +205,128 @@ func (s *Service) registerInspektorGadgetTools() {
 	// Register Inspektor Gadget tool
 	inspektorGadget := inspektorgadget.RegisterInspektorGadgetTool()
 	s.mcpServer.AddTool(inspektorGadget, tools.CreateResourceHandler(inspektorgadget.InspektorGadgetHandler(gadgetMgr, s.cfg), s.cfg))
+}
+
+// registerAksOpsComponent registers AKS operations tools
+func (s *Service) registerAksOpsComponent() {
+	log.Println("Registering AKS operations tool: az_aks_operations")
+	aksOperationsTool := azaks.RegisterAzAksOperations(s.cfg)
+	s.mcpServer.AddTool(aksOperationsTool, tools.CreateToolHandler(azaks.NewAksOperationsExecutor(), s.cfg))
+}
+
+// registerMonitoringComponent registers Azure monitoring tools
+func (s *Service) registerMonitoringComponent() {
+	log.Println("Registering monitoring tool: az_monitoring")
+	monitoringTool := monitor.RegisterAzMonitoring()
+	s.mcpServer.AddTool(monitoringTool, tools.CreateResourceHandler(monitor.GetAzMonitoringHandler(s.azClient, s.cfg), s.cfg))
+}
+
+// registerFleetComponent registers Azure fleet management tools
+func (s *Service) registerFleetComponent() {
+	log.Println("Registering fleet tool: az_fleet")
+	fleetTool := fleet.RegisterFleet()
+	s.mcpServer.AddTool(fleetTool, tools.CreateToolHandler(azcli.NewFleetExecutor(), s.cfg))
+}
+
+// registerAdvisorComponent registers Azure advisor tools
+func (s *Service) registerAdvisorComponent() {
+	log.Println("Registering advisor tool: az_advisor_recommendation")
+	advisorTool := advisor.RegisterAdvisorRecommendationTool()
+	s.mcpServer.AddTool(advisorTool, tools.CreateResourceHandler(advisor.GetAdvisorRecommendationHandler(s.cfg), s.cfg))
+}
+
+// registerNetworkComponent registers network-related Azure resource tools
+func (s *Service) registerNetworkComponent() {
+	log.Println("Registering Network Resources Component")
+
+	// Register network resources tool
+	log.Println("Registering network tool: az_network_resources")
+	networkTool := network.RegisterAzNetworkResources()
+	s.mcpServer.AddTool(networkTool, tools.CreateResourceHandler(network.GetAzNetworkResourcesHandler(s.azClient, s.cfg), s.cfg))
+}
+
+// registerComputeComponent registers compute-related Azure resource tools (VMSS/VM)
+func (s *Service) registerComputeComponent() {
+	log.Println("Registering Compute Resources Component")
+
+	// Register AKS VMSS info tool (supports both single node pool and all node pools)
+	log.Println("Registering compute tool: get_aks_vmss_info")
+	vmssInfoTool := compute.RegisterAKSVMSSInfoTool()
+	s.mcpServer.AddTool(vmssInfoTool, tools.CreateResourceHandler(compute.GetAKSVMSSInfoHandler(s.azClient, s.cfg), s.cfg))
+
+	// Register read-only az vmss commands (available at all access levels)
+	for _, cmd := range compute.GetReadOnlyVmssCommands() {
+		log.Printf("Registering az vmss command: %s (readonly)", cmd.Name)
+		azTool := compute.RegisterAzComputeCommand(cmd)
+		commandExecutor := azcli.CreateCommandExecutorFunc(cmd.Name)
+		s.mcpServer.AddTool(azTool, tools.CreateToolHandler(commandExecutor, s.cfg))
+	}
+
+	// Register read-write commands if access level is readwrite or admin
+	if s.cfg.AccessLevel == "readwrite" || s.cfg.AccessLevel == "admin" {
+		for _, cmd := range compute.GetReadWriteVmssCommands() {
+			log.Printf("Registering az vmss command: %s (readwrite)", cmd.Name)
+			azTool := compute.RegisterAzComputeCommand(cmd)
+			commandExecutor := azcli.CreateCommandExecutorFunc(cmd.Name)
+			s.mcpServer.AddTool(azTool, tools.CreateToolHandler(commandExecutor, s.cfg))
+		}
+	}
+
+	// Register admin commands only if access level is admin
+	if s.cfg.AccessLevel == "admin" {
+		for _, cmd := range compute.GetAdminVmssCommands() {
+			log.Printf("Registering az vmss command: %s (admin)", cmd.Name)
+			azTool := compute.RegisterAzComputeCommand(cmd)
+			commandExecutor := azcli.CreateCommandExecutorFunc(cmd.Name)
+			s.mcpServer.AddTool(azTool, tools.CreateToolHandler(commandExecutor, s.cfg))
+		}
+	}
+}
+
+// registerDetectorComponent registers detector-related Azure resource tools
+func (s *Service) registerDetectorComponent() {
+	log.Println("Registering Detector Resources Component")
+
+	// Register list detectors tool
+	log.Println("Registering detector tool: list_detectors")
+	listTool := detectors.RegisterListDetectorsTool()
+	s.mcpServer.AddTool(listTool, tools.CreateResourceHandler(detectors.GetListDetectorsHandler(s.azClient, s.cfg), s.cfg))
+
+	// Register run detector tool
+	log.Println("Registering detector tool: run_detector")
+	runTool := detectors.RegisterRunDetectorTool()
+	s.mcpServer.AddTool(runTool, tools.CreateResourceHandler(detectors.GetRunDetectorHandler(s.azClient, s.cfg), s.cfg))
+
+	// Register run detectors by category tool
+	log.Println("Registering detector tool: run_detectors_by_category")
+	categoryTool := detectors.RegisterRunDetectorsByCategoryTool()
+	s.mcpServer.AddTool(categoryTool, tools.CreateResourceHandler(detectors.GetRunDetectorsByCategoryHandler(s.azClient, s.cfg), s.cfg))
+}
+
+// registerHelmComponent registers helm tools if enabled
+func (s *Service) registerHelmComponent() {
+	if s.cfg.AdditionalTools["helm"] {
+		log.Println("Registering Kubernetes tool: helm")
+		helmTool := helm.RegisterHelm()
+		helmExecutor := k8s.WrapK8sExecutor(helm.NewExecutor())
+		s.mcpServer.AddTool(helmTool, tools.CreateToolHandler(helmExecutor, s.cfg))
+	}
+}
+
+// registerCiliumComponent registers cilium tools if enabled
+func (s *Service) registerCiliumComponent() {
+	if s.cfg.AdditionalTools["cilium"] {
+		log.Println("Registering Kubernetes tool: cilium")
+		ciliumTool := cilium.RegisterCilium()
+		ciliumExecutor := k8s.WrapK8sExecutor(cilium.NewExecutor())
+		s.mcpServer.AddTool(ciliumTool, tools.CreateToolHandler(ciliumExecutor, s.cfg))
+	}
+}
+
+// registerInspektorGadgetIfEnabled registers Inspektor Gadget tools if enabled
+func (s *Service) registerInspektorGadgetIfEnabled() {
+	if s.cfg.AdditionalTools["inspektor-gadget"] {
+		log.Println("Registering Kubernetes tool: inspektor-gadget")
+		s.registerInspektorGadgetComponent()
+	}
 }
