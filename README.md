@@ -427,11 +427,45 @@ For containerized deployment, you can run AKS-MCP server using the official Dock
 # Pull the latest official image
 docker pull ghcr.io/azure/aks-mcp:latest
 
-# Run with Azure CLI authentication (recommended)
+# Start the server in a Docker container
 docker run -i --rm ghcr.io/azure/aks-mcp:latest --transport stdio
 ```
 
-> **Note**: Ensure you have authenticated with Azure CLI (`az login`) on your host system before running the container.
+> **Note**: You will need to authenticate with Azure CLI (`az login`) in container to access your Azure resources.
+> Otherwise, you can mount your Azure credentials and kubeconfig files into the container.
+
+### 🛠️ Docker Desktop Installation
+
+You can enable the AKS-MCP server directly from (MCP Toolkit)[https://hub.docker.com/mcp/server/aks/overview] in Docker Desktop:
+
+1. Open Docker Desktop
+2. Click "MCP Toolkit" in the left sidebar
+3. Search for "aks" in Catalog tab
+4. Click on the AKS-MCP server card
+5. Enable the server by clicking "+" in the top right corner
+6. Configure the server using "Configuration" tab:
+   - **azure_dir** `[REQUIRED]`: Path to your Azure credentials directory e.g `/home/user/.azure`
+   - **kubeconfig** `[REQUIRED]`: Path to your kubeconfig file (if needed) e.g `/home/user/.kube/config`
+   - **access_level** `[REQUIRED]`: Set to `readonly`, `readwrite`, or `admin` as needed
+7. You are now ready to use the AKS-MCP server with your (preferred MCP client)[https://docs.docker.com/ai/mcp-catalog-and-toolkit/toolkit/#install-an-mcp-client]!
+
+On **Windows**, the Azure credentials won't work by default, but you have two options:
+
+1. **Long-lived servers**: Configure the (MCP gateway)[https://docs.docker.com/ai/mcp-gateway/] to use long-lived servers using `--long-lived` flag and then authenticate with Azure CLI in the container.
+2. **Custom Azure Directory**: Set up a custom Azure directory for Docker Desktop to use:
+    ```powershell
+    # Set custom Azure config directory
+    $env:AZURE_CONFIG_DIR = "$env:USERPROFILE\.azure-for-docker"
+    
+    # Disable token cache encryption (to match behavior with Linux/macOS)
+    $env:AZURE_CORE_ENCRYPT_TOKEN_CACHE = "false"
+    
+    # Login to Azure CLI
+    az login
+    ```
+    
+    This will store the credentials in `$env:USERPROFILE\.azure-for-docker` (e.g. `C:\Users\<username>\.azure-for-docker`),
+    use this path in the AKS-MCP server configuration `azure_dir`.
 
 ### 🤖 Custom MCP Client Installation
 
