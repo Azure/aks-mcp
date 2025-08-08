@@ -62,6 +62,11 @@ clean: ## Clean build artifacts
 	go clean -cache
 	docker image rm -f $(DOCKER_IMAGE):$(DOCKER_TAG) 2>/dev/null || true
 
+.PHONY: inspector
+inspector: ## Run MCP inspector for debugging
+	@echo "Running in inspector for debugging..."
+	npx @modelcontextprotocol/inspector go run ./cmd/aks-mcp --access-level=readonly --additional-tools="" --allow-namespaces=""
+
 ##@ Testing
 
 .PHONY: test
