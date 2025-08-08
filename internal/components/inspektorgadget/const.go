@@ -6,6 +6,8 @@ const (
 	deployAction = "deploy"
 	// undeployAction is the action to remove Inspektor Gadget from the cluster
 	undeployAction = "undeploy"
+	// upgradeAction is the action to upgrade Inspektor Gadget in the cluster
+	upgradeAction = "upgrade"
 	// isDeployedAction is the action to check if Inspektor Gadget is deployed
 	isDeployedAction = "is_deployed"
 )

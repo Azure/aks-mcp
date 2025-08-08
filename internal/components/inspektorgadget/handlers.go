@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/Azure/aks-mcp/internal/command"
@@ -76,8 +78,8 @@ func InspektorGadgetHandler(mgr GadgetManager, cfg *config.ConfigData) tools.Res
 			return handleGetResultsAction(ctx, mgr, actionParams, cfg)
 		case listGadgetsAction:
 			return handleListGadgetsAction(ctx, mgr, cfg)
-		case isDeployedAction, undeployAction, deployAction:
-			return handleLifecycleAction(deployed, action, actionParams, cfg)
+		case isDeployedAction, undeployAction, upgradeAction, deployAction:
+			return handleLifecycleAction(mgr, deployed, action, actionParams, cfg)
 		}
 
 		return "", fmt.Errorf("unsupported action: %s", action)
@@ -112,7 +114,11 @@ func handleRunAction(ctx context.Context, mgr GadgetManager, actionParams map[st
 	dur := time.Duration(duration) * time.Second
 	gadgetParams[paramFetchInterval] = (dur / 2).String()
 
-	resp, err := mgr.RunGadget(ctx, gadget.Image, gadgetParams, dur)
+	ver, err := mgr.GetVersion()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to get inspektor gadget version: %v\n", err)
+	}
+	resp, err := mgr.RunGadget(ctx, gadget.getImage(ver), gadgetParams, dur)
 	if err != nil {
 		return "", fmt.Errorf("running gadget: %w", err)
 	}
@@ -151,7 +157,12 @@ func handleStartAction(ctx context.Context, mgr GadgetManager, actionParams map[
 		"filterParams=" + filterParamsStr,
 		"namespaces=" + getNamespace(gadgetParams),
 	}
-	id, err := mgr.StartGadget(ctx, gadget.Image, gadgetParams, tags)
+
+	ver, err := mgr.GetVersion()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to get inspektor gadget version: %v\n", err)
+	}
+	id, err := mgr.StartGadget(ctx, gadget.getImage(ver), gadgetParams, tags)
 	if err != nil {
 		return "", fmt.Errorf("starting gadget: %w", err)
 	}
@@ -219,7 +230,7 @@ func handleListGadgetsAction(ctx context.Context, mgr GadgetManager, cfg *config
 	return string(JSONData), nil
 }
 
-func handleLifecycleAction(deployed bool, action string, actionParams map[string]interface{}, cfg *config.ConfigData) (string, error) {
+func handleLifecycleAction(mgr GadgetManager, deployed bool, action string, actionParams map[string]interface{}, cfg *config.ConfigData) (string, error) {
 	// TODO: use security.Validator once helm readwrite/admin operations are implemented
 	if !cfg.SecurityConfig.IsNamespaceAllowed(inspektorGadgetChartNamespace) {
 		return "", fmt.Errorf("namespace %s is not allowed by security policy", inspektorGadgetChartNamespace)
@@ -231,10 +242,19 @@ func handleLifecycleAction(deployed bool, action string, actionParams map[string
 		return "", fmt.Errorf("action %q requires 'readwrite' or 'admin' access level, current access level is '%s'", action, cfg.AccessLevel)
 	}
 
+	installedVersion, err := mgr.GetVersion()
+	if err != nil && deployed {
+		return "", fmt.Errorf("getting installed version: %w", err)
+	}
+	latestVersion, err := getLatestVersionFromGitHub()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to get latest version: %v\n", err)
+	}
+
 	switch action {
 	case isDeployedAction:
 		if deployed {
-			return "inspektor gadget is deployed", nil
+			return "inspektor gadget is deployed (version: " + installedVersion + ", latest: " + latestVersion + ")", nil
 		}
 		return "inspektor gadget is not deployed", nil
 	case undeployAction:
@@ -244,9 +264,17 @@ func handleLifecycleAction(deployed bool, action string, actionParams map[string
 		return handleUndeployAction(cfg)
 	case deployAction:
 		if deployed {
-			return "inspektor gadget is already deployed", nil
+			return "inspektor gadget is already deployed (version: " + installedVersion + ", latest: " + latestVersion + ")", nil
 		}
 		return handleDeployAction(actionParams, cfg)
+	case upgradeAction:
+		if !deployed {
+			return "inspektor gadget is not deployed, no upgrade needed", nil
+		}
+		if installedVersion == latestVersion {
+			return fmt.Sprintf("inspektor gadget is already at the latest version (%s), no upgrade needed", installedVersion), nil
+		}
+		return handleUpgradeAction(actionParams, cfg)
 	}
 
 	return "", fmt.Errorf("unsupported lifecycle action %q, must be one of %v", action, getLifecycleActions())
@@ -266,6 +294,28 @@ func handleDeployAction(actionParams map[string]interface{}, cfg *config.ConfigD
 func handleUndeployAction(cfg *config.ConfigData) (string, error) {
 	helmArgs := fmt.Sprintf("uninstall %s -n %s", inspektorGadgetChartRelease, inspektorGadgetChartNamespace)
 	process := command.NewShellProcess("helm", cfg.Timeout)
+	return process.Run(helmArgs)
+}
+
+func handleUpgradeAction(actionParams map[string]interface{}, cfg *config.ConfigData) (string, error) {
+	// Check if the release exists before upgrading
+	helmGetArgs := fmt.Sprintf("get metadata %s -n %s", inspektorGadgetChartRelease, inspektorGadgetChartNamespace)
+	process := command.NewShellProcess("helm", cfg.Timeout)
+	out, err := process.Run(helmGetArgs)
+	if err != nil {
+		return "", fmt.Errorf("getting helm release %s: %w", inspektorGadgetChartRelease, err)
+	}
+	if strings.Contains(out, "release: not found") {
+		return "", fmt.Errorf("helm release not found, cannot upgrade. Did you manually deploy Inspektor Gadget")
+	}
+	// Proceed with upgrade if the release exists
+	chartVersion, ok := actionParams["chart_version"].(string)
+	if !ok || chartVersion == "" {
+		chartVersion = getChartVersion()
+	}
+	chartUrl := fmt.Sprintf("%s:%s", inspektorGadgetChartURL, chartVersion)
+	helmArgs := fmt.Sprintf("upgrade %s -n %s --create-namespace %s", inspektorGadgetChartRelease, inspektorGadgetChartNamespace, chartUrl)
+	process = command.NewShellProcess("helm", cfg.Timeout)
 	return process.Run(helmArgs)
 }
 

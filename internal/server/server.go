@@ -196,11 +196,7 @@ func (s *Service) registerOptionalKubernetesComponents() {
 
 // registerInspektorGadgetComponent registers Inspektor Gadget tools for observability
 func (s *Service) registerInspektorGadgetComponent() {
-	gadgetMgr, err := inspektorgadget.NewGadgetManager()
-	if err != nil {
-		log.Printf("Warning: Failed to create gadget manager: %v", err)
-		return
-	}
+	gadgetMgr := inspektorgadget.NewGadgetManager()
 
 	// Register Inspektor Gadget tool
 	log.Println("Registering Inspektor Gadget Observability tool: inspektor_gadget_observability")

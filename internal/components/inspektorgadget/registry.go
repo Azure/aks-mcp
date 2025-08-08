@@ -21,6 +21,7 @@ func RegisterInspektorGadgetTool() mcp.Tool {
 				listGadgetsAction+" to list all running gadgets"+
 				deployAction+" to deploy Inspektor Gadget, "+
 				undeployAction+" to undeploy Inspektor Gadget"+
+				upgradeAction+" to upgrade Inspektor Gadget, "+
 				isDeployedAction+" to check if Inspektor Gadget is deployed",
 			),
 			mcp.Enum(getActions()...),

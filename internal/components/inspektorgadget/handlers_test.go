@@ -13,6 +13,7 @@ import (
 // mockGadgetManager implements GadgetManager interface for testing
 type mockGadgetManager struct {
 	isDeployed      bool
+	version         string
 	deployedMessage string
 	deployError     error
 	runResult       string
@@ -62,8 +63,8 @@ func (m *mockGadgetManager) IsDeployed(ctx context.Context) (bool, string, error
 	return m.isDeployed, m.deployedMessage, m.deployError
 }
 
-func (m *mockGadgetManager) Close() error {
-	return nil
+func (m *mockGadgetManager) GetVersion() (string, error) {
+	return m.version, nil
 }
 
 func TestInspektorGadgetHandler(t *testing.T) {

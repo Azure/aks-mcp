@@ -1,6 +1,9 @@
 package inspektorgadget
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestGadgets(t *testing.T) {
 	for _, gadget := range gadgets {
@@ -9,6 +12,9 @@ func TestGadgets(t *testing.T) {
 		}
 		if gadget.Image == "" {
 			t.Errorf("Gadget image is empty for %s", gadget.Name)
+		}
+		if gadget.Image != "" && strings.Contains(gadget.Image, ":") {
+			t.Errorf("Gadget image %s should not contain a version tag", gadget.Image)
 		}
 		if gadget.Description == "" {
 			t.Errorf("Gadget description is empty for %s", gadget.Name)

@@ -19,10 +19,14 @@ type Gadget struct {
 	ParamsFunc func(filterParams map[string]interface{}, gadgetParams map[string]string)
 }
 
+func (g *Gadget) getImage(version string) string {
+	return fmt.Sprintf("%s:%s", g.Image, gadgetVersionFor(version))
+}
+
 var gadgets = []Gadget{
 	{
 		Name:        observeDNS,
-		Image:       "ghcr.io/inspektor-gadget/gadget/trace_dns:latest",
+		Image:       "ghcr.io/inspektor-gadget/gadget/trace_dns",
 		Description: "Observes DNS queries in the cluster",
 		Params: map[string]interface{}{
 			"name": map[string]interface{}{
@@ -75,7 +79,7 @@ var gadgets = []Gadget{
 	},
 	{
 		Name:        observeTCP,
-		Image:       "ghcr.io/inspektor-gadget/gadget/trace_tcp:latest",
+		Image:       "ghcr.io/inspektor-gadget/gadget/trace_tcp",
 		Description: "Observes TCP traffic in the cluster",
 		Params: map[string]interface{}{
 			"source_port": map[string]interface{}{
@@ -121,7 +125,7 @@ var gadgets = []Gadget{
 	},
 	{
 		Name:        observeFileOpen,
-		Image:       "ghcr.io/inspektor-gadget/gadget/trace_open:latest",
+		Image:       "ghcr.io/inspektor-gadget/gadget/trace_open",
 		Description: "Observes file open operations in the cluster",
 		Params: map[string]interface{}{
 			"path": map[string]interface{}{
@@ -152,7 +156,7 @@ var gadgets = []Gadget{
 	},
 	{
 		Name:        observeProcessExecution,
-		Image:       "ghcr.io/inspektor-gadget/gadget/trace_exec:latest",
+		Image:       "ghcr.io/inspektor-gadget/gadget/trace_exec",
 		Description: "Observes process execution in the cluster",
 		Params: map[string]interface{}{
 			"command": map[string]interface{}{
@@ -172,7 +176,7 @@ var gadgets = []Gadget{
 	},
 	{
 		Name:        observeSignal,
-		Image:       "ghcr.io/inspektor-gadget/gadget/trace_signal:latest",
+		Image:       "ghcr.io/inspektor-gadget/gadget/trace_signal",
 		Description: "Traces signals sent to containers in the cluster",
 		Params: map[string]interface{}{
 			"signal": map[string]interface{}{
@@ -193,7 +197,7 @@ var gadgets = []Gadget{
 	},
 	{
 		Name:        observeSystemCalls,
-		Image:       "ghcr.io/inspektor-gadget/gadget/traceloop:latest",
+		Image:       "ghcr.io/inspektor-gadget/gadget/traceloop",
 		Description: "Observes system calls in the cluster",
 		Params: map[string]interface{}{
 			"syscall": map[string]interface{}{
@@ -215,7 +219,7 @@ var gadgets = []Gadget{
 	},
 	{
 		Name:        topFile,
-		Image:       "ghcr.io/inspektor-gadget/gadget/top_file:latest",
+		Image:       "ghcr.io/inspektor-gadget/gadget/top_file",
 		Description: "Shows top files by read/write operations",
 		Params: map[string]interface{}{
 			"max_entries": map[string]interface{}{
@@ -240,7 +244,7 @@ var gadgets = []Gadget{
 	},
 	{
 		Name:        topTCP,
-		Image:       "ghcr.io/inspektor-gadget/gadget/top_tcp:latest",
+		Image:       "ghcr.io/inspektor-gadget/gadget/top_tcp",
 		Description: "Shows top TCP connections by traffic volume",
 		Params: map[string]interface{}{
 			"max_entries": map[string]interface{}{
