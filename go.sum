@@ -26,8 +26,8 @@ github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.1.1/go.mod h1:c/wcGeGx5FUPbM/JltUYHZcKmigwyVLJlDq+4HdtXaw=
 github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c h1:udKWzYgxTojEKWjV8V+WSxDXJ4NFATAsZjh8iIbsQIg=
 github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c/go.mod h1:xomTg63KZ2rFqZQzSB4Vz2SUXa1BpHTVz9L5PTmPC4E=
-github.com/Azure/mcp-kubernetes v0.0.7 h1:NU/MKUL9GDH0OJDwnsQtjyNYmClmjLRehn/vGsjCjA4=
-github.com/Azure/mcp-kubernetes v0.0.7/go.mod h1:qDusmS5NdOyEDCWJZNvIXciwzpLRTmul7tOpRkQGMUs=
+github.com/Azure/mcp-kubernetes v0.0.8 h1:I12xT+EV0epjPR2CbXWIsYFjgAH9xeUUt2mKT5E6FnA=
+github.com/Azure/mcp-kubernetes v0.0.8/go.mod h1:H+UCYBw8V3dJGRwB+l+0doPuI/r6n8o1Wlj1kwI++wk=
 github.com/AzureAD/microsoft-authentication-extensions-for-go/cache v0.1.1 h1:WJTmL004Abzc5wDB5VtZG2PJk5ndYDgVacGqfirKxjM=
 github.com/AzureAD/microsoft-authentication-extensions-for-go/cache v0.1.1/go.mod h1:tCcJZ0uHAmvjsVYzEFivsRTN00oz5BEsRgQHu5JZ9WE=
 github.com/AzureAD/microsoft-authentication-library-for-go v1.4.2 h1:oygO0locgZJe7PpYPXT5A29ZkwJaPqcva7BVeemZOZs=
