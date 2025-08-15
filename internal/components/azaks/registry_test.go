@@ -25,7 +25,7 @@ func TestGetSupportedOperations_ContainsExpectedOps(t *testing.T) {
 	operations := GetSupportedOperations()
 
 	expectedOps := []string{
-		"show", "list", "create", "delete", "scale", "update", "upgrade",
+		"show", "list", "create", "delete", "scale", "start", "stop", "update", "upgrade",
 		"nodepool-list", "nodepool-show", "nodepool-add", "nodepool-delete",
 		"account-list", "account-set", "login", "get-credentials",
 	}
@@ -56,6 +56,12 @@ func TestValidateOperationAccess_ChecksAccessLevels(t *testing.T) {
 		{"create", "readonly", false},
 		{"create", "readwrite", true},
 		{"create", "admin", true},
+		{"start", "readonly", false},
+		{"start", "readwrite", true},
+		{"start", "admin", true},
+		{"stop", "readonly", false},
+		{"stop", "readwrite", true},
+		{"stop", "admin", true},
 		{"get-credentials", "readonly", false},
 		{"get-credentials", "readwrite", false},
 		{"get-credentials", "admin", true},

@@ -62,6 +62,8 @@ Unified tool for managing Azure Kubernetes Service (AKS) clusters and related op
   - `create`: Create new cluster
   - `delete`: Delete cluster
   - `scale`: Scale cluster node count
+  - `start`: Start a stopped cluster
+  - `stop`: Stop a running cluster
   - `update`: Update cluster configuration
   - `upgrade`: Upgrade Kubernetes version
   - `nodepool-add`: Add node pool to cluster

@@ -18,6 +18,8 @@ const (
 	OpClusterCreate         AksOperationType = "create"
 	OpClusterDelete         AksOperationType = "delete"
 	OpClusterScale          AksOperationType = "scale"
+	OpClusterStart          AksOperationType = "start"
+	OpClusterStop           AksOperationType = "stop"
 	OpClusterUpdate         AksOperationType = "update"
 	OpClusterUpgrade        AksOperationType = "upgrade"
 	OpClusterGetVersions    AksOperationType = "get-versions"
@@ -51,7 +53,7 @@ func generateToolDescription(accessLevel string) string {
 
 	// Add read-write operations for readwrite and admin
 	if accessLevel == "readwrite" || accessLevel == "admin" {
-		clusterOps = append(clusterOps, "create", "delete", "scale", "update", "upgrade")
+		clusterOps = append(clusterOps, "create", "delete", "scale", "update", "upgrade", "start", "stop")
 		nodepoolOps = append(nodepoolOps, "nodepool-add", "nodepool-delete", "nodepool-scale", "nodepool-upgrade")
 		accountOps = append(accountOps, "account-set", "login")
 	}
@@ -122,9 +124,10 @@ func GetOperationAccessLevel(operation string) string {
 
 	readWriteOps := []string{
 		string(OpClusterCreate), string(OpClusterDelete), string(OpClusterScale),
-		string(OpClusterUpdate), string(OpClusterUpgrade), string(OpNodepoolAdd),
-		string(OpNodepoolDelete), string(OpNodepoolScale), string(OpNodepoolUpgrade),
-		string(OpAccountSet), string(OpLogin),
+		string(OpClusterUpdate), string(OpClusterUpgrade), string(OpClusterStart),
+		string(OpClusterStop), string(OpNodepoolAdd), string(OpNodepoolDelete),
+		string(OpNodepoolScale), string(OpNodepoolUpgrade), string(OpAccountSet),
+		string(OpLogin),
 	}
 
 	adminOps := []string{
@@ -177,6 +180,8 @@ func MapOperationToCommand(operation string) (string, error) {
 		string(OpClusterCreate):         "az aks create",
 		string(OpClusterDelete):         "az aks delete",
 		string(OpClusterScale):          "az aks scale",
+		string(OpClusterStart):          "az aks start",
+		string(OpClusterStop):           "az aks stop",
 		string(OpClusterUpdate):         "az aks update",
 		string(OpClusterUpgrade):        "az aks upgrade",
 		string(OpClusterGetVersions):    "az aks get-versions",
@@ -210,9 +215,9 @@ func GetSupportedOperations() []string {
 	return []string{
 		// Cluster operations
 		string(OpClusterShow), string(OpClusterList), string(OpClusterCreate),
-		string(OpClusterDelete), string(OpClusterScale), string(OpClusterUpdate),
-		string(OpClusterUpgrade), string(OpClusterGetVersions), string(OpClusterCheckNetwork),
-		string(OpClusterGetCredentials),
+		string(OpClusterDelete), string(OpClusterScale), string(OpClusterStart),
+		string(OpClusterStop), string(OpClusterUpdate), string(OpClusterUpgrade),
+		string(OpClusterGetVersions), string(OpClusterCheckNetwork), string(OpClusterGetCredentials),
 		// Nodepool operations
 		string(OpNodepoolList), string(OpNodepoolShow), string(OpNodepoolAdd),
 		string(OpNodepoolDelete), string(OpNodepoolScale), string(OpNodepoolUpgrade),
