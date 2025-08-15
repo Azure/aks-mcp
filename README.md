@@ -1,23 +1,20 @@
 ﻿# AKS-MCP
 
-The AKS-MCP is a Model Context Protocol (MCP) server that enables AI assistants
-to interact with Azure Kubernetes Service (AKS) clusters. It serves as a bridge
-between AI tools (like GitHub Copilot, Claude, and other MCP-compatible AI
-assistants) and AKS, translating natural language requests into AKS operations
-and returning the results in a format the AI tools can understand.
+AKS-MCP is a Model Context Protocol (MCP) server that enables AI assistants to interact with Azure Kubernetes Service (AKS) clusters. It serves as a bridge between AI tools (like GitHub Copilot, Claude, and other MCP-compatible AI assistants) and AKS, translating natural language requests into AKS operations and returning the results in a format the AI tools can understand.
 
-It allows AI tools to:
+## Key Capabilities
 
-- Operate (CRUD) AKS resources
-- Retrieve details related to AKS clusters (VNets, Subnets, NSGs, Route Tables, etc.)
-- Manage Azure Fleet operations for multi-cluster scenarios
+- **AKS Cluster Management**: Create, manage, and monitor AKS clusters and node pools
+- **Network Resources**: Retrieve details about VNets, Subnets, NSGs, Route Tables, and Load Balancers
+- **Fleet Operations**: Manage Azure Fleet for multi-cluster scenarios
+- **Real-time Observability**: Monitor clusters with eBPF-based tools like Inspektor Gadget
+- **Kubernetes Operations**: Execute kubectl commands and manage Kubernetes resources
+- **Diagnostics & Monitoring**: Access Azure Monitor, Application Insights, and diagnostic detectors
+- **Azure Advisor**: Get recommendations for optimizing your AKS clusters
 
 ## How it works
 
-AKS-MCP connects to Azure using the Azure SDK and provides a set of tools that
-AI assistants can use to interact with AKS resources. It leverages the Model
-Context Protocol (MCP) to facilitate this communication, enabling AI tools to
-make API calls to Azure and interpret the responses.
+AKS-MCP connects to Azure using the Azure SDK and provides a comprehensive set of tools that AI assistants can use to interact with AKS resources. It leverages the Model Context Protocol (MCP) to facilitate seamless communication, enabling AI tools to make API calls to Azure and interpret the responses naturally.
 
 ## Available Tools
 
@@ -479,10 +476,10 @@ Start the MCP server container first per above command, and then run the followi
 
 Note that:
 
-- Host Azure CLI logins don’t automatically propagate into containers without mounting `~/.azure`.
+- Host Azure CLI logins don't automatically propagate into containers without mounting `~/.azure`.
 - User ID should be set for option A, orelse the mcp user inside container won't be able to access the mounted files.
 
-### 🤖 Custom MCP Client Installation
+#### 🤖 Custom MCP Client Installation
 
 You can configure any MCP-compatible client to use the AKS-MCP server by running the binary directly:
 
@@ -491,7 +488,7 @@ You can configure any MCP-compatible client to use the AKS-MCP server by running
 ./aks-mcp --transport stdio
 ```
 
-### 🔧 Manual Binary Installation
+#### 🔧 Manual Binary Installation
 
 For direct binary usage without package managers:
 
@@ -505,9 +502,9 @@ For direct binary usage without package managers:
 
 </details>
 
-### Options
+## Configuration Options
 
-Command line arguments:
+### Command Line Arguments
 
 ```sh
 Usage of ./aks-mcp:
@@ -522,87 +519,20 @@ Usage of ./aks-mcp:
   -v, --verbose                   Enable verbose logging
 ```
 
-**Environment variables:**
-- Standard Azure authentication environment variables are supported (`AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_SUBSCRIPTION_ID`)
+### Environment Variables
 
-## Development
+Standard Azure authentication environment variables are supported:
+- `AZURE_TENANT_ID`
+- `AZURE_CLIENT_ID` 
+- `AZURE_CLIENT_SECRET`
+- `AZURE_SUBSCRIPTION_ID`
 
-### Prerequisites
+## Getting Started
 
-- **Go** ≥ `1.24.x` installed on your local machine
-- **Bash** available as `/usr/bin/env bash` (Makefile targets use multi-line recipes with fail-fast mode)
-- **GNU Make** `4.x` or later
-- **Docker** *(optional, for container builds and testing)*
-
-> **Note:** If your login shell is different (e.g., `zsh` on **macOS**), you do **not** need to change it — the Makefile sets variables to run all recipes in `bash` for consistent behavior across platforms.
-
-### Building from Source
-
-This project includes a Makefile for convenient development, building, and testing. To see all available targets:
-
-```bash
-make help
-```
-
-#### Quick Start
-
-```bash
-# Build the binary
-make build
-
-# Run tests
-make test
-
-# Run tests with coverage
-make test-coverage
-
-# Format and lint code
-make check
-
-# Build for all platforms
-make release
-```
-
-#### Common Development Tasks
-
-```bash
-# Install dependencies
-make deps
-
-# Build and run with --help
-make run
-
-# Clean build artifacts
-make clean
-
-# Install binary to GOBIN
-make install
-```
-
-#### Docker
-
-```bash
-# Build Docker image
-make docker-build
-
-# Run Docker container
-make docker-run
-```
-
-### Manual Build
-
-If you prefer to build without the Makefile:
-
-```bash
-go build -o aks-mcp ./cmd/aks-mcp
-```
-
-## Usage
-
-Ask any questions about your AKS clusters in your AI client, for example:
+Try asking your AI assistant questions like:
 
 ```
-List all my AKS clusters in my subscription xxx.
+List all my AKS clusters in subscription xxx.
 
 What is the network configuration of my AKS cluster?
 
@@ -617,15 +547,17 @@ Create a placement to deploy nginx workloads to clusters with app=frontend label
 Show me all ClusterResourcePlacements in my fleet.
 ```
 
+## Development
+
+For development, building from source, and advanced configuration options, see [DEVELOPMENT.md](DEVELOPMENT.md).
+
 ## Telemetry
 
-Telemetry collection is on by default.
-
-To opt out, set the environment variable `AKS_MCP_COLLECT_TELEMETRY=false`.
+Telemetry collection is on by default. To opt out, set the environment variable `AKS_MCP_COLLECT_TELEMETRY=false`.
 
 ## Contributing
 
-This project welcomes contributions and suggestions.  Most contributions require you to agree to a
+This project welcomes contributions and suggestions. Most contributions require you to agree to a
 Contributor License Agreement (CLA) declaring that you have the right to, and actually do, grant us
 the rights to use your contribution. For details, visit https://cla.opensource.microsoft.com.
 
