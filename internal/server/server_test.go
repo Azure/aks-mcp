@@ -406,7 +406,10 @@ func TestCreateCustomHTTPServerWithHelp404(t *testing.T) {
 
 	// Test server creation
 	addr := "localhost:8080"
-	customServer := service.createCustomHTTPServerWithHelp404(addr)
+	mockHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	customServer := service.createCustomHTTPServerWithHelp404(mockHandler, addr)
 
 	if customServer == nil {
 		t.Fatal("Custom server should not be nil")
@@ -688,7 +691,10 @@ func TestJSONResponseFormat(t *testing.T) {
 		{
 			name: "StreamableHTTP_JSONFormat",
 			serverFunc: func() *http.Server {
-				return service.createCustomHTTPServerWithHelp404("localhost:8080")
+				mockHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusOK)
+				})
+				return service.createCustomHTTPServerWithHelp404(mockHandler, "localhost:8080")
 			},
 			expectedKeys:  []string{"error", "message", "endpoints"},
 			transportType: "streamable-http",

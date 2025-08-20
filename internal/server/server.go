@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Azure/aks-mcp/internal/auth"
 	"github.com/Azure/aks-mcp/internal/azcli"
 	"github.com/Azure/aks-mcp/internal/azureclient"
 	"github.com/Azure/aks-mcp/internal/components/advisor"
@@ -137,9 +138,19 @@ func (s *Service) registerPrompts() {
 }
 
 // createCustomHTTPServerWithHelp404 creates a custom HTTP server that provides
-// helpful 404 responses for the MCP server
-func (s *Service) createCustomHTTPServerWithHelp404(addr string) *http.Server {
+// helpful 404 responses and registers the MCP handler with optional authentication
+func (s *Service) createCustomHTTPServerWithHelp404(streamableServer http.Handler, addr string) *http.Server {
 	mux := http.NewServeMux()
+
+	// Register MCP handler with optional authentication
+	if s.cfg.Auth != nil && s.cfg.Auth.Enabled {
+		// Wrap the streamable server with authentication middleware
+		httpAuthMiddleware := auth.NewHTTPAuthMiddleware(s.cfg.Auth)
+		mux.Handle("/mcp", httpAuthMiddleware.Middleware(streamableServer))
+		log.Println("HTTP authentication middleware enabled for /mcp endpoint")
+	} else {
+		mux.Handle("/mcp", streamableServer)
+	}
 
 	// Handle all other paths with a helpful 404 response
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -172,13 +183,22 @@ func (s *Service) createCustomHTTPServerWithHelp404(addr string) *http.Server {
 }
 
 // createCustomSSEServerWithHelp404 creates a custom HTTP server for SSE that provides
-// helpful 404 responses for non-MCP endpoints
+// helpful 404 responses for non-MCP endpoints and registers SSE/message handlers
 func (s *Service) createCustomSSEServerWithHelp404(sseServer *server.SSEServer, addr string) *http.Server {
 	mux := http.NewServeMux()
 
-	// Register SSE and Message handlers
-	mux.Handle("/sse", sseServer.SSEHandler())
-	mux.Handle("/message", sseServer.MessageHandler())
+	// Register SSE and Message handlers with optional authentication
+	if s.cfg.Auth != nil && s.cfg.Auth.Enabled {
+		// Wrap the SSE handlers with authentication middleware
+		httpAuthMiddleware := auth.NewHTTPAuthMiddleware(s.cfg.Auth)
+		mux.Handle("/sse", httpAuthMiddleware.Middleware(sseServer.SSEHandler()))
+		mux.Handle("/message", httpAuthMiddleware.Middleware(sseServer.MessageHandler()))
+		log.Println("HTTP authentication middleware enabled for SSE endpoints")
+	} else {
+		// Register SSE and Message handlers without authentication
+		mux.Handle("/sse", sseServer.SSEHandler())
+		mux.Handle("/message", sseServer.MessageHandler())
+	}
 
 	// Handle all other paths with a helpful 404 response
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -223,7 +243,7 @@ func (s *Service) Run() error {
 		// Create SSE server first
 		sse := server.NewSSEServer(s.mcpServer)
 
-		// Create custom HTTP server with helpful 404 responses
+		// Create custom HTTP server with helpful 404 responses and register handlers
 		customServer := s.createCustomSSEServerWithHelp404(sse, addr)
 
 		log.Printf("SSE server listening on %s", addr)
@@ -235,19 +255,11 @@ func (s *Service) Run() error {
 	case "streamable-http":
 		addr := fmt.Sprintf("%s:%d", s.cfg.Host, s.cfg.Port)
 
-		// Create a custom HTTP server with helpful 404 responses
-		customServer := s.createCustomHTTPServerWithHelp404(addr)
+		// Create the streamable HTTP server
+		streamableServer := server.NewStreamableHTTPServer(s.mcpServer)
 
-		// Create the streamable HTTP server with the custom HTTP server
-		streamableServer := server.NewStreamableHTTPServer(
-			s.mcpServer,
-			server.WithStreamableHTTPServer(customServer),
-		)
-
-		// Update the mux to use the actual streamable server as the MCP handler
-		if mux, ok := customServer.Handler.(*http.ServeMux); ok {
-			mux.Handle("/mcp", streamableServer)
-		}
+		// Create a custom HTTP server with helpful 404 responses and register MCP handler
+		customServer := s.createCustomHTTPServerWithHelp404(streamableServer, addr)
 
 		log.Printf("Streamable HTTP server listening on %s", addr)
 		log.Printf("MCP endpoint available at: http://%s/mcp", addr)

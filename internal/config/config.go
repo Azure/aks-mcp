@@ -43,6 +43,9 @@ type ConfigData struct {
 
 	// Telemetry service
 	TelemetryService *telemetry.Service
+
+	// Authentication configuration
+	Auth *AuthConfig
 }
 
 // NewConfig creates and returns a new configuration instance
@@ -56,6 +59,7 @@ func NewConfig() *ConfigData {
 		AccessLevel:     "readonly",
 		AdditionalTools: make(map[string]bool),
 		AllowNamespaces: "",
+		Auth:            NewAuthConfig(),
 	}
 }
 
@@ -74,6 +78,14 @@ func (cfg *ConfigData) ParseFlags() {
 		"Comma-separated list of additional Kubernetes tools to support (kubectl is always enabled). Available: helm,cilium")
 	flag.StringVar(&cfg.AllowNamespaces, "allow-namespaces", "",
 		"Comma-separated list of allowed Kubernetes namespaces (empty means all namespaces)")
+
+	// Authentication settings
+	flag.BoolVar(&cfg.Auth.Enabled, "auth-enabled", false, "Enable authentication")
+	flag.StringVar(&cfg.Auth.EntraClientID, "auth-client-id", "", "Entra ID client ID")
+	flag.StringVar(&cfg.Auth.EntraTenantID, "auth-tenant-id", "", "Entra ID tenant ID")
+	flag.StringVar(&cfg.Auth.EntraAuthority, "auth-authority", "https://login.microsoftonline.com", "Entra ID authority URL for different Azure clouds (Public: login.microsoftonline.com, China: login.chinacloudapi.cn, Government: login.microsoftonline.us)")
+	flag.IntVar(&cfg.Auth.JWKSCacheTimeout, "auth-jwks-cache-timeout", 3600, "JWKS cache timeout in seconds")
+	flag.BoolVar(&cfg.Auth.RequireAuthForHTTP, "auth-require-for-http", true, "Require authentication for HTTP transports")
 
 	// Logging settings
 	flag.BoolVarP(&cfg.Verbose, "verbose", "v", false, "Enable verbose logging")
@@ -118,6 +130,38 @@ func (cfg *ConfigData) ParseFlags() {
 		tools := strings.Split(*additionalTools, ",")
 		for _, tool := range tools {
 			cfg.AdditionalTools[strings.TrimSpace(tool)] = true
+		}
+	}
+
+	// Load authentication configuration from environment variables if not set via flags
+	cfg.loadAuthFromEnv()
+}
+
+// loadAuthFromEnv loads authentication configuration from environment variables
+func (cfg *ConfigData) loadAuthFromEnv() {
+	// Only load from env if values weren't set via flags
+	if cfg.Auth.EntraClientID == "" {
+		if clientID := os.Getenv("AKS_MCP_AUTH_ENTRA_CLIENT_ID"); clientID != "" {
+			cfg.Auth.EntraClientID = clientID
+		}
+	}
+
+	if cfg.Auth.EntraTenantID == "" {
+		if tenantID := os.Getenv("AKS_MCP_AUTH_ENTRA_TENANT_ID"); tenantID != "" {
+			cfg.Auth.EntraTenantID = tenantID
+		}
+	}
+
+	if cfg.Auth.EntraAuthority == "https://login.microsoftonline.com" {
+		if authority := os.Getenv("AKS_MCP_AUTH_ENTRA_AUTHORITY"); authority != "" {
+			cfg.Auth.EntraAuthority = authority
+		}
+	}
+
+	// Load enabled flag from environment if not set
+	if !cfg.Auth.Enabled {
+		if enabled := os.Getenv("AKS_MCP_AUTH_ENABLED"); enabled == "true" {
+			cfg.Auth.Enabled = true
 		}
 	}
 }
