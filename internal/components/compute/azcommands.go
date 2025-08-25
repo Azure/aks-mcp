@@ -22,7 +22,6 @@ const (
 	OpVMStop            ComputeOperationType = "stop"
 	OpVMRestart         ComputeOperationType = "restart"
 	OpVMGetInstanceView ComputeOperationType = "get-instance-view"
-	OpVMRunCommand      ComputeOperationType = "run-command"
 
 	// VMSS operations - only safe operations for AKS-managed VMSS
 	OpVMSSShow            ComputeOperationType = "show"
@@ -30,7 +29,6 @@ const (
 	OpVMSSRestart         ComputeOperationType = "restart"
 	OpVMSSReimage         ComputeOperationType = "reimage"
 	OpVMSSGetInstanceView ComputeOperationType = "get-instance-view"
-	OpVMSSRunCommand      ComputeOperationType = "run-command"
 
 	// Resource types
 	ResourceTypeVM   ResourceType = "vm"
@@ -60,7 +58,6 @@ Available operation values:`
 		desc += "- start: Start VM\n"
 		desc += "- stop: Stop VM\n"
 		desc += "- restart: Restart VM/VMSS instances\n"
-		desc += "- run-command: Execute commands remotely on VM/VMSS instances\n"
 		desc += "- reimage: Reimage VMSS instances (VM not supported for reimage)\n"
 	}
 
@@ -76,8 +73,6 @@ Available operation values:`
 	if accessLevel == "readwrite" || accessLevel == "admin" {
 		desc += `Restart VMSS: operation="restart", resource_type="vmss", args="--name myVMSS --resource-group myRG"` + "\n"
 		desc += `Reimage VMSS: operation="reimage", resource_type="vmss", args="--name myVMSS --resource-group myRG"` + "\n"
-		desc += `Run command on VM: operation="run-command", resource_type="vm", args="--name myVM --resource-group myRG --command-id RunShellScript --scripts 'echo hello'"` + "\n"
-		desc += `Run command on VMSS: operation="run-command", resource_type="vmss", args="--name myVMSS --resource-group myRG --command-id RunShellScript --scripts 'hostname' --instance-id 0"` + "\n"
 	}
 
 	return desc
@@ -91,7 +86,7 @@ func RegisterAzComputeOperations(cfg *config.ConfigData) mcp.Tool {
 		mcp.WithDescription(description),
 		mcp.WithString("operation",
 			mcp.Required(),
-			mcp.Description("Operation to perform. Common operations: list, show, start, stop, restart, deallocate, run-command, scale, etc."),
+			mcp.Description("Operation to perform. Common operations: list, show, start, stop, restart, deallocate, scale, etc."),
 		),
 		mcp.WithString("resource_type",
 			mcp.Required(),
@@ -113,9 +108,9 @@ func GetOperationAccessLevel(operation string) string {
 
 	readWriteOps := []string{
 		// VM operations - safe operations only
-		string(OpVMStart), string(OpVMStop), string(OpVMRestart), string(OpVMRunCommand),
+		string(OpVMStart), string(OpVMStop), string(OpVMRestart),
 		// VMSS operations - only safe operations for AKS-managed VMSS
-		string(OpVMSSRestart), string(OpVMSSReimage), string(OpVMSSRunCommand),
+		string(OpVMSSRestart), string(OpVMSSReimage),
 	}
 
 	// No admin operations - all unsafe operations removed
@@ -174,7 +169,6 @@ func MapOperationToCommand(operation string, resourceType string) (string, error
 			string(OpVMStop):            "az vm stop",
 			string(OpVMRestart):         "az vm restart",
 			string(OpVMGetInstanceView): "az vm get-instance-view",
-			string(OpVMRunCommand):      "az vm run-command invoke",
 		},
 		string(ResourceTypeVMSS): {
 			// Read-only operations
@@ -182,9 +176,8 @@ func MapOperationToCommand(operation string, resourceType string) (string, error
 			string(OpVMSSList):            "az vmss list",
 			string(OpVMSSGetInstanceView): "az vmss get-instance-view",
 			// Safe operations for AKS-managed VMSS
-			string(OpVMSSRestart):    "az vmss restart",
-			string(OpVMSSReimage):    "az vmss reimage",
-			string(OpVMSSRunCommand): "az vmss run-command invoke",
+			string(OpVMSSRestart): "az vmss restart",
+			string(OpVMSSReimage): "az vmss reimage",
 			// Removed unsafe operations: create, delete, start, stop, deallocate, scale, update
 		},
 	}

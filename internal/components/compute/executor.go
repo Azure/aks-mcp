@@ -22,7 +22,7 @@ func (e *ComputeOperationsExecutor) Execute(params map[string]interface{}, cfg *
 	// Parse operation parameter
 	operation, ok := params["operation"].(string)
 	if !ok {
-		return "", fmt.Errorf("missing or invalid 'operation' parameter. Common operations: list, show, start, stop, restart, run-command, reimage. Example: operation=\"list\"")
+		return "", fmt.Errorf("missing or invalid 'operation' parameter. Common operations: list, show, start, stop, restart, reimage. Example: operation=\"list\"")
 	}
 
 	// Parse resource_type parameter
@@ -102,8 +102,6 @@ func (e *ComputeOperationsExecutor) Execute(params map[string]interface{}, cfg *
 			errorMsg += "\nTip: Verify the resource exists and check if it's already in the desired state"
 		case "reimage":
 			errorMsg += "\nTip: Verify the VMSS name is correct and the instances are ready for reimaging"
-		case "run-command":
-			errorMsg += "\nTip: Ensure the resource is running and the command syntax is correct. Use --command-id RunShellScript for shell commands"
 		}
 
 		return "", fmt.Errorf("%s\nExecuted command: %s", errorMsg, fullCommand)
@@ -124,10 +122,10 @@ func getSuggestedOperations(resourceType, accessLevel string) string {
 		switch resourceType {
 		case "vm":
 			// Only safe VM operations
-			operations = append(operations, "start", "stop", "restart", "run-command")
+			operations = append(operations, "start", "stop", "restart")
 		case "vmss":
 			// Only safe operations for AKS-managed VMSS
-			operations = append(operations, "restart", "reimage", "run-command")
+			operations = append(operations, "restart", "reimage")
 		}
 	}
 

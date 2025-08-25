@@ -35,35 +35,13 @@ Get detailed Virtual Machine Scale Set (VMSS) information for AKS node pools and
 - Per-node pool VMSS details or error messages
 - Complete VMSS configuration for each successfully retrieved node pool
 
-### `az_vmss_run-command_invoke`
-
-**Purpose**: Execute commands on Virtual Machine Scale Set instances (AKS node pools)
-
-**Parameters**:
-- `args` (required): Arguments for the `az vmss run-command invoke` command
-
-**Example Usage**:
-```
---name myVMSS --resource-group myResourceGroup --command-id RunShellScript --scripts 'echo Hello World' --instance-ids 0 1
-```
-
-**Returns**: Command execution results from the specified VMSS instances:
-- Exit codes and status for each instance
-- Command output (stdout/stderr)
-- Execution timestamps and duration
-- Error messages if command fails
-
-**Access Level**: Requires `readwrite` or `admin` access level
-
 ## Key Use Cases
 
 1. **Troubleshooting Node Issues**: Get detailed VM configuration when nodes aren't behaving as expected
-2. **Remote Command Execution**: Execute diagnostic commands, collect logs, or perform maintenance tasks on AKS nodes
-3. **Security Auditing**: Review VM extensions, security settings, and network configurations
-4. **Performance Analysis**: Check VM sizes, storage types, and networking setup
-5. **Compliance Checking**: Verify OS images, patches, and security configurations
-6. **Resource Planning**: Understand current VM configurations for capacity planning
-7. **Node Maintenance**: Run scripts to update configurations, restart services, or apply patches
+2. **Security Auditing**: Review VM extensions, security settings, and network configurations
+3. **Performance Analysis**: Check VM sizes, storage types, and networking setup
+4. **Compliance Checking**: Verify OS images, patches, and security configurations
+5. **Resource Planning**: Understand current VM configurations for capacity planning
 
 ## What You Get vs Standard AKS Commands
 
@@ -80,7 +58,6 @@ Get detailed Virtual Machine Scale Set (VMSS) information for AKS node pools and
 - Load balancer backend pool memberships
 - Detailed OS and image information
 - Scaling and upgrade policies
-- Remote command execution on VMSS instances
 
 ## Code Structure
 
@@ -134,9 +111,6 @@ func RegisterAzComputeCommand(cmd ComputeCommand) mcp.Tool {
 
 func GetReadWriteVmssCommands() []ComputeCommand {
     return []ComputeCommand{
-        {Name: "az vmss run-command invoke", 
-         Description: "...", 
-         ArgsExample: "..."},
     }
 }
 ```

@@ -155,9 +155,6 @@ Unified tool for Azure monitoring and diagnostics operations for AKS clusters.
 
 - Get detailed VMSS configuration for node pools in the AKS cluster
 
-**Tool:** `az_vmss_run-command_invoke` *(readwrite/admin only)*
-
-- Execute commands on Virtual Machine Scale Set instances
 
 </details>
 

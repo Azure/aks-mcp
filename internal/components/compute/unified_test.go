@@ -53,9 +53,6 @@ func TestValidateOperationAccess(t *testing.T) {
 		{"restart", "readonly", false},
 		{"restart", "readwrite", true},
 		{"restart", "admin", true},
-		{"run-command", "readonly", false},
-		{"run-command", "readwrite", true},
-		{"run-command", "admin", true},
 		{"reimage", "readonly", false},
 		{"reimage", "readwrite", true},
 		{"reimage", "admin", true},
@@ -89,13 +86,11 @@ func TestMapOperationToCommand(t *testing.T) {
 		// VM operations
 		{"show", "vm", "az vm show", true},
 		{"start", "vm", "az vm start", true},
-		{"run-command", "vm", "az vm run-command invoke", true},
 
 		// VMSS operations
 		{"show", "vmss", "az vmss show", true},
 		{"restart", "vmss", "az vmss restart", true},
 		{"reimage", "vmss", "az vmss reimage", true},
-		{"run-command", "vmss", "az vmss run-command invoke", true},
 		// Scale operation removed - not safe for AKS-managed VMSS
 
 		// Invalid resource types
@@ -140,7 +135,6 @@ func TestGetOperationAccessLevel(t *testing.T) {
 		{"stop", "readwrite"},
 		{"restart", "readwrite"},
 		{"reimage", "readwrite"},
-		{"run-command", "readwrite"},
 
 		// Unknown operations
 		{"invalid-op", "unknown"},
