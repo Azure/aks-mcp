@@ -139,13 +139,16 @@ func (s *Service) registerPrompts() {
 
 // createCustomHTTPServerWithHelp404 creates a custom HTTP server that provides
 // helpful 404 responses and registers the MCP handler with optional authentication
-func (s *Service) createCustomHTTPServerWithHelp404(streamableServer http.Handler, addr string) *http.Server {
+func (s *Service) createCustomHTTPServerWithHelp404(streamableServer http.Handler, addr string) (*http.Server, error) {
 	mux := http.NewServeMux()
 
 	// Register MCP handler with optional authentication
 	if s.cfg.Auth != nil && s.cfg.Auth.Enabled {
 		// Wrap the streamable server with authentication middleware
-		httpAuthMiddleware := auth.NewHTTPAuthMiddleware(s.cfg.Auth)
+		httpAuthMiddleware, err := auth.NewHTTPAuthMiddleware(s.cfg.Auth)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create authentication middleware: %w", err)
+		}
 		mux.Handle("/mcp", httpAuthMiddleware.Middleware(streamableServer))
 		log.Println("HTTP authentication middleware enabled for /mcp endpoint")
 	} else {
@@ -179,18 +182,21 @@ func (s *Service) createCustomHTTPServerWithHelp404(streamableServer http.Handle
 		Addr:              addr,
 		Handler:           mux,
 		ReadHeaderTimeout: 10 * time.Second,
-	}
+	}, nil
 }
 
 // createCustomSSEServerWithHelp404 creates a custom HTTP server for SSE that provides
 // helpful 404 responses for non-MCP endpoints and registers SSE/message handlers
-func (s *Service) createCustomSSEServerWithHelp404(sseServer *server.SSEServer, addr string) *http.Server {
+func (s *Service) createCustomSSEServerWithHelp404(sseServer *server.SSEServer, addr string) (*http.Server, error) {
 	mux := http.NewServeMux()
 
 	// Register SSE and Message handlers with optional authentication
 	if s.cfg.Auth != nil && s.cfg.Auth.Enabled {
 		// Wrap the SSE handlers with authentication middleware
-		httpAuthMiddleware := auth.NewHTTPAuthMiddleware(s.cfg.Auth)
+		httpAuthMiddleware, err := auth.NewHTTPAuthMiddleware(s.cfg.Auth)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create authentication middleware: %w", err)
+		}
 		mux.Handle("/sse", httpAuthMiddleware.Middleware(sseServer.SSEHandler()))
 		mux.Handle("/message", httpAuthMiddleware.Middleware(sseServer.MessageHandler()))
 		log.Println("HTTP authentication middleware enabled for SSE endpoints")
@@ -225,7 +231,7 @@ func (s *Service) createCustomSSEServerWithHelp404(sseServer *server.SSEServer, 
 		Addr:              addr,
 		Handler:           mux,
 		ReadHeaderTimeout: 10 * time.Second,
-	}
+	}, nil
 }
 
 // Run starts the service with the specified transport
@@ -244,7 +250,10 @@ func (s *Service) Run() error {
 		sse := server.NewSSEServer(s.mcpServer)
 
 		// Create custom HTTP server with helpful 404 responses and register handlers
-		customServer := s.createCustomSSEServerWithHelp404(sse, addr)
+		customServer, err := s.createCustomSSEServerWithHelp404(sse, addr)
+		if err != nil {
+			return fmt.Errorf("failed to create SSE server: %w", err)
+		}
 
 		log.Printf("SSE server listening on %s", addr)
 		log.Printf("SSE endpoint available at: http://%s/sse", addr)
@@ -259,7 +268,10 @@ func (s *Service) Run() error {
 		streamableServer := server.NewStreamableHTTPServer(s.mcpServer)
 
 		// Create a custom HTTP server with helpful 404 responses and register MCP handler
-		customServer := s.createCustomHTTPServerWithHelp404(streamableServer, addr)
+		customServer, err := s.createCustomHTTPServerWithHelp404(streamableServer, addr)
+		if err != nil {
+			return fmt.Errorf("failed to create HTTP server: %w", err)
+		}
 
 		log.Printf("Streamable HTTP server listening on %s", addr)
 		log.Printf("MCP endpoint available at: http://%s/mcp", addr)

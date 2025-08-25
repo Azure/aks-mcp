@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -24,12 +25,20 @@ type HTTPAuthMiddleware struct {
 }
 
 // NewHTTPAuthMiddleware creates a new HTTP authentication middleware
-func NewHTTPAuthMiddleware(authConfig *config.AuthConfig) *HTTPAuthMiddleware {
-	validator, _ := NewEntraValidator(authConfig)
+func NewHTTPAuthMiddleware(authConfig *config.AuthConfig) (*HTTPAuthMiddleware, error) {
+	var validator *EntraValidator
+	if authConfig != nil {
+		var err error
+		validator, err = NewEntraValidator(authConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize authentication validator: %w", err)
+		}
+	}
+
 	return &HTTPAuthMiddleware{
 		authConfig: authConfig,
 		validator:  validator,
-	}
+	}, nil
 }
 
 // Middleware returns an HTTP middleware function that enforces authentication
@@ -62,17 +71,15 @@ func (m *HTTPAuthMiddleware) Middleware(next http.Handler) http.Handler {
 		}
 
 		// Validate JWT token
-		if m.validator != nil {
-			claims, err := m.validator.ValidateToken(r.Context(), token)
-			if err != nil {
-				m.sendUnauthorizedResponse(w, "Invalid token: "+err.Error())
-				return
-			}
-
-			// Add claims to request context for potential use by downstream handlers
-			ctx := context.WithValue(r.Context(), JWTClaimsKey, claims)
-			r = r.WithContext(ctx)
+		claims, err := m.validator.ValidateToken(r.Context(), token)
+		if err != nil {
+			m.sendUnauthorizedResponse(w, "Invalid token: "+err.Error())
+			return
 		}
+
+		// Add claims to request context for potential use by downstream handlers
+		ctx := context.WithValue(r.Context(), JWTClaimsKey, claims)
+		r = r.WithContext(ctx)
 
 		// Token is valid, proceed to next handler
 		next.ServeHTTP(w, r)

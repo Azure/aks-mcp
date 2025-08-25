@@ -193,7 +193,10 @@ func TestNewHTTPAuthMiddleware(t *testing.T) {
 		JWKSCacheTimeout: 3600,
 	}
 
-	middleware := NewHTTPAuthMiddleware(authConfig)
+	middleware, err := NewHTTPAuthMiddleware(authConfig)
+	if err != nil {
+		t.Fatalf("Failed to create middleware: %v", err)
+	}
 	if middleware == nil {
 		t.Error("Expected middleware to be created, got nil")
 		return
@@ -214,7 +217,10 @@ func TestHTTPAuthMiddleware_DisabledAuth(t *testing.T) {
 		Enabled: false,
 	}
 
-	middleware := NewHTTPAuthMiddleware(authConfig)
+	middleware, err := NewHTTPAuthMiddleware(authConfig)
+	if err != nil {
+		t.Fatalf("Failed to create middleware: %v", err)
+	}
 
 	// Create a test handler
 	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -251,9 +257,13 @@ func TestHTTPAuthMiddleware_MissingAuthHeader(t *testing.T) {
 		EntraClientID:      "test-client-id",
 		EntraTenantID:      "test-tenant-id",
 		EntraAuthority:     "https://login.microsoftonline.com",
+		JWKSCacheTimeout:   60,
 	}
 
-	middleware := NewHTTPAuthMiddleware(authConfig)
+	middleware, err := NewHTTPAuthMiddleware(authConfig)
+	if err != nil {
+		t.Fatalf("Failed to create middleware: %v", err)
+	}
 
 	// Create a test handler
 	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -301,9 +311,13 @@ func TestHTTPAuthMiddleware_InvalidAuthHeaderFormat(t *testing.T) {
 		EntraClientID:      "test-client-id",
 		EntraTenantID:      "test-tenant-id",
 		EntraAuthority:     "https://login.microsoftonline.com",
+		JWKSCacheTimeout:   60,
 	}
 
-	middleware := NewHTTPAuthMiddleware(authConfig)
+	middleware, err := NewHTTPAuthMiddleware(authConfig)
+	if err != nil {
+		t.Fatalf("Failed to create middleware: %v", err)
+	}
 
 	// Create a test handler
 	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -338,8 +352,18 @@ func TestHTTPAuthMiddleware_InvalidAuthHeaderFormat(t *testing.T) {
 
 // Test HTTP Middleware sendUnauthorizedResponse
 func TestHTTPAuthMiddleware_SendUnauthorizedResponse(t *testing.T) {
-	authConfig := &config.AuthConfig{}
-	middleware := NewHTTPAuthMiddleware(authConfig)
+	authConfig := &config.AuthConfig{
+		Enabled:            true,
+		RequireAuthForHTTP: true,
+		EntraClientID:      "test-client-id",
+		EntraTenantID:      "test-tenant-id",
+		EntraAuthority:     "https://login.microsoftonline.com",
+		JWKSCacheTimeout:   60,
+	}
+	middleware, err := NewHTTPAuthMiddleware(authConfig)
+	if err != nil {
+		t.Fatalf("Failed to create middleware: %v", err)
+	}
 
 	recorder := httptest.NewRecorder()
 	message := "Test error message"

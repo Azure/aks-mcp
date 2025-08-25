@@ -409,7 +409,10 @@ func TestCreateCustomHTTPServerWithHelp404(t *testing.T) {
 	mockHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	customServer := service.createCustomHTTPServerWithHelp404(mockHandler, addr)
+	customServer, err := service.createCustomHTTPServerWithHelp404(mockHandler, addr)
+	if err != nil {
+		t.Fatalf("Failed to create custom server: %v", err)
+	}
 
 	if customServer == nil {
 		t.Fatal("Custom server should not be nil")
@@ -508,7 +511,10 @@ func TestCreateCustomSSEServerWithHelp404(t *testing.T) {
 
 	// Test custom server creation
 	addr := "localhost:8081"
-	customServer := service.createCustomSSEServerWithHelp404(sseServer, addr)
+	customServer, err := service.createCustomSSEServerWithHelp404(sseServer, addr)
+	if err != nil {
+		t.Fatalf("Failed to create custom SSE server: %v", err)
+	}
 
 	if customServer == nil {
 		t.Fatal("Custom SSE server should not be nil")
@@ -624,7 +630,10 @@ func TestSSEServerEndpointsAccessible(t *testing.T) {
 
 	// Test custom server creation
 	addr := "localhost:8082"
-	customServer := service.createCustomSSEServerWithHelp404(sseServer, addr)
+	customServer, err := service.createCustomSSEServerWithHelp404(sseServer, addr)
+	if err != nil {
+		t.Fatalf("Failed to create custom SSE server: %v", err)
+	}
 
 	// Test that SSE endpoints are accessible (don't return our custom 404)
 	// Note: We only test that they don't return our custom 404 response,
@@ -694,7 +703,11 @@ func TestJSONResponseFormat(t *testing.T) {
 				mockHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					w.WriteHeader(http.StatusOK)
 				})
-				return service.createCustomHTTPServerWithHelp404(mockHandler, "localhost:8080")
+				server, err := service.createCustomHTTPServerWithHelp404(mockHandler, "localhost:8080")
+				if err != nil {
+					t.Fatalf("Failed to create HTTP server: %v", err)
+				}
+				return server
 			},
 			expectedKeys:  []string{"error", "message", "endpoints"},
 			transportType: "streamable-http",
@@ -703,7 +716,11 @@ func TestJSONResponseFormat(t *testing.T) {
 			name: "SSE_JSONFormat",
 			serverFunc: func() *http.Server {
 				sseServer := server.NewSSEServer(service.mcpServer)
-				return service.createCustomSSEServerWithHelp404(sseServer, "localhost:8081")
+				server, err := service.createCustomSSEServerWithHelp404(sseServer, "localhost:8081")
+				if err != nil {
+					t.Fatalf("Failed to create SSE server: %v", err)
+				}
+				return server
 			},
 			expectedKeys:  []string{"error", "message", "endpoints"},
 			transportType: "sse",
