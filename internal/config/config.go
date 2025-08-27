@@ -8,11 +8,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Azure/aks-mcp/internal/auth"
 	"github.com/Azure/aks-mcp/internal/security"
 	"github.com/Azure/aks-mcp/internal/telemetry"
 	"github.com/Azure/aks-mcp/internal/version"
 	flag "github.com/spf13/pflag"
 )
+
+// EnableCache controls whether caching is enabled globally
+// Set to false during debugging to avoid cache-related issues
+// This affects both web cache headers and AzureOAuthProvider cache
+const EnableCache = false
 
 // ConfigData holds the global configuration
 type ConfigData struct {
@@ -22,6 +28,8 @@ type ConfigData struct {
 	CacheTimeout time.Duration
 	// Security configuration
 	SecurityConfig *security.SecurityConfig
+	// OAuth configuration
+	OAuthConfig *auth.OAuthConfig
 
 	// Command-line specific options
 	Transport   string
@@ -51,6 +59,7 @@ func NewConfig() *ConfigData {
 		Timeout:         60,
 		CacheTimeout:    1 * time.Minute,
 		SecurityConfig:  security.NewSecurityConfig(),
+		OAuthConfig:     auth.NewDefaultOAuthConfig(),
 		Transport:       "stdio",
 		Port:            8000,
 		AccessLevel:     "readonly",
@@ -66,8 +75,14 @@ func (cfg *ConfigData) ParseFlags() {
 	flag.StringVar(&cfg.Host, "host", "127.0.0.1", "Host to listen for the server (only used with transport sse or streamable-http)")
 	flag.IntVar(&cfg.Port, "port", 8000, "Port to listen for the server (only used with transport sse or streamable-http)")
 	flag.IntVar(&cfg.Timeout, "timeout", 600, "Timeout for command execution in seconds, default is 600s")
+
 	// Security settings
 	flag.StringVar(&cfg.AccessLevel, "access-level", "readonly", "Access level (readonly, readwrite, admin)")
+
+	// OAuth configuration
+	flag.BoolVar(&cfg.OAuthConfig.Enabled, "oauth-enabled", false, "Enable OAuth authentication")
+	flag.StringVar(&cfg.OAuthConfig.TenantID, "oauth-tenant-id", "", "Azure AD tenant ID for OAuth (fallback to AZURE_TENANT_ID env var)")
+	flag.StringVar(&cfg.OAuthConfig.ClientID, "oauth-client-id", "", "Azure AD client ID for OAuth (fallback to AZURE_CLIENT_ID env var)")
 
 	// Kubernetes-specific settings
 	additionalTools := flag.String("additional-tools", "",
@@ -113,6 +128,9 @@ func (cfg *ConfigData) ParseFlags() {
 	cfg.SecurityConfig.AccessLevel = cfg.AccessLevel
 	cfg.SecurityConfig.AllowedNamespaces = cfg.AllowNamespaces
 
+	// Parse OAuth configuration
+	cfg.parseOAuthConfig()
+
 	// Parse additional tools
 	if *additionalTools != "" {
 		tools := strings.Split(*additionalTools, ",")
@@ -120,6 +138,30 @@ func (cfg *ConfigData) ParseFlags() {
 			cfg.AdditionalTools[strings.TrimSpace(tool)] = true
 		}
 	}
+}
+
+// parseOAuthConfig parses OAuth-related command line arguments
+func (cfg *ConfigData) parseOAuthConfig() {
+	// Note: OAuth scopes are automatically configured to use "https://management.azure.com/.default"
+	// and are not configurable via command line per design
+
+	// Load OAuth configuration from environment variables if not set via CLI
+	if cfg.OAuthConfig.TenantID == "" {
+		cfg.OAuthConfig.TenantID = os.Getenv("AZURE_TENANT_ID")
+	}
+	if cfg.OAuthConfig.ClientID == "" {
+		cfg.OAuthConfig.ClientID = os.Getenv("AZURE_CLIENT_ID")
+	}
+}
+
+// ValidateConfig validates the configuration for incompatible settings
+func (cfg *ConfigData) ValidateConfig() error {
+	// Validate OAuth + transport compatibility
+	if cfg.OAuthConfig.Enabled && cfg.Transport == "stdio" {
+		return fmt.Errorf("OAuth authentication is not supported with stdio transport per MCP specification")
+	}
+
+	return nil
 }
 
 // InitializeTelemetry initializes the telemetry service

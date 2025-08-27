@@ -64,12 +64,22 @@ func (v *Validator) validateCli() bool {
 	return valid
 }
 
+// validateConfig checks configuration compatibility
+func (v *Validator) validateConfig() bool {
+	if err := v.config.ValidateConfig(); err != nil {
+		v.errors = append(v.errors, err.Error())
+		return false
+	}
+	return true
+}
+
 // Validate runs all validation checks
 func (v *Validator) Validate() bool {
 	// Run all validation checks
 	validCli := v.validateCli()
+	validConfig := v.validateConfig()
 
-	return validCli
+	return validCli && validConfig
 }
 
 // GetErrors returns all errors found during validation
