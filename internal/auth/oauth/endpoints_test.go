@@ -39,7 +39,7 @@ func TestEndpointManager_RegisterEndpoints(t *testing.T) {
 	}{
 		{"GET", "/.well-known/oauth-protected-resource", http.StatusOK},
 		{"GET", "/.well-known/oauth-authorization-server", http.StatusInternalServerError}, // Will fail without real Azure AD
-		{"POST", "/oauth/register", http.StatusBadRequest},                                  // Missing required data
+		{"POST", "/oauth/register", http.StatusBadRequest},                                 // Missing required data
 		{"POST", "/oauth/introspect", http.StatusBadRequest},                               // Missing token param
 		{"GET", "/oauth/callback", http.StatusBadRequest},                                  // Missing required params
 		{"GET", "/health", http.StatusOK},
@@ -86,7 +86,7 @@ func TestProtectedResourceMetadataEndpoint(t *testing.T) {
 		t.Fatalf("Failed to parse response: %v", err)
 	}
 
-	expectedAuthServer := "https://login.microsoftonline.com/test-tenant/v2.0"
+	expectedAuthServer := "http://example.com"
 	if len(metadata.AuthorizationServers) != 1 || metadata.AuthorizationServers[0] != expectedAuthServer {
 		t.Errorf("Expected auth server %s, got %v", expectedAuthServer, metadata.AuthorizationServers)
 	}
@@ -200,7 +200,8 @@ func TestTokenIntrospectionEndpoint(t *testing.T) {
 	manager := NewEndpointManager(middleware, config)
 
 	// Test with valid token (since JWT validation is disabled, any token works)
-	req := httptest.NewRequest("POST", "/oauth/introspect", strings.NewReader("token=valid-token"))
+	// Note: Must use a token that looks like a JWT (has dots) to pass initial format checks
+	req := httptest.NewRequest("POST", "/oauth/introspect", strings.NewReader("token=header.payload.signature"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	w := httptest.NewRecorder()

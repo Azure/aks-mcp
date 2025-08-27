@@ -19,6 +19,14 @@ type EndpointManager struct {
 	config     *auth.OAuthConfig
 }
 
+// setCORSHeaders sets CORS headers for OAuth endpoints to allow MCP Inspector access
+func (em *EndpointManager) setCORSHeaders(w http.ResponseWriter) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, mcp-protocol-version")
+	w.Header().Set("Access-Control-Max-Age", "86400") // 24 hours
+}
+
 // NewEndpointManager creates a new OAuth endpoint manager
 func NewEndpointManager(middleware *AuthMiddleware, config *auth.OAuthConfig) *EndpointManager {
 	return &EndpointManager{
@@ -30,28 +38,59 @@ func NewEndpointManager(middleware *AuthMiddleware, config *auth.OAuthConfig) *E
 // RegisterEndpoints registers OAuth endpoints with the provided HTTP mux
 func (em *EndpointManager) RegisterEndpoints(mux *http.ServeMux) {
 	// OAuth 2.0 Protected Resource Metadata endpoint (RFC 9728)
+	// Support both standard path and /mcp suffix for MCP Inspector compatibility
 	mux.HandleFunc("/.well-known/oauth-protected-resource", em.middleware.ProtectedResourceMetadataHandler())
+	mux.HandleFunc("/.well-known/oauth-protected-resource/mcp", em.middleware.ProtectedResourceMetadataHandler())
+	mux.HandleFunc("/mcp/.well-known/oauth-protected-resource", em.middleware.ProtectedResourceMetadataHandler())
 
 	// OAuth 2.0 Authorization Server Metadata endpoint (RFC 8414)
 	// Note: This would typically be served by Azure AD, but we provide a proxy for convenience
 	mux.HandleFunc("/.well-known/oauth-authorization-server", em.authServerMetadataProxyHandler())
+	mux.HandleFunc("/.well-known/oauth-authorization-server/mcp", em.authServerMetadataProxyHandler())
+	mux.HandleFunc("/mcp/.well-known/oauth-authorization-server", em.authServerMetadataProxyHandler())
+
+	// OpenID Connect Discovery endpoint (compatibility with MCP Inspector)
+	mux.HandleFunc("/.well-known/openid-configuration", em.authServerMetadataProxyHandler())
+	mux.HandleFunc("/.well-known/openid-configuration/mcp", em.authServerMetadataProxyHandler())
+	mux.HandleFunc("/mcp/.well-known/openid-configuration", em.authServerMetadataProxyHandler())
+
+	// Authorization endpoint proxy to handle Azure AD compatibility
+	mux.HandleFunc("/oauth2/v2.0/authorize", em.authorizationProxyHandler())
+	mux.HandleFunc("/mcp/oauth2/v2.0/authorize", em.authorizationProxyHandler())
 
 	// Dynamic Client Registration endpoint (RFC 7591)
 	mux.HandleFunc("/oauth/register", em.clientRegistrationHandler())
+	mux.HandleFunc("/oauth/register/mcp", em.clientRegistrationHandler())
+	mux.HandleFunc("/mcp/oauth/register", em.clientRegistrationHandler())
 
 	// Token introspection endpoint (RFC 7662) - optional
 	mux.HandleFunc("/oauth/introspect", em.tokenIntrospectionHandler())
+	mux.HandleFunc("/oauth/introspect/mcp", em.tokenIntrospectionHandler())
+	mux.HandleFunc("/mcp/oauth/introspect", em.tokenIntrospectionHandler())
 
 	// OAuth 2.0 callback endpoint for Authorization Code flow
 	mux.HandleFunc("/oauth/callback", em.callbackHandler())
+	mux.HandleFunc("/oauth/callback/mcp", em.callbackHandler())
+	mux.HandleFunc("/mcp/oauth/callback", em.callbackHandler())
 
 	// Health check endpoint (unauthenticated)
 	mux.HandleFunc("/health", em.healthHandler())
+	mux.HandleFunc("/health/mcp", em.healthHandler())
+	mux.HandleFunc("/mcp/health", em.healthHandler())
 }
 
 // authServerMetadataProxyHandler proxies authorization server metadata from Azure AD
 func (em *EndpointManager) authServerMetadataProxyHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Set CORS headers for all requests
+		em.setCORSHeaders(w)
+
+		// Handle preflight OPTIONS request
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
 		if r.Method != http.MethodGet {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -60,20 +99,48 @@ func (em *EndpointManager) authServerMetadataProxyHandler() http.HandlerFunc {
 		// Get metadata from Azure AD
 		provider, err := NewAzureOAuthProvider(em.config)
 		if err != nil {
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			fmt.Printf("Failed to create OAuth provider: %v\n", err)
+			http.Error(w, fmt.Sprintf("Failed to create OAuth provider: %v", err), http.StatusInternalServerError)
 			return
 		}
 
-		metadata, err := provider.GetAuthorizationServerMetadata()
+		// Build server URL based on the request
+		scheme := "http"
+		if r.TLS != nil {
+			scheme = "https"
+		}
+
+		// Use the Host header from the request
+		host := r.Host
+		if host == "" {
+			host = r.URL.Host
+		}
+
+		serverURL := fmt.Sprintf("%s://%s", scheme, host)
+
+		fmt.Printf("SCOPE DEBUG: Authorization server metadata request:\n")
+		fmt.Printf("  Server URL: %s\n", serverURL)
+		fmt.Printf("  Request path: %s\n", r.URL.Path)
+		fmt.Printf("  Config required scopes: %v\n", em.config.RequiredScopes)
+
+		metadata, err := provider.GetAuthorizationServerMetadata(serverURL)
 		if err != nil {
-			http.Error(w, "Failed to fetch authorization server metadata", http.StatusInternalServerError)
+			fmt.Printf("Failed to fetch authorization server metadata: %v\n", err)
+			http.Error(w, fmt.Sprintf("Failed to fetch authorization server metadata: %v", err), http.StatusInternalServerError)
 			return
 		}
+
+		fmt.Printf("SCOPE DEBUG: Authorization server metadata response:\n")
+		fmt.Printf("  Scopes supported: %v\n", metadata.ScopesSupported)
+		fmt.Printf("  Authorization endpoint: %s\n", metadata.AuthorizationEndpoint)
+		fmt.Printf("  Token endpoint: %s\n", metadata.TokenEndpoint)
+		fmt.Printf("  Registration endpoint: %s\n", metadata.RegistrationEndpoint)
 
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "public, max-age=3600")
 
 		if err := json.NewEncoder(w).Encode(metadata); err != nil {
+			fmt.Printf("Failed to encode response: %v\n", err)
 			http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 			return
 		}
@@ -83,6 +150,15 @@ func (em *EndpointManager) authServerMetadataProxyHandler() http.HandlerFunc {
 // clientRegistrationHandler implements OAuth 2.0 Dynamic Client Registration (RFC 7591)
 func (em *EndpointManager) clientRegistrationHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Set CORS headers for all requests
+		em.setCORSHeaders(w)
+
+		// Handle preflight OPTIONS request
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -122,6 +198,17 @@ func (em *EndpointManager) clientRegistrationHandler() http.HandlerFunc {
 			"client_name":                registrationRequest.ClientName,
 			"client_uri":                 registrationRequest.ClientURI,
 		}
+
+		// Debug: Log client registration
+		fmt.Printf("SCOPE DEBUG: Client registration request:\n")
+		reqJSON, _ := json.MarshalIndent(registrationRequest, "  ", "  ")
+		fmt.Printf("  Request: %s\n", string(reqJSON))
+		fmt.Printf("  Requested scope: '%s'\n", registrationRequest.Scope)
+		fmt.Printf("  Config required scopes: %v\n", em.config.RequiredScopes)
+
+		fmt.Printf("SCOPE DEBUG: Client registration response:\n")
+		respJSON, _ := json.MarshalIndent(clientInfo, "  ", "  ")
+		fmt.Printf("  Response: %s\n", string(respJSON))
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
@@ -198,6 +285,21 @@ func (em *EndpointManager) isValidRedirectURI(redirectURI string) bool {
 			strings.HasPrefix(redirectURI, "http://localhost") {
 			return true
 		}
+
+		// Allow 127.0.0.1 with any port for development
+		if strings.HasPrefix(allowed, "http://127.0.0.1") &&
+			strings.HasPrefix(redirectURI, "http://127.0.0.1") {
+			return true
+		}
+	}
+
+	// Special handling for MCP Inspector debug endpoints
+	// Allow any localhost/127.0.0.1 redirect URI for OAuth testing
+	if parsedURL.Hostname() == "localhost" || parsedURL.Hostname() == "127.0.0.1" {
+		if parsedURL.Scheme == "http" {
+			fmt.Printf("Allowing development redirect URI: %s\n", redirectURI)
+			return true
+		}
 	}
 
 	// Require HTTPS for non-localhost URLs
@@ -211,6 +313,15 @@ func (em *EndpointManager) isValidRedirectURI(redirectURI string) bool {
 // tokenIntrospectionHandler implements RFC 7662 OAuth 2.0 Token Introspection
 func (em *EndpointManager) tokenIntrospectionHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Set CORS headers for all requests
+		em.setCORSHeaders(w)
+
+		// Handle preflight OPTIONS request
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -266,6 +377,15 @@ func (em *EndpointManager) tokenIntrospectionHandler() http.HandlerFunc {
 // healthHandler provides a simple health check endpoint
 func (em *EndpointManager) healthHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Set CORS headers for all requests
+		em.setCORSHeaders(w)
+
+		// Handle preflight OPTIONS request
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
 		if r.Method != http.MethodGet {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -299,9 +419,18 @@ func (em *EndpointManager) writeErrorResponse(w http.ResponseWriter, errorCode, 
 	json.NewEncoder(w).Encode(response)
 }
 
-// callbackHandler handles OAuth 2.0 Authorization Code flow callback
-func (em *EndpointManager) callbackHandler() http.HandlerFunc {
+// authorizationProxyHandler proxies authorization requests to Azure AD with resource parameter filtering
+func (em *EndpointManager) authorizationProxyHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Set CORS headers for all requests
+		em.setCORSHeaders(w)
+
+		// Handle preflight OPTIONS request
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
 		if r.Method != http.MethodGet {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -309,7 +438,75 @@ func (em *EndpointManager) callbackHandler() http.HandlerFunc {
 
 		// Parse query parameters
 		query := r.URL.Query()
-		
+
+		// Debug: Log the incoming request parameters
+		fmt.Printf("SCOPE DEBUG: Authorization proxy received parameters:\n")
+		for key, values := range query {
+			fmt.Printf("  %s: %v\n", key, values)
+			if key == "scope" {
+				fmt.Printf("  >>> MCP Inspector requested scope: '%s'\n", strings.Join(values, " "))
+				fmt.Printf("  >>> Server required scopes: %v\n", em.config.RequiredScopes)
+
+				// Check if there's a scope mismatch
+				requestedScopes := strings.Split(strings.Join(values, " "), " ")
+				hasAzureScope := false
+				hasOpenIDScope := false
+
+				for _, scope := range requestedScopes {
+					if strings.Contains(scope, "management.azure.com") {
+						hasAzureScope = true
+					}
+					if scope == "openid" || scope == "profile" || scope == "email" || scope == "offline_access" {
+						hasOpenIDScope = true
+					}
+				}
+
+				fmt.Printf("  >>> Has Azure Management scope: %t\n", hasAzureScope)
+				fmt.Printf("  >>> Has OpenID Connect scopes: %t\n", hasOpenIDScope)
+
+				if hasOpenIDScope && !hasAzureScope {
+					fmt.Printf("  >>> SCOPE MISMATCH WARNING: MCP Inspector requested OpenID scopes but server expects Azure Management scopes!\n")
+					fmt.Printf("  >>> This will likely cause insufficient_scope errors later\n")
+				}
+			}
+		}
+
+		// Remove the resource parameter to make Azure AD compatible
+		query.Del("resource")
+
+		// Build the Azure AD authorization URL
+		azureAuthURL := fmt.Sprintf("https://login.microsoftonline.com/%s/oauth2/v2.0/authorize", em.config.TenantID)
+
+		// Create the redirect URL with filtered parameters
+		redirectURL := fmt.Sprintf("%s?%s", azureAuthURL, query.Encode())
+
+		fmt.Printf("Redirecting to Azure AD: %s\n", redirectURL)
+
+		// Redirect to Azure AD
+		http.Redirect(w, r, redirectURL, http.StatusFound)
+	}
+}
+
+// callbackHandler handles OAuth 2.0 Authorization Code flow callback
+func (em *EndpointManager) callbackHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Set CORS headers for all requests
+		em.setCORSHeaders(w)
+
+		// Handle preflight OPTIONS request
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		// Parse query parameters
+		query := r.URL.Query()
+
 		// Check for error response from authorization server
 		if authError := query.Get("error"); authError != "" {
 			errorDesc := query.Get("error_description")
@@ -369,7 +566,7 @@ type TokenResponse struct {
 func (em *EndpointManager) exchangeCodeForToken(code, state string) (*TokenResponse, error) {
 	// Prepare token exchange request
 	tokenURL := fmt.Sprintf("https://login.microsoftonline.com/%s/oauth2/v2.0/token", em.config.TenantID)
-	
+
 	// Find the correct redirect URI from configuration
 	var redirectURI string
 	for _, uri := range em.config.AllowedRedirects {
@@ -420,7 +617,7 @@ func (em *EndpointManager) exchangeCodeForToken(code, state string) (*TokenRespo
 func (em *EndpointManager) writeCallbackErrorResponse(w http.ResponseWriter, message string) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusBadRequest)
-	
+
 	html := fmt.Sprintf(`
 <!DOCTYPE html>
 <html>
@@ -440,7 +637,7 @@ func (em *EndpointManager) writeCallbackErrorResponse(w http.ResponseWriter, mes
     </div>
 </body>
 </html>`, message)
-	
+
 	w.Write([]byte(html))
 }
 
@@ -448,14 +645,14 @@ func (em *EndpointManager) writeCallbackErrorResponse(w http.ResponseWriter, mes
 func (em *EndpointManager) writeCallbackSuccessResponse(w http.ResponseWriter, tokenResponse *TokenResponse, tokenInfo *auth.TokenInfo) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	
+
 	// Generate a secure session token for the client to use
 	_, err := em.generateSessionToken()
 	if err != nil {
 		em.writeCallbackErrorResponse(w, "Failed to generate session token")
 		return
 	}
-	
+
 	html := fmt.Sprintf(`
 <!DOCTYPE html>
 <html>
@@ -516,7 +713,7 @@ func (em *EndpointManager) writeCallbackSuccessResponse(w http.ResponseWriter, t
         document.body.appendChild(bearerTokenElement);
     </script>
 </body>
-</html>`, 
+</html>`,
 		tokenResponse.AccessToken,
 		tokenInfo.Subject,
 		strings.Join(tokenInfo.Audience, ", "),
@@ -524,7 +721,7 @@ func (em *EndpointManager) writeCallbackSuccessResponse(w http.ResponseWriter, t
 		tokenInfo.ExpiresAt.Format("2006-01-02 15:04:05 UTC"),
 		tokenResponse.AccessToken,
 		tokenResponse.AccessToken)
-	
+
 	w.Write([]byte(html))
 }
 

@@ -86,8 +86,9 @@ func (s *Service) initializeInfrastructure() error {
 	s.azClient = azClient
 	log.Println("Azure client initialized successfully")
 
-	// Initialize OAuth components if enabled
-	if s.cfg.OAuthConfig.Enabled {
+	// Initialize OAuth components if enabled and transport is not stdio
+	// OAuth is not supported with stdio transport per MCP specification
+	if s.cfg.OAuthConfig.Enabled && s.cfg.Transport != "stdio" {
 		if err := s.initializeOAuth(); err != nil {
 			return fmt.Errorf("failed to initialize OAuth: %w", err)
 		}
@@ -142,9 +143,6 @@ func (s *Service) initializeOAuth() error {
 
 	// Create server URL for OAuth metadata
 	serverURL := fmt.Sprintf("http://%s:%d", s.cfg.Host, s.cfg.Port)
-	if s.cfg.Transport == "stdio" {
-		serverURL = "http://localhost:8000" // Default for stdio mode
-	}
 
 	// Create auth middleware
 	s.authMiddleware = oauth.NewAuthMiddleware(provider, serverURL)

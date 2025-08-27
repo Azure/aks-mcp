@@ -3,6 +3,7 @@ package oauth
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -86,14 +87,13 @@ func TestGetProtectedResourceMetadata(t *testing.T) {
 		t.Fatalf("GetProtectedResourceMetadata() error = %v", err)
 	}
 
-	expectedAuthServer := "https://login.microsoftonline.com/test-tenant-id/v2.0"
+	expectedAuthServer := "http://localhost:8000"
 	if len(metadata.AuthorizationServers) != 1 || metadata.AuthorizationServers[0] != expectedAuthServer {
 		t.Errorf("Expected authorization server %s, got %v", expectedAuthServer, metadata.AuthorizationServers)
 	}
 
-	if metadata.Resource != serverURL {
-		t.Errorf("Expected resource %s, got %s", serverURL, metadata.Resource)
-	}
+	// Note: AzureADProtectedResourceMetadata doesn't include a Resource field.
+	// The resource URL is implied by the context of the request endpoint.
 
 	if len(metadata.ScopesSupported) != 1 || metadata.ScopesSupported[0] != "https://management.azure.com/.default" {
 		t.Errorf("Expected scopes %v, got %v", config.RequiredScopes, metadata.ScopesSupported)
@@ -106,8 +106,8 @@ func TestGetAuthorizationServerMetadata(t *testing.T) {
 		Issuer:                "https://login.microsoftonline.com/test-tenant/v2.0",
 		AuthorizationEndpoint: "https://login.microsoftonline.com/test-tenant/oauth2/v2.0/authorize",
 		TokenEndpoint:         "https://login.microsoftonline.com/test-tenant/oauth2/v2.0/token",
-		JWKSUri:              "https://login.microsoftonline.com/test-tenant/discovery/v2.0/keys",
-		ScopesSupported:      []string{"openid", "profile", "email"},
+		JWKSUri:               "https://login.microsoftonline.com/test-tenant/discovery/v2.0/keys",
+		ScopesSupported:       []string{"openid", "profile", "email"},
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -149,7 +149,7 @@ func TestGetAuthorizationServerMetadata(t *testing.T) {
 		},
 	}
 
-	metadata, err := provider.GetAuthorizationServerMetadata()
+	metadata, err := provider.GetAuthorizationServerMetadata(server.URL)
 	if err != nil {
 		t.Fatalf("GetAuthorizationServerMetadata() error = %v", err)
 	}
@@ -158,8 +158,9 @@ func TestGetAuthorizationServerMetadata(t *testing.T) {
 		t.Errorf("Expected issuer %s, got %s", mockMetadata.Issuer, metadata.Issuer)
 	}
 
-	if metadata.AuthorizationEndpoint != mockMetadata.AuthorizationEndpoint {
-		t.Errorf("Expected auth endpoint %s, got %s", mockMetadata.AuthorizationEndpoint, metadata.AuthorizationEndpoint)
+	expectedAuthEndpoint := fmt.Sprintf("%s/oauth2/v2.0/authorize", server.URL)
+	if metadata.AuthorizationEndpoint != expectedAuthEndpoint {
+		t.Errorf("Expected auth endpoint %s, got %s", expectedAuthEndpoint, metadata.AuthorizationEndpoint)
 	}
 }
 
@@ -185,13 +186,15 @@ func TestValidateTokenWithoutJWT(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	tokenInfo, err := provider.ValidateToken(ctx, "test-bearer-token")
+	// Use a token that looks like a JWT to pass initial format checks
+	testToken := "header.payload.signature"
+	tokenInfo, err := provider.ValidateToken(ctx, testToken)
 	if err != nil {
 		t.Fatalf("ValidateToken() error = %v", err)
 	}
 
-	if tokenInfo.AccessToken != "test-bearer-token" {
-		t.Errorf("Expected access token %s, got %s", "test-bearer-token", tokenInfo.AccessToken)
+	if tokenInfo.AccessToken != testToken {
+		t.Errorf("Expected access token %s, got %s", testToken, tokenInfo.AccessToken)
 	}
 
 	if tokenInfo.TokenType != "Bearer" {

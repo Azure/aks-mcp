@@ -40,15 +40,15 @@ func TestOAuthConfigValidation(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "enabled OAuth with missing scopes should pass (allowed for testing)",
+			name: "enabled OAuth with empty scopes should fail",
 			config: &OAuthConfig{
 				Enabled:          true,
 				TenantID:         "test-tenant-id",
 				ClientID:         "test-client-id",
-				RequiredScopes:   []string{}, // Empty scopes - allowed for testing
+				RequiredScopes:   []string{}, // Empty scopes - should fail validation
 				AllowedRedirects: []string{"http://localhost:3000/callback"},
 			},
-			wantErr: false, // Changed to false since empty scopes are now allowed
+			wantErr: true,
 		},
 		{
 			name: "enabled OAuth with missing redirects should fail",
@@ -101,16 +101,16 @@ func TestNewDefaultOAuthConfig(t *testing.T) {
 		t.Errorf("Default config should have Azure AD scope, got %v", config.RequiredScopes)
 	}
 
-	if len(config.AllowedRedirects) != 1 || config.AllowedRedirects[0] != "http://localhost:3000/oauth/callback" {
-		t.Errorf("Default config should have localhost redirect, got %v", config.AllowedRedirects)
+	if len(config.AllowedRedirects) != 0 {
+		t.Errorf("Default config should have empty redirects (will be set dynamically), got %v", config.AllowedRedirects)
 	}
 
-	if !config.TokenValidation.ValidateJWT {
-		t.Error("Default config should enable JWT validation")
+	if config.TokenValidation.ValidateJWT {
+		t.Error("Default config should disable JWT validation for testing")
 	}
 
-	if !config.TokenValidation.ValidateAudience {
-		t.Error("Default config should enable audience validation")
+	if config.TokenValidation.ValidateAudience {
+		t.Error("Default config should disable audience validation for testing")
 	}
 
 	if config.TokenValidation.ExpectedAudience != DefaultExpectedAudience {
@@ -135,7 +135,7 @@ func TestOAuthConfigConstants(t *testing.T) {
 		t.Errorf("DefaultClockSkew should be 1 minute, got %v", DefaultClockSkew)
 	}
 
-	if DefaultExpectedAudience != "https://management.azure.com/" {
+	if DefaultExpectedAudience != "https://management.azure.com" {
 		t.Errorf("DefaultExpectedAudience should be Azure management, got %s", DefaultExpectedAudience)
 	}
 
@@ -166,6 +166,11 @@ func TestOAuthConfigEnvironmentVariables(t *testing.T) {
 	}
 	if config.ClientID == "" {
 		config.ClientID = os.Getenv("AZURE_CLIENT_ID")
+	}
+
+	// Set a default redirect URI since config parsing would set this dynamically
+	if len(config.AllowedRedirects) == 0 {
+		config.AllowedRedirects = []string{"http://localhost:8000/oauth/callback"}
 	}
 
 	if config.TenantID != "env-tenant-id" {
