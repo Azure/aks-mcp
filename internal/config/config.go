@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Azure/aks-mcp/internal/auth"
 	"github.com/Azure/aks-mcp/internal/security"
 	"github.com/Azure/aks-mcp/internal/telemetry"
 	"github.com/Azure/aks-mcp/internal/version"
@@ -22,6 +23,8 @@ type ConfigData struct {
 	CacheTimeout time.Duration
 	// Security configuration
 	SecurityConfig *security.SecurityConfig
+	// OAuth configuration
+	OAuthConfig *auth.OAuthConfig
 
 	// Command-line specific options
 	Transport   string
@@ -51,6 +54,7 @@ func NewConfig() *ConfigData {
 		Timeout:         60,
 		CacheTimeout:    1 * time.Minute,
 		SecurityConfig:  security.NewSecurityConfig(),
+		OAuthConfig:     auth.NewDefaultOAuthConfig(),
 		Transport:       "stdio",
 		Port:            8000,
 		AccessLevel:     "readonly",
@@ -66,8 +70,18 @@ func (cfg *ConfigData) ParseFlags() {
 	flag.StringVar(&cfg.Host, "host", "127.0.0.1", "Host to listen for the server (only used with transport sse or streamable-http)")
 	flag.IntVar(&cfg.Port, "port", 8000, "Port to listen for the server (only used with transport sse or streamable-http)")
 	flag.IntVar(&cfg.Timeout, "timeout", 600, "Timeout for command execution in seconds, default is 600s")
+
 	// Security settings
 	flag.StringVar(&cfg.AccessLevel, "access-level", "readonly", "Access level (readonly, readwrite, admin)")
+
+	// OAuth configuration
+	flag.BoolVar(&cfg.OAuthConfig.Enabled, "oauth-enabled", false, "Enable OAuth authentication")
+	flag.StringVar(&cfg.OAuthConfig.TenantID, "oauth-tenant-id", "", "Azure AD tenant ID for OAuth")
+	flag.StringVar(&cfg.OAuthConfig.ClientID, "oauth-client-id", "", "Azure AD client ID for OAuth")
+	oauthScopes := flag.String("oauth-scopes", "",
+		"Comma-separated list of required OAuth scopes (default: https://management.azure.com/.default)")
+	oauthRedirects := flag.String("oauth-redirects", "",
+		"Comma-separated list of allowed OAuth redirect URIs (default: http://localhost:3000/oauth/callback)")
 
 	// Kubernetes-specific settings
 	additionalTools := flag.String("additional-tools", "",
@@ -113,11 +127,53 @@ func (cfg *ConfigData) ParseFlags() {
 	cfg.SecurityConfig.AccessLevel = cfg.AccessLevel
 	cfg.SecurityConfig.AllowedNamespaces = cfg.AllowNamespaces
 
+	// Parse OAuth configuration
+	cfg.parseOAuthConfig(*oauthScopes, *oauthRedirects)
+
 	// Parse additional tools
 	if *additionalTools != "" {
 		tools := strings.Split(*additionalTools, ",")
 		for _, tool := range tools {
 			cfg.AdditionalTools[strings.TrimSpace(tool)] = true
+		}
+	}
+}
+
+// parseOAuthConfig parses OAuth-related command line arguments
+func (cfg *ConfigData) parseOAuthConfig(scopesStr, redirectsStr string) {
+	// Parse OAuth scopes
+	if scopesStr != "" {
+		scopes := strings.Split(scopesStr, ",")
+		cfg.OAuthConfig.RequiredScopes = make([]string, len(scopes))
+		for i, scope := range scopes {
+			cfg.OAuthConfig.RequiredScopes[i] = strings.TrimSpace(scope)
+		}
+	}
+
+	// Parse OAuth redirect URIs
+	if redirectsStr != "" {
+		redirects := strings.Split(redirectsStr, ",")
+		cfg.OAuthConfig.AllowedRedirects = make([]string, len(redirects))
+		for i, redirect := range redirects {
+			cfg.OAuthConfig.AllowedRedirects[i] = strings.TrimSpace(redirect)
+		}
+	}
+
+	// Load OAuth configuration from environment variables if not set via CLI
+	if cfg.OAuthConfig.TenantID == "" {
+		cfg.OAuthConfig.TenantID = os.Getenv("AZURE_TENANT_ID")
+	}
+	if cfg.OAuthConfig.ClientID == "" {
+		cfg.OAuthConfig.ClientID = os.Getenv("AZURE_CLIENT_ID")
+	}
+
+	// If OAuth is enabled but CLI parameters are not provided, use defaults
+	if cfg.OAuthConfig.Enabled {
+		if len(cfg.OAuthConfig.RequiredScopes) == 0 {
+			cfg.OAuthConfig.RequiredScopes = []string{auth.AzureADScope}
+		}
+		if len(cfg.OAuthConfig.AllowedRedirects) == 0 {
+			cfg.OAuthConfig.AllowedRedirects = []string{"http://localhost:3000/oauth/callback"}
 		}
 	}
 }

@@ -1,0 +1,139 @@
+package auth
+
+import (
+	"fmt"
+	"time"
+)
+
+// OAuthConfig represents OAuth configuration for AKS-MCP
+type OAuthConfig struct {
+	// Enable OAuth authentication
+	Enabled bool `json:"enabled"`
+
+	// Azure AD tenant ID
+	TenantID string `json:"tenant_id"`
+
+	// Azure AD application (client) ID
+	ClientID string `json:"client_id"`
+
+	// Required OAuth scopes for accessing AKS-MCP
+	RequiredScopes []string `json:"required_scopes"`
+
+	// Allowed redirect URIs for OAuth callback
+	AllowedRedirects []string `json:"allowed_redirects"`
+
+	// Token validation settings
+	TokenValidation TokenValidationConfig `json:"token_validation"`
+}
+
+// TokenValidationConfig represents token validation configuration
+type TokenValidationConfig struct {
+	// Enable JWT token validation
+	ValidateJWT bool `json:"validate_jwt"`
+
+	// Enable audience validation
+	ValidateAudience bool `json:"validate_audience"`
+
+	// Expected audience for tokens
+	ExpectedAudience string `json:"expected_audience"`
+
+	// Token cache TTL
+	CacheTTL time.Duration `json:"cache_ttl"`
+
+	// Clock skew tolerance for token validation
+	ClockSkew time.Duration `json:"clock_skew"`
+}
+
+// TokenInfo represents validated token information
+type TokenInfo struct {
+	// Access token
+	AccessToken string `json:"access_token"`
+
+	// Token type (usually "Bearer")
+	TokenType string `json:"token_type"`
+
+	// Token expiration time
+	ExpiresAt time.Time `json:"expires_at"`
+
+	// Token scope
+	Scope []string `json:"scope"`
+
+	// Subject (user ID)
+	Subject string `json:"subject"`
+
+	// Audience
+	Audience []string `json:"audience"`
+
+	// Issuer
+	Issuer string `json:"issuer"`
+
+	// Additional claims
+	Claims map[string]interface{} `json:"claims"`
+}
+
+// AuthResult represents the result of authentication
+type AuthResult struct {
+	// Whether authentication was successful
+	Authenticated bool `json:"authenticated"`
+
+	// Token information (if authenticated)
+	TokenInfo *TokenInfo `json:"token_info,omitempty"`
+
+	// Error message (if authentication failed)
+	Error string `json:"error,omitempty"`
+
+	// HTTP status code to return
+	StatusCode int `json:"status_code"`
+}
+
+// Default OAuth configuration values
+const (
+	DefaultTokenCacheTTL    = 5 * time.Minute
+	DefaultClockSkew        = 1 * time.Minute
+	DefaultExpectedAudience = "https://management.azure.com/"
+	AzureADScope            = "https://management.azure.com/.default"
+)
+
+// NewDefaultOAuthConfig creates a default OAuth configuration
+func NewDefaultOAuthConfig() *OAuthConfig {
+	return &OAuthConfig{
+		Enabled:          false,
+		RequiredScopes:   []string{AzureADScope},
+		AllowedRedirects: []string{"http://localhost:3000/oauth/callback"},
+		TokenValidation: TokenValidationConfig{
+			ValidateJWT:      true,
+			ValidateAudience: true,
+			ExpectedAudience: DefaultExpectedAudience,
+			CacheTTL:         DefaultTokenCacheTTL,
+			ClockSkew:        DefaultClockSkew,
+		},
+	}
+}
+
+// Validate validates the OAuth configuration
+func (cfg *OAuthConfig) Validate() error {
+	if !cfg.Enabled {
+		return nil
+	}
+
+	if cfg.TenantID == "" {
+		return fmt.Errorf("tenant_id is required when OAuth is enabled")
+	}
+
+	if cfg.ClientID == "" {
+		return fmt.Errorf("client_id is required when OAuth is enabled")
+	}
+
+	// Allow empty required scopes for testing environments
+	// In production, at least one scope should be specified
+	if len(cfg.RequiredScopes) == 0 {
+		// This is acceptable for testing, but should be documented
+		// that it allows unrestricted access when no scopes are required
+	}
+
+	if len(cfg.AllowedRedirects) == 0 {
+		return fmt.Errorf("at least one allowed redirect URI must be specified")
+	}
+
+	return nil
+}
