@@ -86,8 +86,9 @@ func (s *Service) initializeInfrastructure() error {
 	s.azClient = azClient
 	log.Println("Azure client initialized successfully")
 
-	// Initialize OAuth components if enabled
-	if s.cfg.OAuthConfig.Enabled {
+	// Initialize OAuth components if enabled and transport is not stdio
+	// OAuth is not supported with stdio transport per MCP specification
+	if s.cfg.OAuthConfig.Enabled && s.cfg.Transport != "stdio" {
 		if err := s.initializeOAuth(); err != nil {
 			return fmt.Errorf("failed to initialize OAuth: %w", err)
 		}
@@ -142,15 +143,12 @@ func (s *Service) initializeOAuth() error {
 
 	// Create server URL for OAuth metadata
 	serverURL := fmt.Sprintf("http://%s:%d", s.cfg.Host, s.cfg.Port)
-	if s.cfg.Transport == "stdio" {
-		serverURL = "http://localhost:8000" // Default for stdio mode
-	}
 
 	// Create auth middleware
 	s.authMiddleware = oauth.NewAuthMiddleware(provider, serverURL)
 
 	// Create endpoint manager
-	s.endpointManager = oauth.NewEndpointManager(s.authMiddleware, s.cfg.OAuthConfig)
+	s.endpointManager = oauth.NewEndpointManager(provider, s.cfg.OAuthConfig)
 
 	log.Printf("OAuth authentication initialized with tenant: %s", s.cfg.OAuthConfig.TenantID)
 	return nil
@@ -185,7 +183,10 @@ func (s *Service) createCustomHTTPServerWithHelp404(addr string) *http.Server {
 	mux := http.NewServeMux()
 
 	// Register OAuth endpoints if OAuth is enabled
-	if s.cfg.OAuthConfig.Enabled && s.endpointManager != nil {
+	if s.cfg.OAuthConfig.Enabled {
+		if s.endpointManager == nil {
+			log.Fatal("OAuth is enabled but endpoint manager is not initialized - this indicates a bug in server initialization")
+		}
 		log.Println("Registering OAuth endpoints...")
 		s.endpointManager.RegisterEndpoints(mux)
 	}
@@ -240,13 +241,19 @@ func (s *Service) createCustomSSEServerWithHelp404(sseServer *server.SSEServer, 
 	mux := http.NewServeMux()
 
 	// Register OAuth endpoints if OAuth is enabled
-	if s.cfg.OAuthConfig.Enabled && s.endpointManager != nil {
+	if s.cfg.OAuthConfig.Enabled {
+		if s.endpointManager == nil {
+			log.Fatal("OAuth is enabled but endpoint manager is not initialized - this indicates a bug in server initialization")
+		}
 		log.Println("Registering OAuth endpoints for SSE server...")
 		s.endpointManager.RegisterEndpoints(mux)
 	}
 
 	// Register SSE and Message handlers with authentication if enabled
-	if s.cfg.OAuthConfig.Enabled && s.authMiddleware != nil {
+	if s.cfg.OAuthConfig.Enabled {
+		if s.authMiddleware == nil {
+			log.Fatal("OAuth is enabled but auth middleware is not initialized - this indicates a bug in server initialization")
+		}
 		// Apply authentication middleware to SSE and Message endpoints
 		mux.Handle("/sse", s.authMiddleware.Middleware(sseServer.SSEHandler()))
 		mux.Handle("/message", s.authMiddleware.Middleware(sseServer.MessageHandler()))
@@ -325,11 +332,10 @@ func (s *Service) Run() error {
 		log.Printf("SSE server listening on %s", addr)
 		log.Printf("SSE endpoint available at: http://%s/sse", addr)
 		log.Printf("Message endpoint available at: http://%s/message", addr)
+		log.Printf("Connect to /sse for real-time events, send JSON-RPC to /message")
 		if s.cfg.OAuthConfig.Enabled {
 			log.Printf("OAuth authentication enabled - Bearer token required for SSE and Message endpoints")
 			log.Printf("OAuth metadata available at: http://%s/.well-known/oauth-protected-resource", addr)
-		} else {
-			log.Printf("Connect to /sse for real-time events, send JSON-RPC to /message")
 		}
 
 		return customServer.ListenAndServe()
@@ -347,7 +353,10 @@ func (s *Service) Run() error {
 
 		// Update the mux to use the actual streamable server as the MCP handler
 		if mux, ok := customServer.Handler.(*http.ServeMux); ok {
-			if s.cfg.OAuthConfig.Enabled && s.authMiddleware != nil {
+			if s.cfg.OAuthConfig.Enabled {
+				if s.authMiddleware == nil {
+					log.Fatal("OAuth is enabled but auth middleware is not initialized - this indicates a bug in server initialization")
+				}
 				// Apply authentication middleware to MCP endpoint
 				mux.Handle("/mcp", s.authMiddleware.Middleware(streamableServer))
 			} else {
@@ -358,11 +367,10 @@ func (s *Service) Run() error {
 
 		log.Printf("Streamable HTTP server listening on %s", addr)
 		log.Printf("MCP endpoint available at: http://%s/mcp", addr)
+		log.Printf("Send POST requests to /mcp to initialize session and obtain Mcp-Session-Id")
 		if s.cfg.OAuthConfig.Enabled {
 			log.Printf("OAuth authentication enabled - Bearer token required for MCP endpoint")
 			log.Printf("OAuth metadata available at: http://%s/.well-known/oauth-protected-resource", addr)
-		} else {
-			log.Printf("Send POST requests to /mcp to initialize session and obtain Mcp-Session-Id")
 		}
 
 		return customServer.ListenAndServe()

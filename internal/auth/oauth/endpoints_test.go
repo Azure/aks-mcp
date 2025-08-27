@@ -25,8 +25,7 @@ func TestEndpointManager_RegisterEndpoints(t *testing.T) {
 	}
 
 	provider, _ := NewAzureOAuthProvider(config)
-	middleware := NewAuthMiddleware(provider, "http://localhost:8000")
-	manager := NewEndpointManager(middleware, config)
+	manager := NewEndpointManager(provider, config)
 
 	mux := http.NewServeMux()
 	manager.RegisterEndpoints(mux)
@@ -39,7 +38,7 @@ func TestEndpointManager_RegisterEndpoints(t *testing.T) {
 	}{
 		{"GET", "/.well-known/oauth-protected-resource", http.StatusOK},
 		{"GET", "/.well-known/oauth-authorization-server", http.StatusInternalServerError}, // Will fail without real Azure AD
-		{"POST", "/oauth/register", http.StatusBadRequest},                                  // Missing required data
+		{"POST", "/oauth/register", http.StatusBadRequest},                                 // Missing required data
 		{"POST", "/oauth/introspect", http.StatusBadRequest},                               // Missing token param
 		{"GET", "/oauth/callback", http.StatusBadRequest},                                  // Missing required params
 		{"GET", "/health", http.StatusOK},
@@ -69,12 +68,12 @@ func TestProtectedResourceMetadataEndpoint(t *testing.T) {
 	}
 
 	provider, _ := NewAzureOAuthProvider(config)
-	middleware := NewAuthMiddleware(provider, "http://localhost:8000")
+	manager := NewEndpointManager(provider, config)
 
 	req := httptest.NewRequest("GET", "/.well-known/oauth-protected-resource", nil)
 	w := httptest.NewRecorder()
 
-	handler := middleware.ProtectedResourceMetadataHandler()
+	handler := manager.protectedResourceMetadataHandler()
 	handler(w, req)
 
 	if w.Code != http.StatusOK {
@@ -86,7 +85,7 @@ func TestProtectedResourceMetadataEndpoint(t *testing.T) {
 		t.Fatalf("Failed to parse response: %v", err)
 	}
 
-	expectedAuthServer := "https://login.microsoftonline.com/test-tenant/v2.0"
+	expectedAuthServer := "http://example.com"
 	if len(metadata.AuthorizationServers) != 1 || metadata.AuthorizationServers[0] != expectedAuthServer {
 		t.Errorf("Expected auth server %s, got %v", expectedAuthServer, metadata.AuthorizationServers)
 	}
@@ -106,8 +105,7 @@ func TestClientRegistrationEndpoint(t *testing.T) {
 	}
 
 	provider, _ := NewAzureOAuthProvider(config)
-	middleware := NewAuthMiddleware(provider, "http://localhost:8000")
-	manager := NewEndpointManager(middleware, config)
+	manager := NewEndpointManager(provider, config)
 
 	// Test valid registration request
 	registrationRequest := map[string]interface{}{
@@ -156,8 +154,7 @@ func TestClientRegistrationEndpointInvalidRedirect(t *testing.T) {
 	}
 
 	provider, _ := NewAzureOAuthProvider(config)
-	middleware := NewAuthMiddleware(provider, "http://localhost:8000")
-	manager := NewEndpointManager(middleware, config)
+	manager := NewEndpointManager(provider, config)
 
 	// Test invalid redirect URI
 	registrationRequest := map[string]interface{}{
@@ -196,11 +193,11 @@ func TestTokenIntrospectionEndpoint(t *testing.T) {
 	}
 
 	provider, _ := NewAzureOAuthProvider(config)
-	middleware := NewAuthMiddleware(provider, "http://localhost:8000")
-	manager := NewEndpointManager(middleware, config)
+	manager := NewEndpointManager(provider, config)
 
 	// Test with valid token (since JWT validation is disabled, any token works)
-	req := httptest.NewRequest("POST", "/oauth/introspect", strings.NewReader("token=valid-token"))
+	// Note: Must use a token that looks like a JWT (has dots) to pass initial format checks
+	req := httptest.NewRequest("POST", "/oauth/introspect", strings.NewReader("token=header.payload.signature"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	w := httptest.NewRecorder()
@@ -231,8 +228,7 @@ func TestTokenIntrospectionEndpointMissingToken(t *testing.T) {
 	}
 
 	provider, _ := NewAzureOAuthProvider(config)
-	middleware := NewAuthMiddleware(provider, "http://localhost:8000")
-	manager := NewEndpointManager(middleware, config)
+	manager := NewEndpointManager(provider, config)
 
 	// Test without token parameter
 	req := httptest.NewRequest("POST", "/oauth/introspect", strings.NewReader(""))
@@ -257,8 +253,7 @@ func TestHealthEndpoint(t *testing.T) {
 	}
 
 	provider, _ := NewAzureOAuthProvider(config)
-	middleware := NewAuthMiddleware(provider, "http://localhost:8000")
-	manager := NewEndpointManager(middleware, config)
+	manager := NewEndpointManager(provider, config)
 
 	req := httptest.NewRequest("GET", "/health", nil)
 	w := httptest.NewRecorder()
@@ -299,8 +294,7 @@ func TestValidateClientRegistration(t *testing.T) {
 	}
 
 	provider, _ := NewAzureOAuthProvider(config)
-	middleware := NewAuthMiddleware(provider, "http://localhost:8000")
-	manager := NewEndpointManager(middleware, config)
+	manager := NewEndpointManager(provider, config)
 
 	tests := []struct {
 		name    string
@@ -385,8 +379,7 @@ func TestCallbackEndpointMissingCode(t *testing.T) {
 	}
 
 	provider, _ := NewAzureOAuthProvider(config)
-	middleware := NewAuthMiddleware(provider, "http://localhost:8000")
-	manager := NewEndpointManager(middleware, config)
+	manager := NewEndpointManager(provider, config)
 
 	// Test callback without authorization code
 	req := httptest.NewRequest("GET", "/oauth/callback?state=test-state", nil)
@@ -421,8 +414,7 @@ func TestCallbackEndpointMissingState(t *testing.T) {
 	}
 
 	provider, _ := NewAzureOAuthProvider(config)
-	middleware := NewAuthMiddleware(provider, "http://localhost:8000")
-	manager := NewEndpointManager(middleware, config)
+	manager := NewEndpointManager(provider, config)
 
 	// Test callback without state parameter
 	req := httptest.NewRequest("GET", "/oauth/callback?code=test-code", nil)
@@ -451,8 +443,7 @@ func TestCallbackEndpointAuthError(t *testing.T) {
 	}
 
 	provider, _ := NewAzureOAuthProvider(config)
-	middleware := NewAuthMiddleware(provider, "http://localhost:8000")
-	manager := NewEndpointManager(middleware, config)
+	manager := NewEndpointManager(provider, config)
 
 	// Test callback with authorization error
 	req := httptest.NewRequest("GET", "/oauth/callback?error=access_denied&error_description=User%20denied%20access", nil)
@@ -484,8 +475,7 @@ func TestCallbackEndpointMethodNotAllowed(t *testing.T) {
 	}
 
 	provider, _ := NewAzureOAuthProvider(config)
-	middleware := NewAuthMiddleware(provider, "http://localhost:8000")
-	manager := NewEndpointManager(middleware, config)
+	manager := NewEndpointManager(provider, config)
 
 	// Test callback with POST method (should only accept GET)
 	req := httptest.NewRequest("POST", "/oauth/callback", nil)

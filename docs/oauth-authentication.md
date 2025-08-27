@@ -16,38 +16,162 @@ AKS-MCP now supports OAuth 2.1 authentication using Azure Active Directory as th
 - **Transport Support**: Works with both SSE and HTTP Streamable transports
 - **Flexible Configuration**: Supports environment variables and command-line configuration
 
-## Quick Start
+## Environment Setup and Azure AD Configuration
 
-### 1. Azure AD Application Setup
+### Prerequisites
 
-First, create an Azure AD application:
+Before setting up OAuth authentication, ensure you have:
+
+- Azure CLI installed and configured (`az login`)
+- An Azure subscription with appropriate permissions to create applications
+- Azure Active Directory tenant access
+
+### Important: Environment Variables Shared Between OAuth and Azure CLI
+
+AKS-MCP uses the same environment variables (`AZURE_TENANT_ID`, `AZURE_CLIENT_ID`) for both OAuth authentication and Azure CLI operations. This design provides configuration simplicity but requires careful permission setup:
+
+**When `AZURE_CLIENT_ID` is set:**
+- OAuth: Used for validating user tokens accessing the MCP server
+- Azure CLI: Used for managed identity/workload identity authentication to access Azure resources
+
+**Permission Requirements:**
+- The Azure AD application must have both **OAuth permissions** (for user authentication) AND **Azure resource permissions** (for az CLI operations)
+- Missing either set of permissions will cause authentication failures
+
+### Step 1: Create Azure AD Application
+
+#### Using Azure Portal (Recommended)
+
+1. **Navigate to Azure Portal**
+   - Go to https://portal.azure.com
+   - Sign in with your Azure account
+
+2. **Create App Registration**
+   ```
+   Navigation: Azure Active Directory → App registrations → New registration
+   ```
+   
+   Configure the following:
+   - **Name**: `AKS-MCP-OAuth` (or your preferred name)
+   - **Supported account types**: "Accounts in this organizational directory only"
+   - **Redirect URI**: Choose "Single-page application (SPA)" platform
+     - Add: `http://localhost:8080/oauth/callback`
+     - Add: `http://localhost:6274/oauth/callback/debug` (for MCP Inspector)
+
+3. **Record Essential Information**
+   From the "Overview" page, note:
+   - **Application (client) ID** - This is your `CLIENT_ID`
+   - **Directory (tenant) ID** - This is your `TENANT_ID`
+
+#### Using Azure CLI (Alternative)
 
 ```bash
-# Create Azure AD application
+# Create Azure AD application with SPA platform
 az ad app create --display-name "AKS-MCP-OAuth" \
-  --web-redirect-uris "http://localhost:3000/oauth/callback"
+  --spa-redirect-uris "http://localhost:8080/oauth/callback" "http://localhost:6274/oauth/callback/debug"
 
 # Get application details
 az ad app list --display-name "AKS-MCP-OAuth" --query "[0].{appId:appId,objectId:objectId}"
+
+# Get your tenant ID
+az account show --query "tenantId" -o tsv
 ```
 
-### 2. Environment Configuration
+### Step 2: Configure API Permissions
+
+**Critical: Both OAuth and Azure CLI require proper permissions**
+
+1. **Add Required API Permissions**
+   ```
+   Navigation: Azure Active Directory → App registrations → [Your App] → API permissions
+   ```
+
+2. **Add Azure Service Management Permission (Required for OAuth)**
+   - Click "Add a permission"
+   - Select "Microsoft APIs" → "Azure Service Management"
+   - Choose "Delegated permissions"
+   - Select `user_impersonation`
+   - Click "Add permissions"
+
+3. **Add Azure Resource Management Permissions (Required for Azure CLI)**
+   
+   When `AZURE_CLIENT_ID` is set, Azure CLI will use this application for authentication. Add these permissions based on your AKS-MCP access level:
+   
+   **For readonly access:**
+   - Microsoft Graph → Application permissions → `Directory.Read.All`
+   - Azure Service Management → Delegated permissions → `user_impersonation`
+   
+   **For readwrite/admin access:**
+   - Microsoft Graph → Application permissions → `Directory.Read.All`
+   - Azure Service Management → Delegated permissions → `user_impersonation`
+   - Consider adding specific Azure resource permissions based on your needs
+
+4. **Grant Admin Consent (Required)**
+   - Click "Grant admin consent for [Your Organization]"
+   - Confirm the consent
+
+**⚠️ Important Notes:**
+- Without proper Azure CLI permissions, you'll see "Insufficient privileges" errors when AKS-MCP tries to access Azure resources
+- The same application serves both OAuth authentication (user access to MCP) and Azure CLI authentication (MCP access to Azure)
+- Test both OAuth flow AND Azure resource access after permission changes
+
+### Step 3: Environment Configuration
 
 Set the required environment variables:
 
 ```bash
+# Replace with your actual values from Step 1
 export AZURE_TENANT_ID="your-tenant-id"
-export AZURE_CLIENT_ID="your-app-id"
+export AZURE_CLIENT_ID="your-client-id"
+export AZURE_SUBSCRIPTION_ID="your-subscription-id"  # Optional, for AKS operations
 ```
 
-### 3. Start AKS-MCP with OAuth
+**⚠️ Important: Dual Authentication Impact**
+
+When you set `AZURE_CLIENT_ID`, it affects both OAuth and Azure CLI authentication:
+
+1. **OAuth Authentication**: Validates user tokens for MCP server access
+2. **Azure CLI Authentication**: AKS-MCP uses this client ID for managed identity authentication when accessing Azure resources
+
+**Common Issues:**
+- If you only configured OAuth permissions, Azure CLI operations will fail with "Insufficient privileges"
+- If you only configured Azure resource permissions, OAuth token validation may fail
+- Solution: Ensure your Azure AD application has BOTH sets of permissions (see Step 2)
+
+**Testing Both Authentication Paths:**
+```bash
+# Test OAuth (should work after proper setup)
+curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8080/mcp
+
+# Test Azure CLI access (should work after proper permissions)
+# This happens automatically when AKS-MCP tries to access Azure resources
+./aks-mcp --oauth-enabled --access-level=readonly
+```
+
+**Note for MCP Inspector**: MCP Inspector requires the callback URL `http://localhost:6274/oauth/callback/debug` to be configured in your Azure AD application redirect URIs for proper OAuth testing.
+
+### Step 4: Start AKS-MCP with OAuth
 
 ```bash
-# Using SSE transport with OAuth
-./aks-mcp --transport=sse --oauth-enabled=true
+# Using HTTP Streamable transport with OAuth (recommended)
+./aks-mcp \
+  --transport=streamable-http \
+  --port=8080 \
+  --oauth-enabled \
+  --oauth-tenant-id="$AZURE_TENANT_ID" \
+  --oauth-client-id="$AZURE_CLIENT_ID" \
+  --oauth-redirects="http://localhost:8080/oauth/callback,http://localhost:6274/oauth/callback/debug" \
+  --access-level=readonly
 
-# Using HTTP Streamable transport with OAuth
-./aks-mcp --transport=streamable-http --oauth-enabled=true
+# Using SSE transport with OAuth (alternative)
+./aks-mcp \
+  --transport=sse \
+  --port=8080 \
+  --oauth-enabled \
+  --oauth-tenant-id="$AZURE_TENANT_ID" \
+  --oauth-client-id="$AZURE_CLIENT_ID" \
+  --oauth-redirects="http://localhost:8080/oauth/callback,http://localhost:6274/oauth/callback/debug" \
+  --access-level=readonly
 ```
 
 ## Configuration Options

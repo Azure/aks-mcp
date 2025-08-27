@@ -76,12 +76,12 @@ func (cfg *ConfigData) ParseFlags() {
 
 	// OAuth configuration
 	flag.BoolVar(&cfg.OAuthConfig.Enabled, "oauth-enabled", false, "Enable OAuth authentication")
-	flag.StringVar(&cfg.OAuthConfig.TenantID, "oauth-tenant-id", "", "Azure AD tenant ID for OAuth")
-	flag.StringVar(&cfg.OAuthConfig.ClientID, "oauth-client-id", "", "Azure AD client ID for OAuth")
+	flag.StringVar(&cfg.OAuthConfig.TenantID, "oauth-tenant-id", "", "Azure AD tenant ID for OAuth (fallback to AZURE_TENANT_ID env var)")
+	flag.StringVar(&cfg.OAuthConfig.ClientID, "oauth-client-id", "", "Azure AD client ID for OAuth (fallback to AZURE_CLIENT_ID env var)")
 	oauthScopes := flag.String("oauth-scopes", "",
 		"Comma-separated list of required OAuth scopes (default: https://management.azure.com/.default)")
 	oauthRedirects := flag.String("oauth-redirects", "",
-		"Comma-separated list of allowed OAuth redirect URIs (default: http://localhost:3000/oauth/callback)")
+		"Comma-separated list of allowed OAuth redirect URIs (default: http://localhost:<port>/oauth/callback)")
 
 	// Kubernetes-specific settings
 	additionalTools := flag.String("additional-tools", "",
@@ -173,9 +173,21 @@ func (cfg *ConfigData) parseOAuthConfig(scopesStr, redirectsStr string) {
 			cfg.OAuthConfig.RequiredScopes = []string{auth.AzureADScope}
 		}
 		if len(cfg.OAuthConfig.AllowedRedirects) == 0 {
-			cfg.OAuthConfig.AllowedRedirects = []string{"http://localhost:3000/oauth/callback"}
+			// Use the actual server port for the default callback URI
+			defaultCallback := fmt.Sprintf("http://localhost:%d/oauth/callback", cfg.Port)
+			cfg.OAuthConfig.AllowedRedirects = []string{defaultCallback}
 		}
 	}
+}
+
+// ValidateConfig validates the configuration for incompatible settings
+func (cfg *ConfigData) ValidateConfig() error {
+	// Validate OAuth + transport compatibility
+	if cfg.OAuthConfig.Enabled && cfg.Transport == "stdio" {
+		return fmt.Errorf("OAuth authentication is not supported with stdio transport per MCP specification")
+	}
+
+	return nil
 }
 
 // InitializeTelemetry initializes the telemetry service

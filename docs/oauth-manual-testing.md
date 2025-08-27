@@ -28,124 +28,133 @@
    - **名称**：`AKS-MCP-OAuth-Test`
    - **受支持的账户类型**：选择 "仅此组织目录中的账户"
    - **重定向 URI**：
-     - 平台：Web
-     - URL：`http://localhost:8080/oauth/callback`
+     - 平台：**单页应用程序 (SPA)**（重要：必须选择 SPA，不能选择 Web）
+     - URL：添加以下两个回调地址：
+       - `http://localhost:8080/oauth/callback`
+       - `http://localhost:6274/oauth/callback/debug`（用于 MCP Inspector 测试）
 
 3. **记录重要信息**
    创建完成后，在 "概述" 页面记录：
-   - **应用程序(客户端) ID** - 这是你的 `CLIENT_ID` 9e1516b4-1a60-4836-8049-571594cdd74d
-   - **目录(租户) ID** - 这是你的 `TENANT_ID` 84f68ef7-1b9b-45ae-9817-8706a841c544
+   - **应用程序(客户端) ID** - 这是你的 `CLIENT_ID`
+   - **目录(租户) ID** - 这是你的 `TENANT_ID`
 
-### 第二步：配置 API 权限
+### 第二步：配置 API 权限（必须完成）
 
-1. **添加 API 权限**
+**重要提醒：OAuth 和 Azure CLI 都需要正确的权限配置**
+
+由于 AKS-MCP 在设置了 `AZURE_CLIENT_ID` 环境变量时，会将同一个 Azure AD 应用用于两个不同的认证场景：
+1. **OAuth 认证**：验证访问 MCP 服务器的用户令牌
+2. **Azure CLI 认证**：AKS-MCP 服务器本身访问 Azure 资源的身份验证
+
+因此需要配置两套权限：
+
+1. **添加 OAuth 所需的 API 权限**
    ```
    左侧菜单：API 权限 → 添加权限
    ```
 
-2. **选择 Azure Service Management**
+2. **选择 Azure Service Management（OAuth 必需）**
    ```
    Microsoft API → Azure Service Management → 委托权限
    ```
 
-3. **添加权限**
+3. **添加 OAuth 权限**
    - 勾选 `user_impersonation`
    - 点击 "添加权限"
 
-4. **授予管理员同意**
+4. **添加 Azure 资源管理权限（Azure CLI 必需）**
+   
+   当设置了 `AZURE_CLIENT_ID` 时，Azure CLI 会使用这个应用进行身份验证。根据你的 AKS-MCP 访问级别添加以下权限：
+   
+   **对于 readonly 访问级别：**
+   ```
+   Microsoft Graph → 应用程序权限 → Directory.Read.All
+   Azure Service Management → 委托权限 → user_impersonation
+   ```
+   
+   **对于 readwrite/admin 访问级别：**
+   ```
+   Microsoft Graph → 应用程序权限 → Directory.Read.All
+   Azure Service Management → 委托权限 → user_impersonation
+   根据需要考虑添加特定的 Azure 资源权限
+   ```
+
+5. **授予管理员同意**（必须步骤）
    ```
    点击 "为 [组织] 授予管理员同意" 按钮
    ```
+   
+**⚠️ 重要说明**：
+- 如果不授予管理员同意，OAuth 流程将在 scope 验证时失败
+- 如果缺少 Azure CLI 权限，当 AKS-MCP 尝试访问 Azure 资源时会出现 "权限不足" 错误
+- 同一个应用程序既处理 OAuth 认证（用户访问 MCP），也处理 Azure CLI 认证（MCP 访问 Azure）
+- 权限更改后，需要测试 OAuth 流程和 Azure 资源访问两个方面
 
-### 第三步：配置身份验证设置
+### 第三步：验证应用配置
 
-1. **访问身份验证页面**
+1. **确认平台配置**
    ```
    左侧菜单：身份验证
    ```
+   
+   验证以下设置：
+   - **平台配置**：应该显示 "单页应用程序"
+   - **重定向 URI**：应该包含：
+     ```
+     http://localhost:8080/oauth/callback
+     http://localhost:6274/oauth/callback/debug
+     ```
+   - **高级设置 → 允许公共客户端流**：应该设置为 "是"
 
-2. **配置重定向 URI**
-   确认重定向 URI 包含：
+2. **确认 API 权限**
    ```
-   http://localhost:8080/oauth/callback
+   左侧菜单：API 权限
    ```
    
-   如果需要测试不同端口，可以添加多个：
-   ```
-   http://localhost:8080/oauth/callback
-   http://localhost:3000/oauth/callback
-   http://localhost:8000/oauth/callback
-   ```
+   应该显示：
+   - **Azure Service Management** - `user_impersonation`（已授予管理员同意）
+   - **Microsoft Graph** - `Directory.Read.All`（如果添加了 Azure CLI 权限）
+   - 所有权限的状态应该是绿色的勾选标记
 
-3. **配置高级设置**
-   - **允许公共客户端流**：是
-   - **Live SDK 支持**：否
-
-### 第四步：配置令牌配置（可选）
-
-1. **访问令牌配置页面**
-   ```
-   左侧菜单：令牌配置
-   ```
-
-2. **添加可选声明**
-   - 点击 "添加可选声明"
-   - 选择 "访问令牌"
-   - 添加：`email`, `family_name`, `given_name`
+**重要说明 - MCP Inspector 回调地址**：
+- MCP Inspector 使用特殊的调试回调地址 `http://localhost:6274/oauth/callback/debug`
+- 这个地址必须在 Azure AD 应用的重定向 URI 中配置
+- 6274 端口是 MCP Inspector 的默认调试端口
 
 ## AKS-MCP 环境搭建
 
-<!-- ### 第一步：准备配置文件
+### 第一步：设置环境变量
 
-1. **创建 OAuth 配置文件**
-   ```bash
-   # 创建配置目录
-   mkdir -p ~/aks-mcp-test
-   cd ~/aks-mcp-test
-   
-   # 创建配置文件
-   cat > oauth-config.yaml << 'EOF'
-   oauth:
-     enabled: true
-     tenant_id: "84f68ef7-1b9b-45ae-9817-8706a841c544"
-     client_id: "9e1516b4-1a60-4836-8049-571594cdd74d"
-     required_scopes:
-       - "https://management.azure.com/.default"
-     allowed_redirects:
-       - "http://localhost:8080/oauth/callback"
-       - "http://localhost:3000/oauth/callback"
-     token_validation:
-       validate_jwt: true
-       validate_audience: true
-       expected_audience: "https://management.azure.com/"
-       cache_ttl: "5m"
-       clock_skew: "1m"
-   
-   # 其他 AKS-MCP 配置
-   access_level: "readonly"
-   timeout: "30s"
-   EOF
-   ```
+**⚠️ 重要：环境变量的双重影响**
 
-2. **替换配置中的占位符**
-   ```bash
-   # 使用你从 Azure AD 获取的实际值替换
-   sed -i 's/YOUR_TENANT_ID_HERE/你的租户ID/' oauth-config.yaml
-   sed -i 's/YOUR_CLIENT_ID_HERE/你的客户端ID/' oauth-config.yaml
-   ``` -->
+使用你从 Azure AD 获取的实际值设置环境变量。需要注意的是，当你设置 `AZURE_CLIENT_ID` 时，它会影响两个认证流程：
 
-3. **设置环境变量**
-   ```bash
-   # 创建环境变量文件
-   cat > .env << 'EOF'
-   export AZURE_TENANT_ID="你的租户ID"
-   export AZURE_CLIENT_ID="你的客户端ID"
-   export AZURE_SUBSCRIPTION_ID="你的订阅ID"
-   EOF
-   
-   # 加载环境变量
-   source .env
-   ```
+1. **OAuth 认证**：用于验证访问 MCP 服务器的用户令牌
+2. **Azure CLI 认证**：AKS-MCP 服务器使用这个客户端 ID 通过托管身份访问 Azure 资源
+
+**常见问题**：
+- 如果只配置了 OAuth 权限，Azure CLI 操作会失败并显示"权限不足"
+- 如果只配置了 Azure 资源权限，OAuth 令牌验证可能失败
+- **解决方案**：确保你的 Azure AD 应用具有两套权限（参见前面的第二步）
+
+```bash
+# 创建环境变量文件
+cat > .env << 'EOF'
+export AZURE_TENANT_ID="你的租户ID"
+export AZURE_CLIENT_ID="你的客户端ID"
+export AZURE_SUBSCRIPTION_ID="你的订阅ID"
+EOF
+
+# 加载环境变量
+source .env
+```
+
+**示例（请替换为你的实际值）**：
+```bash
+export AZURE_TENANT_ID="84f68ef7-1b9b-45ae-9817-8706a841c544"
+export AZURE_CLIENT_ID="9e1516b4-1a60-4836-8049-571594cdd74d"
+export AZURE_SUBSCRIPTION_ID="your-subscription-id"
+```
 
 ### 第二步：编译和启动 AKS-MCP 服务器
 
@@ -160,22 +169,25 @@
    go build -o aks-mcp ./cmd/aks-mcp
    ```
 
-2. **启动服务器（HTTP 模式）**
-   <!-- ```bash
-   # 使用配置文件启动
-   ./aks-mcp --config ~/aks-mcp-test/oauth-config.yaml --transport http --port 8080 -->
-   
-   # 或者使用命令行参数
+2. **启动服务器（HTTP Streamable 模式 - 推荐）**
+   ```bash
    ./aks-mcp \
-     --transport http \
+     --transport streamable-http \
      --port 8080 \
      --oauth-enabled \
      --oauth-tenant-id "$AZURE_TENANT_ID" \
      --oauth-client-id "$AZURE_CLIENT_ID" \
+     --oauth-redirects="http://localhost:8080/oauth/callback,http://localhost:6274/oauth/callback/debug" \
      --access-level readonly
    ```
 
-3. **验证服务器启动**
+   **重要配置说明**：
+   - `--oauth-redirects` 必须包含两个地址：
+     - `http://localhost:8080/oauth/callback` - AKS-MCP 主回调地址
+     - `http://localhost:6274/oauth/callback/debug` - MCP Inspector 调试回调地址
+   - 这两个地址必须与 Azure AD 应用中配置的重定向 URI 完全匹配
+
+3. **验证服务器启动和双重认证**
    ```bash
    # 检查健康状态
    curl http://localhost:8080/health
@@ -183,6 +195,29 @@
    # 应该返回类似：
    # {"status":"healthy","oauth":{"enabled":true}}
    ```
+   
+   **同时测试两种认证路径**：
+   ```bash
+   # 1. 测试 OAuth 端点（应该正常工作）
+   curl http://localhost:8080/.well-known/oauth-protected-resource
+   
+   # 2. 测试 Azure CLI 认证（检查服务器日志）
+   # 当 AKS-MCP 尝试访问 Azure 资源时，会在后台使用 Azure CLI 认证
+   # 如果权限配置正确，不会出现认证错误
+   # 如果权限不足，会在日志中看到 "权限不足" 或 "认证失败" 错误
+   ```
+
+### 第三步：验证 OAuth 端点
+
+```bash
+# 测试受保护资源元数据
+curl http://localhost:8080/.well-known/oauth-protected-resource
+
+# 测试授权服务器元数据
+curl http://localhost:8080/.well-known/oauth-authorization-server
+
+# 应该都返回正常的 JSON 响应
+```
 
 ## 使用浏览器测试 OAuth 流程
 
@@ -262,11 +297,27 @@ chmod +x get_token.sh
    ```bash
    # 设置访问令牌
    export ACCESS_TOKEN="从浏览器获取的访问令牌"
+
+   # initialize, example:
+   curl -s -i \
+   -X POST \
+   -H "Content-Type: application/json" \
+   -H "Authorization: Bearer $ACCESS_TOKEN" \
+   -d '{"jsonrpc": "2.0", "method": "initialize", "id": 1}' \
+   "http://localhost:8080/mcp"
+   HTTP/1.1 200 OK
+   Content-Type: application/json
+   Mcp-Session-Id: mcp-session-86d931cb-127e-4d8f-a409-ef37fbde528f
+   Date: Wed, 27 Aug 2025 03:50:24 GMT
+   Content-Length: 255
+
+   SESSION_ID=mcp-session-86d931cb-127e-4d8f-a409-ef37fbde528f
    
    # 测试 MCP 端点
    curl -X POST http://localhost:8080/mcp \
      -H "Authorization: Bearer $ACCESS_TOKEN" \
      -H "Content-Type: application/json" \
+     -H "Mcp-Session-Id: $SESSION_ID" \
      -d '{
        "jsonrpc": "2.0",
        "id": 1,
@@ -304,67 +355,69 @@ curl -X POST http://localhost:8080/mcp \
 
 ## 使用 MCP Inspector 测试
 
-### 第一步：配置 MCP Inspector
+### 第一步：启动 MCP Inspector
 
-1. **创建 Inspector 配置文件**
+1. **安装和启动 MCP Inspector**
    ```bash
-   mkdir -p ~/.config/mcp-inspector
-   cat > ~/.config/mcp-inspector/aks-mcp-oauth.json << 'EOF'
-   {
-     "name": "AKS-MCP with OAuth",
-     "type": "http",
-     "config": {
-       "url": "http://localhost:8080/mcp",
-       "headers": {
-         "Authorization": "Bearer YOUR_ACCESS_TOKEN_HERE"
-       }
-     }
-   }
-   EOF
-   ```
-
-2. **替换访问令牌**
-   ```bash
-   # 使用实际的访问令牌替换占位符
-   sed -i 's/YOUR_ACCESS_TOKEN_HERE/你的实际访问令牌/' ~/.config/mcp-inspector/aks-mcp-oauth.json
-   ```
-
-### 第二步：启动 MCP Inspector
-
-1. **编译和启动 Inspector**
-   ```bash
-   # 切换到 inspector 目录
-   cd ./inspector
-   
-   # 编译（如果需要）
-   go build -o mcp-inspector .
+   # 安装 MCP Inspector（如果尚未安装）
+   npm install -g @modelcontextprotocol/inspector
    
    # 启动 Inspector
-   ./mcp-inspector
+   npx @modelcontextprotocol/inspector
    ```
 
-2. **在 Inspector 中测试**
-   - 添加新的服务器连接
-   - 使用配置文件中的设置
-   - 测试连接和工具列表
+   **重要说明**：
+   - MCP Inspector 会在端口 6274 运行调试服务器
+   - 它使用特殊的回调地址 `http://localhost:6274/oauth/callback/debug`
+   - 确保此地址已在 Azure AD 应用的重定向 URI 中配置
+
+2. **配置 MCP Inspector 连接**
+   在 Inspector 界面中：
+   - **Server URL**: `http://localhost:8080/mcp`
+   - **Authentication**: 选择 "OAuth 2.0"
+   - **Authorization Server**: `http://localhost:8080/.well-known/oauth-authorization-server`
+
+### 第二步：完成 OAuth 流程
+
+MCP Inspector 会自动执行以下步骤：
+
+1. **Metadata Discovery** - 获取 OAuth 配置信息
+2. **Client Registration** - 动态注册客户端
+3. **Preparing Authorization** - 准备授权请求
+4. **Request Authorization** - 获取授权码
+5. **Token Request** - 交换访问令牌
+6. **Authentication Complete** - 显示访问令牌
+7. **MCP Connection** - 使用令牌连接 MCP 服务器
 
 ### 第三步：验证 OAuth 功能
 
 1. **测试有效令牌**
-   - 使用正确的访问令牌
-   - 验证能够成功连接和获取工具列表
+   - 完成 OAuth 流程后，Inspector 应显示成功的连接状态
+   - 可以看到 AKS-MCP 提供的工具列表
 
-2. **测试无效令牌**
-   ```bash
-   # 修改配置使用无效令牌
-   sed -i 's/Bearer .*/Bearer invalid-token"/' ~/.config/mcp-inspector/aks-mcp-oauth.json
-   ```
-   - 重启 Inspector
-   - 验证连接失败并显示认证错误
+2. **测试会话管理**
+   - 刷新页面后，Inspector 应能够重用缓存的令牌
+   - 如果遇到缓存问题，清除浏览器数据：`Developer Tools > Application > Storage > Clear storage`
 
-3. **测试令牌过期**
-   - 等待令牌过期（通常 1 小时）
-   - 验证需要重新获取令牌
+### 第四步：故障排除
+
+**常见问题**：
+
+1. **Client ID 显示为 '111'**
+   - 清除浏览器的 sessionStorage 缓存
+   - 开发者工具 > Application > Storage > Session Storage > 删除所有条目
+
+2. **回调地址不匹配**
+   - 确保 Azure AD 应用包含 `http://localhost:6274/oauth/callback/debug`
+   - 检查端口 6274 是否被其他进程占用
+
+3. **CORS 错误**
+   - 确保 AKS-MCP 服务器正在运行
+   - 检查防火墙设置
+
+4. **令牌验证失败**
+   - 确保 Azure AD 应用已授予管理员同意
+   - 检查 API 权限配置是否正确
 
 ## 故障排除
 
@@ -377,7 +430,9 @@ curl -X POST http://localhost:8080/mcp \
 **解决方案**：
 ```bash
 # 检查 Azure AD 应用注册中的重定向 URI
-# 确保包含：http://localhost:8080/oauth/callback
+# 确保包含以下两个地址：
+# - http://localhost:8080/oauth/callback
+# - http://localhost:6274/oauth/callback/debug
 
 # 或者修改服务器端口匹配 Azure AD 配置
 ./aks-mcp --port 3000  # 如果 Azure AD 配置的是 3000 端口
@@ -391,22 +446,97 @@ curl -X POST http://localhost:8080/mcp \
 1. 在 Azure Portal 中为应用授予管理员同意
 2. 或者在授权 URL 中添加 `&prompt=consent` 参数
 
-#### 3. 令牌验证失败
+#### 3. Scope 验证失败
 
-**错误信息**：`Token validation failed`
+**错误信息**：`insufficient_scope` 或 HTTP 403 错误
+
+**根本原因**：Azure AD 应用缺少必要的 API 权限配置
+
+**解决方案**：
+1. **检查 Azure AD API 权限配置**：
+   ```
+   Azure Portal → Azure Active Directory → 应用注册 → [你的应用] → API 权限
+   ```
+   
+   必须包含：
+   - **Azure Service Management** - `user_impersonation`（委托权限）
+   - 状态必须显示为"已为 [组织] 授予管理员同意"
+
+2. **如果权限缺失，添加权限**：
+   - 点击"添加权限"
+   - 选择"Microsoft APIs" → "Azure Service Management"
+   - 选择"委托权限" → `user_impersonation`
+   - 点击"添加权限"
+   - **重要**：点击"为 [组织] 授予管理员同意"
+
+3. **验证权限生效**：
+   ```bash
+   # 重新获取访问令牌（权限更改后需要新令牌）
+   # 重新执行 OAuth 流程
+   ```
+
+#### 4. 令牌被截断
+
+**错误信息**：Token appears to be truncated (no dots found)
 
 **解决方案**：
 ```bash
+# 这是已知的 MCP Inspector 限制，目前有临时解决方案
 # 检查系统时间是否正确
 date
 
-# 检查租户 ID 是否正确
-curl "https://login.microsoftonline.com/你的租户ID/v2.0/.well-known/openid_configuration"
-
-# 检查客户端 ID 是否正确
+# 检查令牌内容（前50个字符）
+# 完整的 JWT 应该有 3 部分，用 . 分隔
 ```
 
-#### 4. 端口被占用
+#### 5. Azure AD 应用类型配置错误
+
+**错误信息**：`AADSTS9002326: Cross-origin token redemption is permitted only for the 'Single-Page Application' client-type`
+
+**解决方案**：
+1. 在 Azure Portal 中修改应用配置：
+   ```
+   Azure Active Directory → 应用注册 → [你的应用] → 身份验证
+   ```
+2. 确保平台配置显示为"单页应用程序"
+3. 如果显示为"Web"，删除"Web"平台，添加"单页应用程序"平台
+
+#### 6. 令牌验证失败 - issuer不匹配
+
+**错误信息**：`Token validation failed: invalid issuer: expected https://login.microsoftonline.com/租户ID/v2.0, got https://sts.windows.net/租户ID/`
+
+**解决方案**：
+这是由于Azure AD v1.0和v2.0端点issuer格式不同造成的。AKS-MCP已支持两种格式，确保使用最新代码：
+```bash
+# 重新编译并启动
+make build
+./aks-mcp --oauth-enabled ...
+```
+
+#### 7. 令牌验证失败 - audience不匹配
+
+**错误信息**：`Token validation failed: invalid audience: expected https://management.azure.com/ or 客户端ID, got https://management.azure.com`
+
+**解决方案**：
+这是由于audience字段的尾随斜杠不匹配造成的。AKS-MCP已修复audience验证逻辑，确保使用最新代码：
+```bash
+# 重新编译并启动
+make build
+./aks-mcp --oauth-enabled ...
+```
+
+#### 8. MCP Inspector 客户端 ID 缓存问题
+
+**错误信息**：Client ID 显示为 '111' 而不是配置的值
+
+**解决方案**：
+```bash
+# 清除浏览器缓存
+# 开发者工具 > Application > Storage > Session Storage > 删除所有条目
+# 或者完全清除浏览器数据
+```
+
+#### 9. 端口被占用
 
 **错误信息**：`bind: address already in use`
 
@@ -414,6 +544,7 @@ curl "https://login.microsoftonline.com/你的租户ID/v2.0/.well-known/openid_c
 ```bash
 # 查找占用端口的进程
 lsof -i :8080
+lsof -i :6274
 
 # 使用不同端口
 ./aks-mcp --port 8081
@@ -421,7 +552,82 @@ lsof -i :8080
 # 相应更新 Azure AD 重定向 URI
 ```
 
-#### 5. CORS 错误（浏览器中）
+#### 11. Azure CLI 权限不足错误
+
+**错误信息**：
+- "Insufficient privileges to complete the operation"
+- "Access denied"
+- "Authentication failed"
+- Azure CLI 操作失败，但 OAuth 流程正常
+
+**根本原因**：
+当设置了 `AZURE_CLIENT_ID` 环境变量时，Azure CLI 会使用这个客户端 ID 进行托管身份认证来访问 Azure 资源。如果 Azure AD 应用缺少相应的 Azure 资源权限，就会出现此错误。
+
+**解决方案**：
+
+1. **检查当前权限配置**：
+   ```bash
+   # 在 Azure Portal 中检查应用权限
+   # Azure Active Directory → 应用注册 → [你的应用] → API 权限
+   ```
+
+2. **添加必要的 Azure 资源权限**：
+   
+   **基本权限（最小要求）**：
+   ```
+   Microsoft Graph → 应用程序权限 → Directory.Read.All
+   Azure Service Management → 委托权限 → user_impersonation
+   ```
+   
+   **扩展权限（根据 AKS-MCP 功能需求）**：
+   ```
+   # 如果需要访问 Azure Resource Manager
+   Azure Service Management → 应用程序权限 → user_impersonation
+   
+   # 如果需要访问 Key Vault
+   Azure Key Vault → 委托权限 → user_impersonation
+   
+   # 如果需要访问 Storage Account
+   Azure Storage → 委托权限 → user_impersonation
+   ```
+
+3. **授予管理员同意**：
+   ```bash
+   # 添加权限后，必须授予管理员同意
+   # Azure Portal → API 权限 → "为 [组织] 授予管理员同意"
+   ```
+
+4. **验证权限生效**：
+   ```bash
+   # 重启 AKS-MCP 服务器
+   ./aks-mcp --oauth-enabled --access-level=readonly
+   
+   # 检查服务器日志中是否还有权限错误
+   # 尝试调用需要 Azure 资源访问的 MCP 工具
+   ```
+
+**调试技巧**：
+```bash
+# 查看详细的 Azure CLI 认证信息
+export AZURE_CLI_ENABLE_DEBUG=true
+./aks-mcp --oauth-enabled --verbose
+
+# 手动测试 Azure CLI 认证
+az login --identity --username $AZURE_CLIENT_ID
+az account show
+```
+
+**⚠️ 重要说明**：
+- 这个问题仅在设置了 `AZURE_CLIENT_ID` 环境变量时才会发生
+- OAuth 用户认证和 Azure CLI 资源访问是两个独立的认证流程
+- 同一个 Azure AD 应用需要支持两种用途，因此需要两套权限
+- 如果只想测试 OAuth 功能，可以临时取消设置 `AZURE_CLIENT_ID`：
+  ```bash
+  unset AZURE_CLIENT_ID
+  ./aks-mcp --oauth-enabled
+  ```
+
+#### 10. CORS 错误（浏览器中）
 
 **解决方案**：
 - 确保使用正确的重定向 URI

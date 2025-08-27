@@ -11,12 +11,15 @@ import (
 )
 
 func TestAuthMiddleware(t *testing.T) {
-	// Create test config without required scopes for testing
+	// Create test config with minimal required scopes for testing
+	// Note: We cannot test with empty RequiredScopes because the OAuth configuration
+	// validation now requires at least one scope to be specified. This is intentional
+	// to prevent security misconfigurations in production environments.
 	config := &auth.OAuthConfig{
 		Enabled:          true,
 		TenantID:         "test-tenant",
 		ClientID:         "test-client",
-		RequiredScopes:   []string{}, // Empty scopes for testing
+		RequiredScopes:   []string{"https://management.azure.com/.default"}, // Minimal scope for testing
 		AllowedRedirects: []string{"http://localhost:3000/callback"},
 		TokenValidation: auth.TokenValidationConfig{
 			ValidateJWT:      false, // Disable JWT validation for testing
@@ -26,7 +29,7 @@ func TestAuthMiddleware(t *testing.T) {
 			ClockSkew:        1 * time.Minute,
 		},
 	}
-	
+
 	provider, err := NewAzureOAuthProvider(config)
 	if err != nil {
 		t.Fatalf("Failed to create provider: %v", err)
@@ -49,7 +52,7 @@ func TestAuthMiddleware(t *testing.T) {
 	}{
 		{
 			name:           "valid bearer token",
-			authHeader:     "Bearer valid-token",
+			authHeader:     "Bearer header.payload.signature",
 			expectedStatus: http.StatusOK,
 			path:           "/test",
 		},
@@ -111,11 +114,13 @@ func TestAuthMiddleware(t *testing.T) {
 }
 
 func TestAuthMiddlewareContextPropagation(t *testing.T) {
+	// Note: We cannot test with empty RequiredScopes because the OAuth configuration
+	// validation now requires at least one scope to be specified.
 	config := &auth.OAuthConfig{
 		Enabled:          true,
 		TenantID:         "test-tenant",
 		ClientID:         "test-client",
-		RequiredScopes:   []string{}, // Empty scopes for testing
+		RequiredScopes:   []string{"https://management.azure.com/.default"}, // Minimal scope for testing
 		AllowedRedirects: []string{"http://localhost:3000/callback"},
 		TokenValidation: auth.TokenValidationConfig{
 			ValidateJWT:      false, // Disable JWT validation for testing
@@ -125,7 +130,7 @@ func TestAuthMiddlewareContextPropagation(t *testing.T) {
 			ClockSkew:        1 * time.Minute,
 		},
 	}
-	
+
 	provider, err := NewAzureOAuthProvider(config)
 	if err != nil {
 		t.Fatalf("Failed to create provider: %v", err)
@@ -140,8 +145,8 @@ func TestAuthMiddlewareContextPropagation(t *testing.T) {
 			return
 		}
 
-		if tokenInfo.AccessToken != "valid-token" {
-			t.Errorf("Expected token valid-token, got %s", tokenInfo.AccessToken)
+		if tokenInfo.AccessToken != "header.payload.signature" {
+			t.Errorf("Expected token header.payload.signature, got %s", tokenInfo.AccessToken)
 		}
 
 		w.WriteHeader(http.StatusOK)
@@ -150,7 +155,7 @@ func TestAuthMiddlewareContextPropagation(t *testing.T) {
 	wrappedHandler := middleware.Middleware(testHandler)
 
 	req := httptest.NewRequest("GET", "/test", nil)
-	req.Header.Set("Authorization", "Bearer valid-token")
+	req.Header.Set("Authorization", "Bearer header.payload.signature")
 
 	w := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(w, req)
@@ -161,11 +166,13 @@ func TestAuthMiddlewareContextPropagation(t *testing.T) {
 }
 
 func TestShouldSkipAuth(t *testing.T) {
+	// Note: We cannot test with empty RequiredScopes because the OAuth configuration
+	// validation now requires at least one scope to be specified.
 	config := &auth.OAuthConfig{
 		Enabled:          true,
 		TenantID:         "test-tenant",
 		ClientID:         "test-client",
-		RequiredScopes:   []string{}, // Empty scopes for testing
+		RequiredScopes:   []string{"https://management.azure.com/.default"}, // Minimal scope for testing
 		AllowedRedirects: []string{"http://localhost:3000/callback"},
 		TokenValidation: auth.TokenValidationConfig{
 			ValidateJWT:      false,
@@ -175,7 +182,7 @@ func TestShouldSkipAuth(t *testing.T) {
 			ClockSkew:        1 * time.Minute,
 		},
 	}
-	
+
 	provider, err := NewAzureOAuthProvider(config)
 	if err != nil {
 		t.Fatalf("Failed to create provider: %v", err)
