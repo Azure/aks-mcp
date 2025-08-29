@@ -155,6 +155,21 @@ Unified tool for Azure monitoring and diagnostics operations for AKS clusters.
 
 - Get detailed VMSS configuration for node pools in the AKS cluster
 
+**Tool:** `az_compute_operations`
+
+Unified tool for managing Azure Virtual Machines (VMs) and Virtual Machine Scale Sets (VMSS) used by AKS.
+
+**Available Operations:**
+
+- `show`: Get details of a VM/VMSS
+- `list`: List VMs/VMSS in subscription or resource group
+- `get-instance-view`: Get runtime status
+- `start`: Start VM
+- `stop`: Stop VM
+- `restart`: Restart VM/VMSS instances
+- `reimage`: Reimage VMSS instances (VM not supported for reimage)
+
+**Resource Types:** `vm` (single virtual machines), `vmss` (virtual machine scale sets)
 
 </details>
 
@@ -220,20 +235,19 @@ Retrieve and manage Azure Advisor recommendations for AKS clusters.
 *Note: kubectl commands are available with all access levels. Additional tools
 require explicit enablement via `--additional-tools`*
 
-**kubectl Commands (Read-Only):**
+**kubectl Tools (Unified Interface):**
 
-- `kubectl_get`, `kubectl_describe`, `kubectl_explain`, `kubectl_logs`
-- `kubectl_api-resources`, `kubectl_api-versions`, `kubectl_diff`
-- `kubectl_cluster-info`, `kubectl_top`, `kubectl_events`, `kubectl_auth`
+- **Read-Only** (all access levels):
+  - `kubectl_resources`: View resources (get, describe) - filtered to read-only operations in readonly mode
+  - `kubectl_diagnostics`: Debug and diagnose (logs, events, top, exec, cp)
+  - `kubectl_cluster`: Cluster information (cluster-info, api-resources, api-versions, explain)
+  - `kubectl_config`: Configuration management (diff, auth, config) - filtered to read-only operations in readonly mode
 
-**kubectl Commands (Read-Write/Admin):**
-
-- `kubectl_create`, `kubectl_delete`, `kubectl_apply`, `kubectl_expose`,
-  `kubectl_run`
-- `kubectl_set`, `kubectl_rollout`, `kubectl_scale`, `kubectl_autoscale`
-- `kubectl_label`, `kubectl_annotate`, `kubectl_patch`, `kubectl_replace`
-- `kubectl_cp`, `kubectl_exec`, `kubectl_cordon`, `kubectl_uncordon`
-- `kubectl_drain`, `kubectl_taint`, `kubectl_certificate`
+- **Read-Write/Admin** (`readwrite`/`admin` access levels):
+  - `kubectl_resources`: Full resource management (get, describe, create, delete, apply, patch, replace, cordon, uncordon, drain, taint)
+  - `kubectl_workloads`: Workload lifecycle (run, expose, scale, autoscale, rollout)
+  - `kubectl_metadata`: Metadata management (label, annotate, set)
+  - `kubectl_config`: Full configuration management (diff, auth, certificate, config)
 
 **Additional Tools (Optional):**
 
