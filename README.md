@@ -510,7 +510,11 @@ You can enable the [AKS-MCP server directly from MCP Toolkit](https://hub.docker
    - **azure_dir** `[REQUIRED]`: Path to your Azure credentials directory e.g `/home/user/.azure` (must be absolute – without `$HOME` or `~`)
    - **kubeconfig** `[REQUIRED]`: Path to your kubeconfig file e.g `/home/user/.kube/config` (must be absolute – without `$HOME` or `~`)
    - **access_level** `[REQUIRED]`: Set to `readonly`, `readwrite`, or `admin` as needed
-7. You are now ready to use the AKS-MCP server with your [preferred MCP client](https://hub.docker.com/mcp/server/aks/manual), see an example [here](https://docs.docker.com/ai/mcp-catalog-and-toolkit/toolkit/#install-an-mcp-client).
+   - **container_user** `[OPTIONAL]`: Username or UID to run the container as (default is `mcp`), e.g. use `1000` to match your host user ID (see note below). Only needed if you are using docker engine on Linux.
+7. You are now ready to use the AKS-MCP server with your [preferred MCP client](https://hub.docker.com/mcp/server/aks/manual), see an example [here](https://docs.docker.com/ai/mcp-catalog-and-toolkit/toolkit/#install-an-mcp-client). (requires `>= v0.16.0` for MCP gateway)
+
+> **Note**: When running the MCP gateway using Docker Engine, you have to set the `container_user` to match your host user ID (e.g using `id -u`) to ensure proper file permissions for accessing mounted volumes.
+> On Docker Desktop, this is handled automatically if you use `desktop-*` contexts, confirmed by running `docker context ls`.
 
 On **Windows**, the Azure credentials won't work by default, but you have two options:
 
