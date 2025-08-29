@@ -309,19 +309,51 @@ Once started, the MCP server will appear in the **Copilot Chat: Configure Tools*
 
 Try a prompt like *"List all my AKS clusters"*, which will start using tools from the AKS-MCP server.
 
-Note:
-For VS Code that is runing inside of WSL environment, starting AKS MCP server could fail with error "Connection state: Error spawn /home/path/.vs-kubernetes/tools/aks-mcp/v0.0.3/aks-mcp ENOENT", it means VS code cannot find this file. The resolution is modifying the mcp.json file as following to make it running with wsl.
+#### WSL Configuration
+
+The MCP configuration differs depending on whether VS Code is running on Windows or inside WSL:
+
+**🪟 Windows Host (VS Code on Windows)**: Use `"command": "wsl"` to invoke the WSL binary from Windows:
 
 ```json
-"AKS MCP": {
-	"command": "wsl",
-	"args": [
-		"<aks-mcp path>",
-		"--transport",
-		"stdio"
-	]
+{
+  "servers": {
+    "aks-mcp": {
+      "type": "stdio",
+      "command": "wsl",
+      "args": [
+        "--",
+        "/home/you/.vs-kubernetes/tools/aks-mcp/aks-mcp",
+        "--transport",
+        "stdio"
+      ]
+    }
+  }
 }
 ```
+
+**🐧 Remote-WSL (VS Code running inside WSL)**: Call the binary directly or use a shell wrapper:
+
+```json
+{
+  "servers": {
+    "aks-mcp": {
+      "type": "stdio",
+      "command": "bash",
+      "args": [
+        "-c",
+        "/home/you/.vs-kubernetes/tools/aks-mcp/aks-mcp --transport stdio"
+      ]
+    }
+  }
+}
+```
+
+**🔧 Troubleshooting ENOENT Errors**
+
+If you see "spawn ENOENT" errors, verify your VS Code environment:
+- **Windows host**: Check if the WSL binary path is correct and accessible via `wsl -- ls /path/to/aks-mcp`
+- **Remote-WSL**: Do NOT use `"command": "wsl"` - use direct paths or bash wrapper as shown above
 
 
 > **💡 Benefits**: The AKS extension handles binary downloads, updates, and configuration automatically, ensuring you always have the latest version with optimal settings.
