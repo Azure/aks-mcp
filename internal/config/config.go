@@ -79,7 +79,7 @@ func (cfg *ConfigData) ParseFlags() {
 	flag.StringVar(&cfg.OAuthConfig.TenantID, "oauth-tenant-id", "", "Azure AD tenant ID for OAuth (fallback to AZURE_TENANT_ID env var)")
 	flag.StringVar(&cfg.OAuthConfig.ClientID, "oauth-client-id", "", "Azure AD client ID for OAuth (fallback to AZURE_CLIENT_ID env var)")
 	oauthScopes := flag.String("oauth-scopes", "",
-		"Comma-separated list of required OAuth scopes (default: https://management.azure.com/.default)")
+		"Comma-separated list of required OAuth scopes (default: openid,profile,email,User.Read)")
 	oauthRedirects := flag.String("oauth-redirects", "",
 		"Comma-separated list of allowed OAuth redirect URIs (default: http://localhost:<port>/oauth/callback)")
 
@@ -170,12 +170,15 @@ func (cfg *ConfigData) parseOAuthConfig(scopesStr, redirectsStr string) {
 	// If OAuth is enabled but CLI parameters are not provided, use defaults
 	if cfg.OAuthConfig.Enabled {
 		if len(cfg.OAuthConfig.RequiredScopes) == 0 {
-			cfg.OAuthConfig.RequiredScopes = []string{auth.AzureADScope}
+			cfg.OAuthConfig.RequiredScopes = []string{auth.OpenIDScope, auth.ProfileScope, auth.EmailScope, auth.UserReadScope}
 		}
 		if len(cfg.OAuthConfig.AllowedRedirects) == 0 {
 			// Use the actual server port for the default callback URI
 			defaultCallback := fmt.Sprintf("http://localhost:%d/oauth/callback", cfg.Port)
-			cfg.OAuthConfig.AllowedRedirects = []string{defaultCallback}
+			// Also allow common MCP Inspector ports for development
+			inspectorCallback1 := "http://localhost:6274/oauth/callback"
+			inspectorCallback2 := "http://localhost:6274/oauth/callback/debug"
+			cfg.OAuthConfig.AllowedRedirects = []string{defaultCallback, inspectorCallback1, inspectorCallback2}
 		}
 	}
 }

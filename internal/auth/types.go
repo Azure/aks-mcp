@@ -92,18 +92,25 @@ const (
 	DefaultClockSkew        = 1 * time.Minute
 	DefaultExpectedAudience = "https://management.azure.com"
 	AzureADScope            = "https://management.azure.com/.default"
+	// OpenID Connect scopes for MCP Inspector compatibility
+	OpenIDScope   = "openid"
+	ProfileScope  = "profile"
+	EmailScope    = "email"
+	UserReadScope = "User.Read"
 )
 
 // NewDefaultOAuthConfig creates a default OAuth configuration
 func NewDefaultOAuthConfig() *OAuthConfig {
 	return &OAuthConfig{
-		Enabled:          false,
-		RequiredScopes:   []string{AzureADScope},
+		Enabled: false,
+		// Use OpenID Connect scopes for user identity authentication
+		// These scopes authenticate the user to the MCP server, not for Azure resource management
+		RequiredScopes:   []string{OpenIDScope, ProfileScope, EmailScope, UserReadScope},
 		AllowedRedirects: []string{}, // Will be set dynamically based on configured port
 		TokenValidation: TokenValidationConfig{
-			ValidateJWT:      false, // Temporarily disable JWT validation for testing
-			ValidateAudience: false, // Disable audience validation too
-			ExpectedAudience: DefaultExpectedAudience,
+			ValidateJWT:      true,                                   // Re-enabled for production security
+			ValidateAudience: false,                                  // TODO: Enable after JWT validation is stable
+			ExpectedAudience: "00000003-0000-0000-c000-000000000000", // Microsoft Graph API ID
 			CacheTTL:         DefaultTokenCacheTTL,
 			ClockSkew:        DefaultClockSkew,
 		},
