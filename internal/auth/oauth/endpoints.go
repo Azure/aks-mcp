@@ -23,10 +23,15 @@ type EndpointManager struct {
 
 // setCORSHeaders sets CORS headers for OAuth endpoints to allow MCP Inspector access
 func (em *EndpointManager) setCORSHeaders(w http.ResponseWriter) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
+	// In production, this should be more restrictive
+	// For development and MCP Inspector compatibility, allow broader access
+	origin := "*" // TODO: Restrict to specific origins in production
+
+	w.Header().Set("Access-Control-Allow-Origin", origin)
 	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, mcp-protocol-version")
-	w.Header().Set("Access-Control-Max-Age", "86400") // 24 hours
+	w.Header().Set("Access-Control-Max-Age", "86400")           // 24 hours
+	w.Header().Set("Access-Control-Allow-Credentials", "false") // Explicit false for wildcard origin
 }
 
 // NewEndpointManager creates a new OAuth endpoint manager
@@ -171,27 +176,21 @@ func (em *EndpointManager) clientRegistrationHandler() http.HandlerFunc {
 			responseTypes = []string{"code"}
 		}
 
+		// For Azure AD compatibility, use the configured client ID
+		// In a full RFC 7591 implementation, each registration would get a unique ID
+		// But since Azure AD requires pre-registered client IDs, we return the configured one
+		clientID := em.config.ClientID
+
 		clientInfo := map[string]interface{}{
-			"client_id":                  em.config.ClientID, // Use configured client ID
+			"client_id":                  clientID,          // Use configured Azure AD client ID
+			"client_id_issued_at":        time.Now().Unix(), // RFC 7591: timestamp of issuance
 			"redirect_uris":              registrationRequest.RedirectURIs,
-			"token_endpoint_auth_method": "none", // Public client
+			"token_endpoint_auth_method": "none", // Public client (PKCE required)
 			"grant_types":                grantTypes,
 			"response_types":             responseTypes,
 			"client_name":                registrationRequest.ClientName,
 			"client_uri":                 registrationRequest.ClientURI,
 		}
-
-		// TODO: these should be deleted once we are able to validate scope, now it is for debug only.
-		// Debug: Log client registration
-		log.Printf("SCOPE DEBUG: Client registration request:\n")
-		reqJSON, _ := json.MarshalIndent(registrationRequest, "  ", "  ")
-		log.Printf("  Request: %s\n", string(reqJSON))
-		log.Printf("  Requested scope: '%s'\n", registrationRequest.Scope)
-		log.Printf("  Config required scopes: %v\n", em.config.RequiredScopes)
-
-		log.Printf("SCOPE DEBUG: Client registration response:\n")
-		respJSON, _ := json.MarshalIndent(clientInfo, "  ", "  ")
-		log.Printf("  Response: %s\n", string(respJSON))
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
@@ -469,114 +468,46 @@ func (em *EndpointManager) authorizationProxyHandler() http.HandlerFunc {
 		// Parse query parameters
 		query := r.URL.Query()
 
-		// TODO： these should be deleted once we are able to validate scope - now it is for debug only!
-		// Debug: Log the incoming request parameters
-		log.Printf("SCOPE DEBUG: Authorization proxy received parameters:\n")
-		log.Printf("  Request URL: %s\n", r.URL.String())
-		log.Printf("  Request Host: %s\n", r.Host)
-		for key, values := range query {
-			log.Printf("  %s: %v\n", key, values)
-			if key == "redirect_uri" {
-				log.Printf("  >>> MCP Inspector redirect_uri: '%s'\n", strings.Join(values, " "))
-				log.Printf("  >>> Server allowed redirects: %v\n", em.config.AllowedRedirects)
-			}
-			if key == "scope" {
-				log.Printf("  >>> MCP Inspector requested scope: '%s'\n", strings.Join(values, " "))
-				log.Printf("  >>> Server required scopes: %v\n", em.config.RequiredScopes)
+		// Enforce PKCE for OAuth 2.1 compliance (MCP requirement)
+		codeChallenge := query.Get("code_challenge")
+		codeChallengeMethod := query.Get("code_challenge_method")
 
-				// Check if there's a scope mismatch
-				requestedScopes := strings.Split(strings.Join(values, " "), " ")
-				hasAzureScope := false
-				hasOpenIDScope := false
-
-				for _, scope := range requestedScopes {
-					if strings.Contains(scope, "management.azure.com") {
-						hasAzureScope = true
-					}
-					if scope == "openid" || scope == "profile" || scope == "email" || scope == "offline_access" {
-						hasOpenIDScope = true
-					}
-				}
-
-				log.Printf("  >>> Has Azure Management scope: %t\n", hasAzureScope)
-				log.Printf("  >>> Has OpenID Connect scopes: %t\n", hasOpenIDScope)
-
-				// Check if MCP Inspector's requested scopes match server requirements
-				requestedScopeSet := make(map[string]bool)
-				for _, scope := range requestedScopes {
-					requestedScopeSet[scope] = true
-				}
-
-				requiredScopeSet := make(map[string]bool)
-				for _, scope := range em.config.RequiredScopes {
-					requiredScopeSet[scope] = true
-				}
-
-				// Check for missing required scopes
-				missingScopes := []string{}
-				for _, required := range em.config.RequiredScopes {
-					if !requestedScopeSet[required] {
-						missingScopes = append(missingScopes, required)
-					}
-				}
-
-				if len(missingScopes) > 0 {
-					log.Printf("  >>> WARNING: MCP Inspector missing required scopes: %v\n", missingScopes)
-					log.Printf("  >>> This may cause authentication failures later\n")
-				} else {
-					log.Printf("  >>> ✓ All required scopes are present in the request\n")
-				}
-			}
+		if codeChallenge == "" {
+			em.writeErrorResponse(w, "invalid_request", "PKCE code_challenge is required", http.StatusBadRequest)
+			return
 		}
+
+		if codeChallengeMethod == "" {
+			// Default to S256 if not specified
+			query.Set("code_challenge_method", "S256")
+		} else if codeChallengeMethod != "S256" {
+			em.writeErrorResponse(w, "invalid_request", "Only S256 code_challenge_method is supported", http.StatusBadRequest)
+			return
+		}
+
+		// Resource parameter handling for MCP compliance
+		// requestedScopes := strings.Split(query.Get("scope"), " ")
 
 		// Azure AD v2.0 doesn't support RFC 8707 Resource Indicators in authorization requests
-		// Remove the resource parameter if present and log it for MCP compliance tracking
+		// Remove the resource parameter if present for Azure AD compatibility
 		resourceParam := query.Get("resource")
 		if resourceParam != "" {
-			log.Printf("  >>> Received resource parameter from MCP client: %s\n", resourceParam)
-			log.Printf("  >>> Removing resource parameter for Azure AD v2.0 compatibility\n")
 			query.Del("resource")
-		} else {
-			log.Printf("  >>> No resource parameter in request (MCP client may not be using RFC 8707)\n")
 		}
 
-		// Ensure the request includes all required scopes for Azure AD
-		// Azure AD requires consistent scopes between authorization and token requests
-		requestedScopes := strings.Split(query.Get("scope"), " ")
-
-		// Build a set of all required scopes (client requested + server required)
-		allScopes := make(map[string]bool)
-
-		// Add client-requested scopes
-		for _, scope := range requestedScopes {
-			if scope != "" {
-				allScopes[scope] = true
-			}
-		}
-
-		// Add server-required scopes
-		for _, scope := range em.config.RequiredScopes {
-			allScopes[scope] = true
-		}
-
-		// Convert back to slice and update the query
-		var finalScopes []string
-		for scope := range allScopes {
-			finalScopes = append(finalScopes, scope)
-		}
+		// Use only server-required scopes for Azure AD compatibility
+		// Azure AD .default scopes cannot be mixed with OpenID Connect scopes
+		// We prioritize Azure Management API access over OpenID Connect user info
+		finalScopes := em.config.RequiredScopes
 
 		finalScopeString := strings.Join(finalScopes, " ")
 		query.Set("scope", finalScopeString)
-
-		log.Printf("  >>> Updated scope for Azure AD: '%s'\n", finalScopeString)
 
 		// Build the Azure AD authorization URL
 		azureAuthURL := fmt.Sprintf("https://login.microsoftonline.com/%s/oauth2/v2.0/authorize", em.config.TenantID)
 
 		// Create the redirect URL with filtered parameters
 		redirectURL := fmt.Sprintf("%s?%s", azureAuthURL, query.Encode())
-
-		log.Printf("Redirecting to Azure AD: %s\n", redirectURL)
 
 		// Redirect to Azure AD
 		http.Redirect(w, r, redirectURL, http.StatusFound)
@@ -588,8 +519,6 @@ func (em *EndpointManager) callbackHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Set CORS headers for all requests
 		em.setCORSHeaders(w)
-
-		fmt.Println("VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV")
 
 		// Handle preflight OPTIONS request
 		if r.Method == http.MethodOptions {
@@ -633,13 +562,7 @@ func (em *EndpointManager) callbackHandler() http.HandlerFunc {
 			return
 		}
 
-		// TODO: For now, skip token validation in callback since we know the token comes directly from Azure AD
-		// We'll validate it later when it's actually used for MCP requests
-		// This prevents callback failures due to JWT signature validation issues
-		fmt.Printf("=== CALLBACK TOKEN VALIDATION SKIPPED ===\n")
-		fmt.Printf("Token received from Azure AD (length: %d)\n", len(tokenResponse.AccessToken))
-		fmt.Printf("Skipping JWT validation in callback - will validate on actual MCP requests\n")
-
+		// Skip token validation in callback - validation happens during MCP requests
 		// Create minimal token info for callback success page
 		tokenInfo := &auth.TokenInfo{
 			AccessToken: tokenResponse.AccessToken,
@@ -699,7 +622,6 @@ func (em *EndpointManager) exchangeCodeForToken(code, state string) (*TokenRespo
 	// Note: Azure AD v2.0 doesn't support the 'resource' parameter in token requests
 	// It uses scope-based resource identification instead
 	// For MCP compliance, we handle resource binding through audience validation
-	log.Printf("Azure AD token request with scope: %s", strings.Join(em.config.RequiredScopes, " "))
 
 	// Make token exchange request
 	resp, err := http.PostForm(tokenURL, data)
@@ -718,8 +640,6 @@ func (em *EndpointManager) exchangeCodeForToken(code, state string) (*TokenRespo
 	if err := json.NewDecoder(resp.Body).Decode(&tokenResponse); err != nil {
 		return nil, fmt.Errorf("failed to parse token response: %w", err)
 	}
-
-	fmt.Println("XXXXXXXX, EXCHANGE CODE FOR TOKEN", tokenResponse.AccessToken)
 
 	return &tokenResponse, nil
 }
@@ -836,6 +756,29 @@ func (em *EndpointManager) writeCallbackSuccessResponse(w http.ResponseWriter, t
 	w.Write([]byte(html))
 }
 
+// isValidClientID validates if a client ID is acceptable
+func (em *EndpointManager) isValidClientID(clientID string) bool {
+	// Accept configured client ID (primary method for Azure AD)
+	if clientID == em.config.ClientID {
+		return true
+	}
+
+	// For future extensibility, could accept other registered client IDs
+	// But for Azure AD integration, we primarily use the configured client ID
+
+	return false
+}
+
+// generateClientID generates a unique client ID for dynamic registration
+func (em *EndpointManager) generateClientID() (string, error) {
+	bytes := make([]byte, 16)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	// Use a prefix to identify AKS-MCP generated client IDs
+	return fmt.Sprintf("aks-mcp-%s", base64.URLEncoding.EncodeToString(bytes)), nil
+}
+
 // generateSessionToken generates a secure random session token
 func (em *EndpointManager) generateSessionToken() (string, error) {
 	bytes := make([]byte, 32)
@@ -848,11 +791,6 @@ func (em *EndpointManager) generateSessionToken() (string, error) {
 // tokenHandler handles OAuth 2.0 token endpoint requests (Authorization Code exchange)
 func (em *EndpointManager) tokenHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("=== TOKEN ENDPOINT CALLED ===")
-		log.Printf("Method: %s", r.Method)
-		log.Printf("URL: %s", r.URL.String())
-		log.Printf("User-Agent: %s", r.Header.Get("User-Agent"))
-
 		// Set CORS headers for all requests
 		em.setCORSHeaders(w)
 
@@ -901,8 +839,14 @@ func (em *EndpointManager) tokenHandler() http.HandlerFunc {
 			return
 		}
 
-		// Validate client ID
-		if clientID != em.config.ClientID {
+		// Enforce PKCE code_verifier for OAuth 2.1 compliance
+		if codeVerifier == "" {
+			em.writeErrorResponse(w, "invalid_request", "PKCE code_verifier is required", http.StatusBadRequest)
+			return
+		}
+
+		// Validate client ID (accept both configured and dynamically registered clients)
+		if !em.isValidClientID(clientID) {
 			em.writeErrorResponse(w, "invalid_client", "Invalid client_id", http.StatusBadRequest)
 			return
 		}
@@ -912,9 +856,6 @@ func (em *EndpointManager) tokenHandler() http.HandlerFunc {
 		if requestedScope == "" {
 			// Fallback to server required scopes if not provided
 			requestedScope = strings.Join(em.config.RequiredScopes, " ")
-			log.Printf("No scope in token request, using server required scopes: %s", requestedScope)
-		} else {
-			log.Printf("Using client requested scope from token request: %s", requestedScope)
 		}
 
 		// Exchange authorization code for access token with Azure AD

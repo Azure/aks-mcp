@@ -103,14 +103,14 @@ const (
 func NewDefaultOAuthConfig() *OAuthConfig {
 	return &OAuthConfig{
 		Enabled: false,
-		// Use OpenID Connect scopes for user identity authentication
-		// These scopes authenticate the user to the MCP server, not for Azure resource management
-		RequiredScopes:   []string{OpenIDScope, ProfileScope, EmailScope, UserReadScope},
-		AllowedRedirects: []string{}, // Will be set dynamically based on configured port
+		// Use Azure Management API scope to get v2.0 format tokens
+		// This ensures we get v2.0 issuer format which works with v2.0 JWKS endpoints
+		RequiredScopes:   []string{AzureADScope}, // "https://management.azure.com/.default"
+		AllowedRedirects: []string{},             // Will be set dynamically based on configured port
 		TokenValidation: TokenValidationConfig{
-			ValidateJWT:      true,                                   // Re-enabled for production security
-			ValidateAudience: false,                                  // TODO: Enable after JWT validation is stable
-			ExpectedAudience: "00000003-0000-0000-c000-000000000000", // Microsoft Graph API ID
+			ValidateJWT:      true,                    // Re-enabled now that we'll get v2.0 tokens
+			ValidateAudience: true,                    // Re-enabled with correct audience
+			ExpectedAudience: DefaultExpectedAudience, // "https://management.azure.com"
 			CacheTTL:         DefaultTokenCacheTTL,
 			ClockSkew:        DefaultClockSkew,
 		},

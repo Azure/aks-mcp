@@ -2,9 +2,7 @@ package oauth
 
 import (
 	"context"
-	"crypto"
 	"crypto/rsa"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -165,7 +163,6 @@ func (p *AzureOAuthProvider) ValidateToken(ctx context.Context, tokenString stri
 
 	// If JWT validation is disabled, return a minimal token info without full validation
 	if !p.config.TokenValidation.ValidateJWT {
-		fmt.Printf("JWT validation disabled, returning minimal token info\n")
 		return &auth.TokenInfo{
 			AccessToken: tokenString,
 			TokenType:   "Bearer",
@@ -179,166 +176,31 @@ func (p *AzureOAuthProvider) ValidateToken(ctx context.Context, tokenString stri
 	}
 
 	// Parse and validate JWT token
-	fmt.Printf("Starting JWT token parsing and validation...\n")
-	fmt.Println("xxxxxxxxxxxxxxxx")
-	fmt.Println(tokenString)
+	fmt.Printf("=== JWT SIGNATURE VALIDATION START ===\n")
 
-	// STEP 1: First parse WITHOUT signature validation to check claims and expiration
-	fmt.Printf("=== STEP 1: Parsing token WITHOUT signature validation ===\n")
+	// Parse token structure and check expiration
 	parserUnsafe := jwt.NewParser(jwt.WithoutClaimsValidation())
 	tokenUnsafe, _, err := parserUnsafe.ParseUnverified(tokenString, jwt.MapClaims{})
 	if err != nil {
-		fmt.Printf("Failed to parse token structure: %v\n", err)
 		return nil, fmt.Errorf("invalid token structure: %w", err)
 	}
 
-	// Check claims and expiration manually
+	// Check claims and expiration
 	if claims, ok := tokenUnsafe.Claims.(jwt.MapClaims); ok {
-		fmt.Printf("Token claims extracted successfully\n")
-
-		// Check expiration
 		if exp, ok := claims["exp"].(float64); ok {
 			expTime := time.Unix(int64(exp), 0)
-			fmt.Printf("Token exp claim: %v (timestamp: %.0f)\n", expTime, exp)
-			fmt.Printf("Current time: %v\n", time.Now())
-			fmt.Printf("Time until expiry: %v\n", time.Until(expTime))
-
 			if time.Now().After(expTime) {
-				fmt.Printf("*** TOKEN IS EXPIRED - This explains the signature validation failure! ***\n")
 				return nil, fmt.Errorf("token expired at %v", expTime)
-			} else {
-				fmt.Printf("✓ Token is not expired\n")
-			}
-		} else {
-			fmt.Printf("WARNING: No exp claim found in token\n")
-		}
-
-		// Check issuer
-		if iss, ok := claims["iss"].(string); ok {
-			fmt.Printf("Token issuer: %s\n", iss)
-		}
-
-		// Check key ID
-		if tokenUnsafe.Header != nil {
-			if kid, ok := tokenUnsafe.Header["kid"].(string); ok {
-				fmt.Printf("Token key ID (kid): %s\n", kid)
-			}
-			if alg, ok := tokenUnsafe.Header["alg"].(string); ok {
-				fmt.Printf("Token algorithm: %s\n", alg)
 			}
 		}
 	}
 
-	// STEP 2: Now try with signature validation
-	fmt.Printf("=== STEP 2: Parsing token WITH signature validation ===\n")
-
-	// Let's try a different approach - manually verify signature first
-	fmt.Printf("=== MANUAL SIGNATURE VERIFICATION TEST ===\n")
-	tokenParts := strings.Split(tokenString, ".")
-	if len(tokenParts) == 3 {
-		headerAndPayload := tokenParts[0] + "." + tokenParts[1]
-		signature := tokenParts[2]
-
-		fmt.Printf("Header+Payload length: %d\n", len(headerAndPayload))
-		fmt.Printf("Signature (base64url): %s\n", signature)
-
-		// Decode signature
-		sigBytes, err := base64.RawURLEncoding.DecodeString(signature)
-		if err != nil {
-			fmt.Printf("Failed to decode signature: %v\n", err)
-		} else {
-			fmt.Printf("Signature decoded length: %d bytes\n", len(sigBytes))
-			fmt.Printf("Signature first 10 bytes: %x\n", sigBytes[:10])
-
-			// Try manual RSA verification
-			fmt.Printf("=== TRYING MANUAL RSA VERIFICATION ===\n")
-
-			// First, get the public key from JWKS (we'll use the same logic)
-			if claims, ok := tokenUnsafe.Claims.(jwt.MapClaims); ok {
-				if iss, ok := claims["iss"].(string); ok {
-					if kid, ok := tokenUnsafe.Header["kid"].(string); ok {
-						fmt.Printf("Getting public key for manual verification...\n")
-						pubKey, keyErr := p.getPublicKey(kid, iss)
-						if keyErr != nil {
-							fmt.Printf("Failed to get public key for manual verification: %v\n", keyErr)
-						} else {
-							fmt.Printf("Got public key, attempting manual RSA verification...\n")
-
-							// Create SHA256 hash of header+payload
-							hasher := sha256.New()
-							hasher.Write([]byte(headerAndPayload))
-							hash := hasher.Sum(nil)
-
-							fmt.Printf("SHA256 hash of header+payload: %x\n", hash)
-							fmt.Printf("Hash length: %d bytes\n", len(hash))
-
-							// Try to verify the signature manually
-							verifyErr := rsa.VerifyPKCS1v15(pubKey, crypto.SHA256, hash, sigBytes)
-							if verifyErr != nil {
-								fmt.Printf("*** MANUAL RSA VERIFICATION FAILED: %v ***\n", verifyErr)
-								fmt.Printf("This confirms the issue is with the RSA signature itself\n")
-
-								// Let's try different padding schemes
-								fmt.Printf("Trying PSS padding instead of PKCS1v15...\n")
-								pssErr := rsa.VerifyPSS(pubKey, crypto.SHA256, hash, sigBytes, nil)
-								if pssErr != nil {
-									fmt.Printf("PSS verification also failed: %v\n", pssErr)
-								} else {
-									fmt.Printf("*** PSS VERIFICATION SUCCEEDED! ***\n")
-									fmt.Printf("Azure AD might be using PSS padding instead of PKCS1v15!\n")
-								}
-							} else {
-								fmt.Printf("*** MANUAL RSA VERIFICATION SUCCEEDED! ***\n")
-								fmt.Printf("This suggests the JWT library has a bug or different expectations\n")
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-
+	// JWT signature validation
 	parser := jwt.NewParser(jwt.WithoutClaimsValidation())
 	token, err := parser.ParseWithClaims(tokenString, jwt.MapClaims{}, p.getKeyFunc)
 	if err != nil {
-		fmt.Printf("JWT parsing failed with error: %v\n", err)
-		fmt.Printf("Error type: %T\n", err)
-
-		// Check if the error message contains signature-related keywords
-		errStr := err.Error()
-		if strings.Contains(errStr, "signature") {
-			fmt.Printf("  *** SIGNATURE VALIDATION FAILED ***\n")
-			fmt.Printf("  Since token is not expired, this indicates:\n")
-			fmt.Printf("    1. Wrong public key being used\n")
-			fmt.Printf("    2. Key parsing/decoding issue\n")
-			fmt.Printf("    3. Algorithm mismatch\n")
-			fmt.Printf("    4. Token corruption/modification\n")
-
-			fmt.Printf("  Raw error details: %v\n", err)
-			fmt.Printf("  Error type: %T\n", err)
-		}
-		if strings.Contains(errStr, "expired") {
-			fmt.Printf("  *** TOKEN EXPIRED ***\n")
-		}
-
 		return nil, fmt.Errorf("failed to parse token: %w", err)
 	}
-
-	// Now manually validate expiration with better error handling
-	if claims, ok := token.Claims.(jwt.MapClaims); ok {
-		if exp, ok := claims["exp"].(float64); ok {
-			expTime := time.Unix(int64(exp), 0)
-			fmt.Printf("Token expiration time: %v\n", expTime)
-			fmt.Printf("Current time: %v\n", time.Now())
-			if time.Now().After(expTime) {
-				fmt.Printf("  *** TOKEN IS EXPIRED ***\n")
-				return nil, fmt.Errorf("token expired at %v", expTime)
-			}
-		}
-	}
-
-	fmt.Printf("JWT parsing completed successfully\n")
-	fmt.Printf("Token valid: %t\n", token.Valid)
 
 	if !token.Valid {
 		return nil, fmt.Errorf("invalid token")
@@ -349,19 +211,21 @@ func (p *AzureOAuthProvider) ValidateToken(ctx context.Context, tokenString stri
 		return nil, fmt.Errorf("invalid token claims")
 	}
 
-	// Validate issuer - Azure AD can use different issuer formats
+	// Validate issuer - with Azure Management API scope, we should get v2.0 format
 	issuer, ok := claims["iss"].(string)
 	if !ok {
 		return nil, fmt.Errorf("missing issuer claim")
 	}
 
-	// Azure AD supports both v1.0 and v2.0 issuer formats
+	// Azure Management API scope should return v2.0 issuer format
 	expectedIssuerV2 := fmt.Sprintf("https://login.microsoftonline.com/%s/v2.0", p.config.TenantID)
 	expectedIssuerV1 := fmt.Sprintf("https://sts.windows.net/%s/", p.config.TenantID)
 
 	if issuer != expectedIssuerV2 && issuer != expectedIssuerV1 {
-		return nil, fmt.Errorf("invalid issuer: expected %s or %s, got %s", expectedIssuerV2, expectedIssuerV1, issuer)
+		return nil, fmt.Errorf("invalid issuer: expected %s (preferred) or %s (fallback), got %s", expectedIssuerV2, expectedIssuerV1, issuer)
 	}
+
+	// Azure AD may return v1.0 or v2.0 issuer format depending on token scope
 
 	// Validate audience
 	if p.config.TokenValidation.ValidateAudience {
@@ -401,44 +265,23 @@ func (p *AzureOAuthProvider) ValidateToken(ctx context.Context, tokenString stri
 		}
 	}
 
-	// Extract scope
-	fmt.Printf("Scope extraction debug:\n")
-	fmt.Printf("  All claims in token: %+v\n", claims)
-
+	// Extract scope from Azure AD token
 	// Check for 'scp' claim (Azure AD v2.0)
 	if scp, ok := claims["scp"].(string); ok {
-		fmt.Printf("  Found 'scp' claim: %s\n", scp)
 		tokenInfo.Scope = strings.Split(scp, " ")
-		fmt.Printf("  Parsed scopes from 'scp': %v\n", tokenInfo.Scope)
-	} else {
-		fmt.Printf("  No 'scp' claim found\n")
-	}
-
-	// Check for 'scope' claim (alternative)
-	if scope, ok := claims["scope"].(string); ok {
-		fmt.Printf("  Found 'scope' claim: %s\n", scope)
-		if len(tokenInfo.Scope) == 0 {
-			tokenInfo.Scope = strings.Split(scope, " ")
-			fmt.Printf("  Parsed scopes from 'scope': %v\n", tokenInfo.Scope)
-		}
-	} else {
-		fmt.Printf("  No 'scope' claim found\n")
+	} else if scope, ok := claims["scope"].(string); ok {
+		// Check for 'scope' claim (alternative)
+		tokenInfo.Scope = strings.Split(scope, " ")
 	}
 
 	// Check for 'roles' claim (Azure AD app roles)
 	if roles, ok := claims["roles"].([]interface{}); ok {
-		fmt.Printf("  Found 'roles' claim: %v\n", roles)
 		for _, role := range roles {
 			if roleStr, ok := role.(string); ok {
 				tokenInfo.Scope = append(tokenInfo.Scope, roleStr)
 			}
 		}
-		fmt.Printf("  Total scopes after adding roles: %v\n", tokenInfo.Scope)
-	} else {
-		fmt.Printf("  No 'roles' claim found\n")
 	}
-
-	fmt.Printf("  Final extracted scopes: %v\n", tokenInfo.Scope)
 
 	// Extract expiration
 	if exp, ok := claims["exp"].(float64); ok {
@@ -447,14 +290,6 @@ func (p *AzureOAuthProvider) ValidateToken(ctx context.Context, tokenString stri
 
 	// Set issuer
 	tokenInfo.Issuer = issuer
-
-	// Validate with Azure AD directly
-	fmt.Printf("DEBUG: Validating token with Azure AD introspection endpoint...\n")
-	if err := p.validateTokenWithAzureAD(tokenString); err != nil {
-		fmt.Printf("DEBUG: Azure AD validation failed: %v\n", err)
-	} else {
-		fmt.Printf("DEBUG: Azure AD validation successful - token is active\n")
-	}
 
 	return tokenInfo, nil
 }
@@ -533,13 +368,7 @@ func (p *AzureOAuthProvider) validateResourceBinding(claims jwt.MapClaims) error
 
 // getKeyFunc returns a function to retrieve JWT signing keys
 func (p *AzureOAuthProvider) getKeyFunc(token *jwt.Token) (interface{}, error) {
-	// Debug the signing method
-	fmt.Printf("JWT signing method debug:\n")
-	fmt.Printf("  Token method type: %T\n", token.Method)
-	fmt.Printf("  Token method string: %s\n", token.Method.Alg())
-	fmt.Printf("  Header alg: %v\n", token.Header["alg"])
-
-	// Ensure the token uses RS256 specifically
+	// Validate signing method
 	if token.Method.Alg() != "RS256" {
 		return nil, fmt.Errorf("unexpected signing method: expected RS256, got %v", token.Method.Alg())
 	}
@@ -562,16 +391,17 @@ func (p *AzureOAuthProvider) getKeyFunc(token *jwt.Token) (interface{}, error) {
 			issuer = iss
 		}
 	}
-	fmt.Printf("Token issuer: %s\n", issuer)
-	fmt.Printf("Key ID (kid): %s\n", kid)
+
+	fmt.Printf("JWT Key Resolution: issuer=%s, kid=%s\n", issuer, kid)
 
 	// Get the public key for this key ID using the appropriate issuer
 	key, err := p.getPublicKey(kid, issuer)
 	if err != nil {
+		fmt.Printf("*** PUBLIC KEY RETRIEVAL FAILED: %v ***\n", err)
 		return nil, fmt.Errorf("failed to get public key: %w", err)
 	}
 
-	fmt.Printf("Returning RSA public key for signature verification (N bit length: %d)\n", key.N.BitLen())
+	fmt.Printf("Public key retrieved successfully (RSA %d bits)\n", key.N.BitLen())
 	return key, nil
 }
 
@@ -581,7 +411,7 @@ func (p *AzureOAuthProvider) getPublicKey(kid string, issuer string) (*rsa.Publi
 	// Cache disabled for debugging JWT signature validation problems
 
 	// Generate cache key based on both kid and issuer to avoid conflicts between v1.0 and v2.0 keys
-	cacheKey := fmt.Sprintf("%s_%s", kid, issuer)
+	// cacheKey := fmt.Sprintf("%s_%s", kid, issuer)
 
 	// TODO: Re-enable cache checking logic
 	// Cache logic commented out for debugging
@@ -607,19 +437,12 @@ func (p *AzureOAuthProvider) getPublicKey(kid string, issuer string) (*rsa.Publi
 		}
 	*/
 
-	fmt.Printf("Cache disabled - fetching fresh key %s from JWKS\n", cacheKey)
+	// With Azure Management API scope, we should always get v2.0 format tokens
+	// Force using v2.0 JWKS endpoint for consistency
+	jwksURL := fmt.Sprintf("https://login.microsoftonline.com/%s/discovery/v2.0/keys", p.config.TenantID)
+	fmt.Printf("JWKS Using v2.0 endpoint (forced for Azure Management API scopes)\n")
 
-	// Determine the correct JWKS URL based on issuer
-	var jwksURL string
-	if strings.Contains(issuer, "sts.windows.net") {
-		// v1.0 endpoint
-		jwksURL = fmt.Sprintf("https://login.microsoftonline.com/%s/discovery/keys", p.config.TenantID)
-		fmt.Printf("Using v1.0 JWKS endpoint: %s\n", jwksURL)
-	} else {
-		// v2.0 endpoint (default)
-		jwksURL = fmt.Sprintf("https://login.microsoftonline.com/%s/discovery/v2.0/keys", p.config.TenantID)
-		fmt.Printf("Using v2.0 JWKS endpoint: %s\n", jwksURL)
-	}
+	fmt.Printf("JWKS Fetching from: %s\n", jwksURL)
 
 	resp, err := p.httpClient.Get(jwksURL)
 	if err != nil {
@@ -649,101 +472,39 @@ func (p *AzureOAuthProvider) getPublicKey(kid string, issuer string) (*rsa.Publi
 		return nil, fmt.Errorf("failed to parse JWKS: %w", err)
 	}
 
-	fmt.Printf("JWKS response debug:\n")
-	fmt.Printf("  Response status: %d\n", resp.StatusCode)
-	fmt.Printf("  Response body length: %d bytes\n", len(body))
-	fmt.Printf("  Found %d keys in JWKS\n", len(jwks.Keys))
-	for i, key := range jwks.Keys {
-		fmt.Printf("  Key %d: kid=%s, kty=%s, n_length=%d, e_length=%d\n",
-			i+1, key.Kid, key.Kty, len(key.N), len(key.E))
-	}
+	fmt.Printf("JWKS Contains %d keys, searching for kid=%s\n", len(jwks.Keys), kid)
 
-	// TODO: Re-enable cache update logic after fixing JWT signature validation
-	// Cache update logic commented out for debugging
-	/*
-		// Update cache
-		p.keyCache.mu.Lock()
-		defer p.keyCache.mu.Unlock()
-
-		// Don't clear all keys, just add new ones with cache key
-		if p.keyCache.keys == nil {
-			p.keyCache.keys = make(map[string]*rsa.PublicKey)
-		}
-		p.keyCache.expiresAt = time.Now().Add(p.config.TokenValidation.CacheTTL)
-	*/
-
-	fmt.Printf("Parsing JWKS response, found %d keys (cache disabled)\n", len(jwks.Keys))
-
-	// Parse keys without caching for debugging
+	// Parse keys and find the target key
 	var targetKey *rsa.PublicKey
+	var foundKeyIds []string
+
 	for _, key := range jwks.Keys {
-		if key.Kty == "RSA" {
-			fmt.Printf("Parsing RSA key %s...\n", key.Kid)
+		foundKeyIds = append(foundKeyIds, key.Kid)
+
+		if key.Kty == "RSA" && key.Kid == kid {
+			fmt.Printf("*** JWKS FOUND TARGET KEY %s ***\n", kid)
 			pubKey, err := parseRSAPublicKey(key.N, key.E)
 			if err != nil {
-				fmt.Printf("Failed to parse key %s: %v\n", key.Kid, err)
-				continue // Skip invalid keys
+				fmt.Printf("JWKS Failed to parse RSA key %s: %v\n", key.Kid, err)
+				continue
 			}
-
-			// TODO: Re-enable caching when cache is fixed
-			// keyCache := fmt.Sprintf("%s_%s", key.Kid, issuer)
-			// p.keyCache.keys[keyCache] = pubKey
-			fmt.Printf("Successfully parsed key: %s (RSA modulus bits: %d) - not cached\n", key.Kid, pubKey.N.BitLen())
-
-			// Special debug for the target key
-			if key.Kid == kid {
-				fmt.Printf("*** Found target key %s! ***\n", kid)
-				nPreview := key.N
-				if len(nPreview) > 50 {
-					nPreview = nPreview[:50] + "..."
-				}
-				fmt.Printf("  RSA N (preview): %s\n", nPreview)
-				fmt.Printf("  RSA E: %s\n", key.E)
-				fmt.Printf("  Parsed N bit length: %d\n", pubKey.N.BitLen())
-				fmt.Printf("  Parsed E value: %d\n", pubKey.E)
-
-				// Debug: Let's test if our key parsing is working correctly
-				// by trying to verify the JWT signature manually
-				fmt.Printf("=== DEBUGGING RSA KEY CONSTRUCTION ===\n")
-				fmt.Printf("  Raw N (base64url): %s\n", key.N)
-				fmt.Printf("  Raw E (base64url): %s\n", key.E)
-
-				// Test base64url decoding
-				nBytes, nErr := base64.RawURLEncoding.DecodeString(key.N)
-				eBytes, eErr := base64.RawURLEncoding.DecodeString(key.E)
-
-				if nErr != nil {
-					fmt.Printf("  ERROR: Failed to decode N: %v\n", nErr)
-				} else {
-					fmt.Printf("  N decoded length: %d bytes\n", len(nBytes))
-					fmt.Printf("  N first 10 bytes: %x\n", nBytes[:10])
-				}
-
-				if eErr != nil {
-					fmt.Printf("  ERROR: Failed to decode E: %v\n", eErr)
-				} else {
-					fmt.Printf("  E decoded length: %d bytes\n", len(eBytes))
-					fmt.Printf("  E bytes: %x\n", eBytes)
-					// E should typically be 65537 (0x010001)
-					if len(eBytes) == 3 && eBytes[0] == 0x01 && eBytes[1] == 0x00 && eBytes[2] == 0x01 {
-						fmt.Printf("  ✓ E value looks correct (65537)\n")
-					} else {
-						fmt.Printf("  ⚠ E value is unexpected\n")
-					}
-				}
-
-				targetKey = pubKey
-			}
+			fmt.Printf("JWKS RSA key details: %d bits\n", pubKey.N.BitLen())
+			targetKey = pubKey
+			break
 		}
 	}
 
-	// Return the requested key without caching
+	// Return the requested key
 	if targetKey != nil {
-		fmt.Printf("Found requested key %s in fresh JWKS response (not cached)\n", kid)
+		fmt.Printf("JWKS Successfully returning RSA key for JWT signature validation\n")
 		return targetKey, nil
 	}
 
-	return nil, fmt.Errorf("key with ID %s not found", kid)
+	fmt.Printf("*** JWKS KEY NOT FOUND ***\n")
+	fmt.Printf("JWKS Requested key ID: %s\n", kid)
+	fmt.Printf("JWKS Available key IDs: %v\n", foundKeyIds)
+
+	return nil, fmt.Errorf("key with ID %s not found in JWKS (available: %v)", kid, foundKeyIds)
 }
 
 // parseRSAPublicKey parses RSA public key from JWK format
@@ -777,37 +538,37 @@ func parseRSAPublicKey(nStr, eStr string) (*rsa.PublicKey, error) {
 func (p *AzureOAuthProvider) validateTokenWithAzureAD(token string) error {
 	// Use Azure AD token introspection endpoint to validate the token
 	introspectURL := fmt.Sprintf("https://login.microsoftonline.com/%s/oauth2/v2.0/introspect", p.config.TenantID)
-	
+
 	data := url.Values{}
 	data.Set("token", token)
 	data.Set("client_id", p.config.ClientID)
-	
+
 	resp, err := p.httpClient.PostForm(introspectURL, data)
 	if err != nil {
 		return fmt.Errorf("introspection request failed: %w", err)
 	}
 	defer resp.Body.Close()
-	
+
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return fmt.Errorf("failed to read introspection response: %w", err)
 	}
-	
+
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("introspection failed with status %d: %s", resp.StatusCode, string(body))
 	}
-	
+
 	var introspectionResult struct {
 		Active bool `json:"active"`
 	}
-	
+
 	if err := json.Unmarshal(body, &introspectionResult); err != nil {
 		return fmt.Errorf("failed to parse introspection response: %w", err)
 	}
-	
+
 	if !introspectionResult.Active {
 		return fmt.Errorf("token is not active according to Azure AD")
 	}
-	
+
 	return nil
 }
