@@ -54,9 +54,42 @@ AKS-MCP uses the same environment variables (`AZURE_TENANT_ID`, `AZURE_CLIENT_ID
    Configure the following:
    - **Name**: `AKS-MCP-OAuth` (or your preferred name)
    - **Supported account types**: "Accounts in this organizational directory only"
-   - **Redirect URI**: Choose "Single-page application (SPA)" platform
-     - Add: `http://localhost:8080/oauth/callback`
-     - Add: `http://localhost:6274/oauth/callback/debug` (for MCP Inspector)
+   - **Redirect URI Platform Options**:
+
+#### Supported Platform Types
+
+**✅ Mobile and desktop applications (Recommended)**
+- **Platform**: "Mobile and desktop applications" 
+- **Redirect URIs**:
+  - `http://localhost:8080/oauth/callback`
+  - `http://localhost:6274/oauth/callback/debug` (for MCP Inspector)
+- **Benefits**: 
+  - Native support for PKCE (required by OAuth 2.1)
+  - No client secret required (public client)
+  - Better security for localhost redirects
+- **Status**: ✅ **Confirmed working**
+
+**✅ Single-page application (SPA)**
+- **Platform**: "Single-page application (SPA)"
+- **Redirect URIs**: Same as above
+- **Benefits**: 
+  - Designed for PKCE flow
+  - No client secret required
+- **Limitations**: 
+  - Stricter CORS policies
+  - May have additional security restrictions
+
+**❌ Web application**
+- **Platform**: "Web"
+- **Why not supported**: 
+  - Requires client secret (confidential client)
+  - AKS-MCP implements public client flow without secrets
+  - PKCE handling may differ
+
+**Choose Platform Recommendation:**
+1. **Primary**: Use "Mobile and desktop applications" (confirmed working)
+2. **Alternative**: Use "Single-page application" if you prefer SPA semantics
+3. **Avoid**: "Web" platform due to client secret requirements
 
 3. **Record Essential Information**
    From the "Overview" page, note:
@@ -65,6 +98,20 @@ AKS-MCP uses the same environment variables (`AZURE_TENANT_ID`, `AZURE_CLIENT_ID
 
 #### Using Azure CLI (Alternative)
 
+**For Mobile and desktop applications platform:**
+```bash
+# Create Azure AD application with public client platform
+az ad app create --display-name "AKS-MCP-OAuth" \
+  --public-client-redirect-uris "http://localhost:8080/oauth/callback" "http://localhost:6274/oauth/callback/debug"
+
+# Get application details
+az ad app list --display-name "AKS-MCP-OAuth" --query "[0].{appId:appId,objectId:objectId}"
+
+# Get your tenant ID
+az account show --query "tenantId" -o tsv
+```
+
+**For Single-page application platform:**
 ```bash
 # Create Azure AD application with SPA platform
 az ad app create --display-name "AKS-MCP-OAuth" \
@@ -172,6 +219,10 @@ curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8080/mcp
   --oauth-client-id="$AZURE_CLIENT_ID" \
   --oauth-redirects="http://localhost:8080/oauth/callback,http://localhost:6274/oauth/callback/debug" \
   --access-level=readonly
+
+# Environment variables are automatically used if set
+# You can also just use:
+./aks-mcp --transport=streamable-http --port=8080 --oauth-enabled --access-level=readonly
 ```
 
 ## Configuration Options
@@ -181,8 +232,9 @@ curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8080/mcp
 - `--oauth-enabled`: Enable OAuth authentication (default: false)
 - `--oauth-tenant-id`: Azure AD tenant ID (or use AZURE_TENANT_ID env var)
 - `--oauth-client-id`: Azure AD client ID (or use AZURE_CLIENT_ID env var)
-- `--oauth-scopes`: Comma-separated list of required scopes
-- `--oauth-redirects`: Comma-separated list of allowed redirect URIs
+- `--oauth-redirects`: Comma-separated list of allowed redirect URIs (required when OAuth enabled)
+
+**Note**: OAuth scopes are automatically configured to use `https://management.azure.com/.default` for optimal Azure AD compatibility. Custom scopes are not currently configurable via command line.
 
 ### Example with Command Line Flags
 
@@ -190,9 +242,10 @@ curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8080/mcp
 ./aks-mcp --transport=sse --oauth-enabled=true \
   --oauth-tenant-id="12345678-1234-1234-1234-123456789012" \
   --oauth-client-id="87654321-4321-4321-4321-210987654321" \
-  --oauth-scopes="https://management.azure.com/.default" \
-  --oauth-redirects="http://localhost:3000/oauth/callback,https://myapp.com/callback"
+  --oauth-redirects="http://localhost:8080/oauth/callback,http://localhost:6274/oauth/callback/debug"
 ```
+
+**Note**: Scopes are automatically set to `https://management.azure.com/.default` and cannot be customized via command line.
 
 ## OAuth Endpoints
 
@@ -202,13 +255,17 @@ When OAuth is enabled, the following endpoints are available:
 
 - `GET /.well-known/oauth-protected-resource` - OAuth 2.0 Protected Resource Metadata (RFC 9728)
 - `GET /.well-known/oauth-authorization-server` - OAuth 2.0 Authorization Server Metadata (RFC 8414)
+- `GET /.well-known/openid-configuration` - OpenID Connect Discovery (alias for authorization server metadata)
 - `GET /health` - Health check endpoint
 
-### Client Registration (Unauthenticated)
+### OAuth Flow Endpoints (Unauthenticated)
 
+- `GET /oauth2/v2.0/authorize` - Authorization endpoint proxy to Azure AD
+- `POST /oauth2/v2.0/token` - Token exchange endpoint proxy to Azure AD
+- `GET /oauth/callback` - Authorization Code flow callback handler
 - `POST /oauth/register` - Dynamic Client Registration (RFC 7591)
 
-### Token Introspection (Unauthenticated for simplicity)
+### Token Management (Unauthenticated for simplicity)
 
 - `POST /oauth/introspect` - Token Introspection (RFC 7662)
 
@@ -291,10 +348,33 @@ curl -X POST http://localhost:8000/oauth/introspect \
 
 ### Common Issues
 
+#### Authentication and Token Issues
 1. **Invalid Token**: Ensure the token is valid and not expired
-2. **Wrong Audience**: Verify the token audience matches configuration
-3. **Missing Scopes**: Ensure the token includes required scopes
-4. **Network Issues**: Check connectivity to Azure AD endpoints
+2. **Wrong Audience**: Verify the token audience matches `https://management.azure.com`
+3. **Missing Scopes**: Ensure the token includes `https://management.azure.com/.default` scope
+4. **JWT Signature Validation Failed**: 
+   - Check that Azure AD application platform is set correctly
+   - Verify tenant ID matches the issuer in the token
+   - Ensure token is using v2.0 format (from Azure Management API scope)
+
+#### Azure AD Application Configuration Issues
+5. **Client ID Not Found**: Verify the Application (client) ID is correct
+6. **Redirect URI Mismatch**: Ensure redirect URIs match exactly in Azure AD app registration
+7. **Wrong Platform Type**: Use "Mobile and desktop applications" or "Single-page application", NOT "Web"
+8. **Insufficient Permissions**: Verify both OAuth and Azure resource permissions are configured
+
+#### Network and Endpoint Issues  
+9. **CORS Errors**: Check that redirect URIs are properly configured for localhost
+10. **Network Issues**: Check connectivity to Azure AD endpoints
+11. **Port Conflicts**: Ensure the configured port (default 8080) is available
+
+#### Scope and Permission Issues
+12. **Scope Mixing Error**: 
+    - Error: "scope can't be combined with resource-specific scopes"
+    - Solution: Our implementation automatically handles this by using only Azure Management API scope
+13. **Resource Parameter Issues**: 
+    - Azure AD doesn't support RFC 8707 resource parameter
+    - Our implementation works around this limitation automatically
 
 ### Debug Logging
 
@@ -309,7 +389,47 @@ Enable verbose logging for OAuth debugging:
 Use the health endpoint to verify OAuth configuration:
 
 ```bash
-curl http://localhost:8000/health
+curl http://localhost:8080/health
+```
+
+Expected response with OAuth enabled:
+```json
+{
+  "status": "healthy",
+  "oauth": {
+    "enabled": true
+  }
+}
+```
+
+### Testing OAuth Flow Step by Step
+
+1. **Test Metadata Discovery**:
+```bash
+# Should return authorization server URLs
+curl http://localhost:8080/.well-known/oauth-protected-resource
+
+# Should return PKCE support and endpoints
+curl http://localhost:8080/.well-known/oauth-authorization-server
+```
+
+2. **Test Client Registration**:
+```bash
+curl -X POST http://localhost:8080/oauth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "redirect_uris": ["http://localhost:8080/oauth/callback"],
+    "client_name": "Test Client"
+  }'
+```
+
+3. **Test Authorization Flow**:
+   - Open browser to: `http://localhost:8080/oauth2/v2.0/authorize?response_type=code&client_id=YOUR_CLIENT_ID&redirect_uri=http://localhost:8080/oauth/callback&scope=https://management.azure.com/.default&code_challenge=CHALLENGE&code_challenge_method=S256&state=STATE`
+
+4. **Verify Token Validation**:
+```bash
+# Use a valid Azure AD token
+curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8080/mcp
 ```
 
 ## Migration from Non-OAuth
