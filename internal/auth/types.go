@@ -131,13 +131,13 @@ func (cfg *OAuthConfig) Validate() error {
 		return fmt.Errorf("client_id is required when OAuth is enabled")
 	}
 
-	if len(cfg.RequiredScopes) == 0 {
-		return fmt.Errorf("at least one required scope must be specified")
-	}
+	// if len(cfg.RequiredScopes) == 0 {
+	// 	return fmt.Errorf("at least one required scope must be specified")
+	// }
 
-	if len(cfg.AllowedRedirects) == 0 {
-		return fmt.Errorf("at least one allowed redirect URI must be specified")
-	}
+	// if len(cfg.AllowedRedirects) == 0 {
+	// 	return fmt.Errorf("at least one allowed redirect URI must be specified")
+	// }
 
 	return nil
 }

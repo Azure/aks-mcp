@@ -30,7 +30,7 @@
    - **重定向 URI**：
      - 平台：**单页应用程序 (SPA)**（重要：必须选择 SPA，不能选择 Web）
      - URL：添加以下两个回调地址：
-       - `http://localhost:8080/oauth/callback`
+       - `http://localhost:8000/oauth/callback`
        - `http://localhost:6274/oauth/callback/debug`（用于 MCP Inspector 测试）
 
 3. **记录重要信息**
@@ -101,7 +101,7 @@
    - **平台配置**：应该显示 "单页应用程序"
    - **重定向 URI**：应该包含：
      ```
-     http://localhost:8080/oauth/callback
+     http://localhost:8000/oauth/callback
      http://localhost:6274/oauth/callback/debug
      ```
    - **高级设置 → 允许公共客户端流**：应该设置为 "是"
@@ -173,24 +173,24 @@ export AZURE_SUBSCRIPTION_ID="your-subscription-id"
    ```bash
    ./aks-mcp \
      --transport streamable-http \
-     --port 8080 \
+     --port 8000 \
      --oauth-enabled \
      --oauth-tenant-id "$AZURE_TENANT_ID" \
      --oauth-client-id "$AZURE_CLIENT_ID" \
-     --oauth-redirects="http://localhost:8080/oauth/callback,http://localhost:6274/oauth/callback/debug" \
+     --oauth-redirects="http://localhost:8000/oauth/callback,http://localhost:6274/oauth/callback/debug" \
      --access-level readonly
    ```
 
    **重要配置说明**：
    - `--oauth-redirects` 必须包含两个地址：
-     - `http://localhost:8080/oauth/callback` - AKS-MCP 主回调地址
+     - `http://localhost:8000/oauth/callback` - AKS-MCP 主回调地址
      - `http://localhost:6274/oauth/callback/debug` - MCP Inspector 调试回调地址
    - 这两个地址必须与 Azure AD 应用中配置的重定向 URI 完全匹配
 
 3. **验证服务器启动和双重认证**
    ```bash
    # 检查健康状态
-   curl http://localhost:8080/health
+   curl http://localhost:8000/health
    
    # 应该返回类似：
    # {"status":"healthy","oauth":{"enabled":true}}
@@ -199,7 +199,7 @@ export AZURE_SUBSCRIPTION_ID="your-subscription-id"
    **同时测试两种认证路径**：
    ```bash
    # 1. 测试 OAuth 端点（应该正常工作）
-   curl http://localhost:8080/.well-known/oauth-protected-resource
+   curl http://localhost:8000/.well-known/oauth-protected-resource
    
    # 2. 测试 Azure CLI 认证（检查服务器日志）
    # 当 AKS-MCP 尝试访问 Azure 资源时，会在后台使用 Azure CLI 认证
@@ -211,10 +211,10 @@ export AZURE_SUBSCRIPTION_ID="your-subscription-id"
 
 ```bash
 # 测试受保护资源元数据
-curl http://localhost:8080/.well-known/oauth-protected-resource
+curl http://localhost:8000/.well-known/oauth-protected-resource
 
 # 测试授权服务器元数据
-curl http://localhost:8080/.well-known/oauth-authorization-server
+curl http://localhost:8000/.well-known/oauth-authorization-server
 
 # 应该都返回正常的 JSON 响应
 ```
@@ -228,7 +228,7 @@ curl http://localhost:8080/.well-known/oauth-authorization-server
    # 设置参数
    TENANT_ID="你的租户ID"
    CLIENT_ID="你的客户端ID"
-   REDIRECT_URI="http://localhost:8080/oauth/callback"
+   REDIRECT_URI="http://localhost:8000/oauth/callback"
    SCOPE="https://management.azure.com/.default"
    STATE="test-state-$(date +%s)"
    
@@ -251,7 +251,7 @@ curl http://localhost:8080/.well-known/oauth-authorization-server
    - 如果提示权限同意，点击 "接受"
 
 2. **查看回调结果**
-   - 浏览器会被重定向到 `http://localhost:8080/oauth/callback`
+   - 浏览器会被重定向到 `http://localhost:8000/oauth/callback`
    - 如果成功，你会看到一个绿色的成功页面
    - 页面会显示访问令牌和相关信息
 
@@ -276,7 +276,7 @@ CLIENT_ID="你的客户端ID"
 SCOPE="https://management.azure.com/.default"
 
 echo "请访问以下 URL 完成授权："
-echo "https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/authorize?client_id=${CLIENT_ID}&response_type=code&redirect_uri=http://localhost:8080/oauth/callback&scope=${SCOPE}&state=test-$(date +%s)"
+echo "https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/authorize?client_id=${CLIENT_ID}&response_type=code&redirect_uri=http://localhost:8000/oauth/callback&scope=${SCOPE}&state=test-$(date +%s)"
 echo ""
 echo "授权完成后，从回调页面复制访问令牌，然后运行："
 echo "export ACCESS_TOKEN=\"你的访问令牌\""
@@ -290,7 +290,7 @@ chmod +x get_token.sh
 
 1. **测试健康检查（无需认证）**
    ```bash
-   curl -X GET http://localhost:8080/health
+   curl -X GET http://localhost:8000/health
    ```
 
 2. **测试受保护的端点（需要认证）**
@@ -304,7 +304,7 @@ chmod +x get_token.sh
    -H "Content-Type: application/json" \
    -H "Authorization: Bearer $ACCESS_TOKEN" \
    -d '{"jsonrpc": "2.0", "method": "initialize", "id": 1}' \
-   "http://localhost:8080/mcp"
+   "http://localhost:8000/mcp"
    HTTP/1.1 200 OK
    Content-Type: application/json
    Mcp-Session-Id: mcp-session-86d931cb-127e-4d8f-a409-ef37fbde528f
@@ -314,7 +314,7 @@ chmod +x get_token.sh
    SESSION_ID=mcp-session-86d931cb-127e-4d8f-a409-ef37fbde528f
    
    # 测试 MCP 端点
-   curl -X POST http://localhost:8080/mcp \
+   curl -X POST http://localhost:8000/mcp \
      -H "Authorization: Bearer $ACCESS_TOKEN" \
      -H "Content-Type: application/json" \
      -H "Mcp-Session-Id: $SESSION_ID" \
@@ -328,15 +328,15 @@ chmod +x get_token.sh
 3. **测试 OAuth 元数据端点**
    ```bash
    # 获取受保护资源元数据
-   curl -X GET http://localhost:8080/.well-known/oauth-protected-resource
+   curl -X GET http://localhost:8000/.well-known/oauth-protected-resource
    
    # 获取授权服务器元数据
-   curl -X GET http://localhost:8080/.well-known/oauth-authorization-server
+   curl -X GET http://localhost:8000/.well-known/oauth-authorization-server
    ```
 
 4. **测试令牌内省端点**
    ```bash
-   curl -X POST http://localhost:8080/oauth/introspect \
+   curl -X POST http://localhost:8000/oauth/introspect \
      -H "Content-Type: application/x-www-form-urlencoded" \
      -d "token=$ACCESS_TOKEN"
    ```
@@ -345,7 +345,7 @@ chmod +x get_token.sh
 
 ```bash
 # 测试无效令牌
-curl -X POST http://localhost:8080/mcp \
+curl -X POST http://localhost:8000/mcp \
   -H "Authorization: Bearer invalid-token" \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}'
@@ -373,9 +373,9 @@ curl -X POST http://localhost:8080/mcp \
 
 2. **配置 MCP Inspector 连接**
    在 Inspector 界面中：
-   - **Server URL**: `http://localhost:8080/mcp`
+   - **Server URL**: `http://localhost:8000/mcp`
    - **Authentication**: 选择 "OAuth 2.0"
-   - **Authorization Server**: `http://localhost:8080/.well-known/oauth-authorization-server`
+   - **Authorization Server**: `http://localhost:8000/.well-known/oauth-authorization-server`
 
 ### 第二步：完成 OAuth 流程
 
@@ -431,7 +431,7 @@ MCP Inspector 会自动执行以下步骤：
 ```bash
 # 检查 Azure AD 应用注册中的重定向 URI
 # 确保包含以下两个地址：
-# - http://localhost:8080/oauth/callback
+# - http://localhost:8000/oauth/callback
 # - http://localhost:6274/oauth/callback/debug
 
 # 或者修改服务器端口匹配 Azure AD 配置
@@ -543,7 +543,7 @@ make build
 **解决方案**：
 ```bash
 # 查找占用端口的进程
-lsof -i :8080
+lsof -i :8000
 lsof -i :6274
 
 # 使用不同端口
@@ -661,7 +661,7 @@ az account show
    telnet login.microsoftonline.com 443
    
    # 测试本地服务器
-   telnet localhost 8080
+   telnet localhost 8000
    ```
 
 ### 获取帮助

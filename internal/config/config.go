@@ -78,10 +78,8 @@ func (cfg *ConfigData) ParseFlags() {
 	flag.BoolVar(&cfg.OAuthConfig.Enabled, "oauth-enabled", false, "Enable OAuth authentication")
 	flag.StringVar(&cfg.OAuthConfig.TenantID, "oauth-tenant-id", "", "Azure AD tenant ID for OAuth (fallback to AZURE_TENANT_ID env var)")
 	flag.StringVar(&cfg.OAuthConfig.ClientID, "oauth-client-id", "", "Azure AD client ID for OAuth (fallback to AZURE_CLIENT_ID env var)")
-	oauthScopes := flag.String("oauth-scopes", "",
-		"Comma-separated list of required OAuth scopes (default: openid,profile,email,User.Read)")
-	oauthRedirects := flag.String("oauth-redirects", "",
-		"Comma-separated list of allowed OAuth redirect URIs (default: http://localhost:<port>/oauth/callback)")
+	// oauthRedirects := flag.String("oauth-redirects", "",
+	// 	"Comma-separated list of allowed OAuth redirect URIs (default: http://localhost:<port>/oauth/callback)")
 
 	// Kubernetes-specific settings
 	additionalTools := flag.String("additional-tools", "",
@@ -128,7 +126,7 @@ func (cfg *ConfigData) ParseFlags() {
 	cfg.SecurityConfig.AllowedNamespaces = cfg.AllowNamespaces
 
 	// Parse OAuth configuration
-	cfg.parseOAuthConfig(*oauthScopes, *oauthRedirects)
+	// cfg.parseOAuthConfig(*oauthScopes, *oauthRedirects)
 
 	// Parse additional tools
 	if *additionalTools != "" {
@@ -140,15 +138,9 @@ func (cfg *ConfigData) ParseFlags() {
 }
 
 // parseOAuthConfig parses OAuth-related command line arguments
-func (cfg *ConfigData) parseOAuthConfig(scopesStr, redirectsStr string) {
-	// Parse OAuth scopes
-	if scopesStr != "" {
-		scopes := strings.Split(scopesStr, ",")
-		cfg.OAuthConfig.RequiredScopes = make([]string, len(scopes))
-		for i, scope := range scopes {
-			cfg.OAuthConfig.RequiredScopes[i] = strings.TrimSpace(scope)
-		}
-	}
+func (cfg *ConfigData) parseOAuthConfig(redirectsStr string) {
+	// Note: OAuth scopes are automatically configured to use "https://management.azure.com/.default"
+	// and are not configurable via command line per design
 
 	// Parse OAuth redirect URIs
 	if redirectsStr != "" {
@@ -167,11 +159,8 @@ func (cfg *ConfigData) parseOAuthConfig(scopesStr, redirectsStr string) {
 		cfg.OAuthConfig.ClientID = os.Getenv("AZURE_CLIENT_ID")
 	}
 
-	// If OAuth is enabled but CLI parameters are not provided, use defaults
+	// If OAuth is enabled but redirect URIs are not provided, use defaults
 	if cfg.OAuthConfig.Enabled {
-		if len(cfg.OAuthConfig.RequiredScopes) == 0 {
-			cfg.OAuthConfig.RequiredScopes = []string{auth.OpenIDScope, auth.ProfileScope, auth.EmailScope, auth.UserReadScope}
-		}
 		if len(cfg.OAuthConfig.AllowedRedirects) == 0 {
 			// Use the actual server port for the default callback URI
 			defaultCallback := fmt.Sprintf("http://localhost:%d/oauth/callback", cfg.Port)

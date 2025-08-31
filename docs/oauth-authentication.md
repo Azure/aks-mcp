@@ -61,23 +61,24 @@ AKS-MCP uses the same environment variables (`AZURE_TENANT_ID`, `AZURE_CLIENT_ID
 **✅ Mobile and desktop applications (Recommended)**
 - **Platform**: "Mobile and desktop applications" 
 - **Redirect URIs**:
-  - `http://localhost:8080/oauth/callback`
-  - `http://localhost:6274/oauth/callback/debug` (for MCP Inspector)
+  - `http://localhost:8000/oauth/callback`
 - **Benefits**: 
   - Native support for PKCE (required by OAuth 2.1)
   - No client secret required (public client)
   - Better security for localhost redirects
 - **Status**: ✅ **Confirmed working**
 
-**✅ Single-page application (SPA)**
+**❌ Single-page application (SPA) - Not Recommended**
 - **Platform**: "Single-page application (SPA)"
 - **Redirect URIs**: Same as above
 - **Benefits**: 
   - Designed for PKCE flow
   - No client secret required
-- **Limitations**: 
-  - Stricter CORS policies
-  - May have additional security restrictions
+- **Critical Limitations**: 
+  - **Token exchange restriction**: Azure AD error AADSTS9002327 - "Tokens issued for the 'Single-Page Application' client-type may only be redeemed via cross-origin requests"
+  - **Architecture mismatch**: SPA platform expects frontend JavaScript to handle token exchange, but AKS-MCP performs backend token exchange
+  - **CORS requirements**: Requires complex frontend-backend coordination for OAuth flow
+- **Status**: ❌ **Not compatible with AKS-MCP's backend OAuth implementation**
 
 **❌ Web application**
 - **Platform**: "Web"
@@ -87,8 +88,8 @@ AKS-MCP uses the same environment variables (`AZURE_TENANT_ID`, `AZURE_CLIENT_ID
   - PKCE handling may differ
 
 **Choose Platform Recommendation:**
-1. **Primary**: Use "Mobile and desktop applications" (confirmed working)
-2. **Alternative**: Use "Single-page application" if you prefer SPA semantics
+1. **Primary**: Use "Mobile and desktop applications" (✅ confirmed working)
+2. **Avoid**: "Single-page application" - incompatible with backend OAuth implementation (AADSTS9002327 error)
 3. **Avoid**: "Web" platform due to client secret requirements
 
 3. **Record Essential Information**
@@ -102,7 +103,7 @@ AKS-MCP uses the same environment variables (`AZURE_TENANT_ID`, `AZURE_CLIENT_ID
 ```bash
 # Create Azure AD application with public client platform
 az ad app create --display-name "AKS-MCP-OAuth" \
-  --public-client-redirect-uris "http://localhost:8080/oauth/callback" "http://localhost:6274/oauth/callback/debug"
+  --public-client-redirect-uris "http://localhost:8000/oauth/callback" "http://localhost:6274/oauth/callback/debug"
 
 # Get application details
 az ad app list --display-name "AKS-MCP-OAuth" --query "[0].{appId:appId,objectId:objectId}"
@@ -115,7 +116,7 @@ az account show --query "tenantId" -o tsv
 ```bash
 # Create Azure AD application with SPA platform
 az ad app create --display-name "AKS-MCP-OAuth" \
-  --spa-redirect-uris "http://localhost:8080/oauth/callback" "http://localhost:6274/oauth/callback/debug"
+  --spa-redirect-uris "http://localhost:8000/oauth/callback" "http://localhost:6274/oauth/callback/debug"
 
 # Get application details
 az ad app list --display-name "AKS-MCP-OAuth" --query "[0].{appId:appId,objectId:objectId}"
@@ -188,7 +189,7 @@ When you set `AZURE_CLIENT_ID`, it affects both OAuth and Azure CLI authenticati
 **Testing Both Authentication Paths:**
 ```bash
 # Test OAuth (should work after proper setup)
-curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8080/mcp
+curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8000/mcp
 
 # Test Azure CLI access (should work after proper permissions)
 # This happens automatically when AKS-MCP tries to access Azure resources
@@ -203,26 +204,26 @@ curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8080/mcp
 # Using HTTP Streamable transport with OAuth (recommended)
 ./aks-mcp \
   --transport=streamable-http \
-  --port=8080 \
+  --port=8000 \
   --oauth-enabled \
   --oauth-tenant-id="$AZURE_TENANT_ID" \
   --oauth-client-id="$AZURE_CLIENT_ID" \
-  --oauth-redirects="http://localhost:8080/oauth/callback,http://localhost:6274/oauth/callback/debug" \
+  --oauth-redirects="http://localhost:8000/oauth/callback,http://localhost:6274/oauth/callback/debug" \
   --access-level=readonly
 
 # Using SSE transport with OAuth (alternative)
 ./aks-mcp \
   --transport=sse \
-  --port=8080 \
+  --port=8000 \
   --oauth-enabled \
   --oauth-tenant-id="$AZURE_TENANT_ID" \
   --oauth-client-id="$AZURE_CLIENT_ID" \
-  --oauth-redirects="http://localhost:8080/oauth/callback,http://localhost:6274/oauth/callback/debug" \
+  --oauth-redirects="http://localhost:8000/oauth/callback,http://localhost:6274/oauth/callback/debug" \
   --access-level=readonly
 
 # Environment variables are automatically used if set
 # You can also just use:
-./aks-mcp --transport=streamable-http --port=8080 --oauth-enabled --access-level=readonly
+./aks-mcp --transport=streamable-http --port=8000 --oauth-enabled --access-level=readonly
 ```
 
 ## Configuration Options
@@ -242,7 +243,7 @@ curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8080/mcp
 ./aks-mcp --transport=sse --oauth-enabled=true \
   --oauth-tenant-id="12345678-1234-1234-1234-123456789012" \
   --oauth-client-id="87654321-4321-4321-4321-210987654321" \
-  --oauth-redirects="http://localhost:8080/oauth/callback,http://localhost:6274/oauth/callback/debug"
+  --oauth-redirects="http://localhost:8000/oauth/callback,http://localhost:6274/oauth/callback/debug"
 ```
 
 **Note**: Scopes are automatically set to `https://management.azure.com/.default` and cannot be customized via command line.
@@ -360,13 +361,17 @@ curl -X POST http://localhost:8000/oauth/introspect \
 #### Azure AD Application Configuration Issues
 5. **Client ID Not Found**: Verify the Application (client) ID is correct
 6. **Redirect URI Mismatch**: Ensure redirect URIs match exactly in Azure AD app registration
-7. **Wrong Platform Type**: Use "Mobile and desktop applications" or "Single-page application", NOT "Web"
+7. **Wrong Platform Type**: Use "Mobile and desktop applications", NOT "Web" or "Single-page application"
 8. **Insufficient Permissions**: Verify both OAuth and Azure resource permissions are configured
+9. **SPA Platform Incompatibility (AADSTS9002327)**: 
+   - Error: "Tokens issued for the 'Single-Page Application' client-type may only be redeemed via cross-origin requests"
+   - Solution: Change Azure AD app platform to "Mobile and desktop applications"
+   - Cause: SPA platform requires frontend token exchange, incompatible with AKS-MCP's backend implementation
 
 #### Network and Endpoint Issues  
-9. **CORS Errors**: Check that redirect URIs are properly configured for localhost
-10. **Network Issues**: Check connectivity to Azure AD endpoints
-11. **Port Conflicts**: Ensure the configured port (default 8080) is available
+10. **CORS Errors**: Check that redirect URIs are properly configured for localhost
+11. **Network Issues**: Check connectivity to Azure AD endpoints
+11. **Port Conflicts**: Ensure the configured port (default 8000) is available
 
 #### Scope and Permission Issues
 12. **Scope Mixing Error**: 
@@ -389,7 +394,7 @@ Enable verbose logging for OAuth debugging:
 Use the health endpoint to verify OAuth configuration:
 
 ```bash
-curl http://localhost:8080/health
+curl http://localhost:8000/health
 ```
 
 Expected response with OAuth enabled:
@@ -407,29 +412,29 @@ Expected response with OAuth enabled:
 1. **Test Metadata Discovery**:
 ```bash
 # Should return authorization server URLs
-curl http://localhost:8080/.well-known/oauth-protected-resource
+curl http://localhost:8000/.well-known/oauth-protected-resource
 
 # Should return PKCE support and endpoints
-curl http://localhost:8080/.well-known/oauth-authorization-server
+curl http://localhost:8000/.well-known/oauth-authorization-server
 ```
 
 2. **Test Client Registration**:
 ```bash
-curl -X POST http://localhost:8080/oauth/register \
+curl -X POST http://localhost:8000/oauth/register \
   -H "Content-Type: application/json" \
   -d '{
-    "redirect_uris": ["http://localhost:8080/oauth/callback"],
+    "redirect_uris": ["http://localhost:8000/oauth/callback"],
     "client_name": "Test Client"
   }'
 ```
 
 3. **Test Authorization Flow**:
-   - Open browser to: `http://localhost:8080/oauth2/v2.0/authorize?response_type=code&client_id=YOUR_CLIENT_ID&redirect_uri=http://localhost:8080/oauth/callback&scope=https://management.azure.com/.default&code_challenge=CHALLENGE&code_challenge_method=S256&state=STATE`
+   - Open browser to: `http://localhost:8000/oauth2/v2.0/authorize?response_type=code&client_id=YOUR_CLIENT_ID&redirect_uri=http://localhost:8000/oauth/callback&scope=https://management.azure.com/.default&code_challenge=CHALLENGE&code_challenge_method=S256&state=STATE`
 
 4. **Verify Token Validation**:
 ```bash
 # Use a valid Azure AD token
-curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8080/mcp
+curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8000/mcp
 ```
 
 ## Migration from Non-OAuth
