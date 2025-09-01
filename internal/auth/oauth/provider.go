@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"math/big"
 	"net/http"
 	"net/url"
@@ -20,10 +21,10 @@ import (
 
 // AzureOAuthProvider implements OAuth authentication for Azure AD
 type AzureOAuthProvider struct {
-	config     *auth.OAuthConfig
-	httpClient *http.Client
-	keyCache   *keyCache
-	mu         sync.RWMutex
+	config      *auth.OAuthConfig
+	httpClient  *http.Client
+	keyCache    *keyCache
+	enableCache bool
 }
 
 // keyCache caches Azure AD signing keys
@@ -62,7 +63,8 @@ func NewAzureOAuthProvider(config *auth.OAuthConfig) (*AzureOAuthProvider, error
 	}
 
 	return &AzureOAuthProvider{
-		config: config,
+		config:      config,
+		enableCache: true, // Enable cache by default for performance
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -170,13 +172,12 @@ func (p *AzureOAuthProvider) ValidateToken(ctx context.Context, tokenString stri
 			Scope:       p.config.RequiredScopes,   // Use configured scopes
 			Subject:     "unknown",                 // Cannot extract without parsing
 			Audience:    []string{p.config.TokenValidation.ExpectedAudience},
-			Issuer:      fmt.Sprintf("https://sts.windows.net/%s/", p.config.TenantID),
+			Issuer:      fmt.Sprintf("https://login.microsoftonline.com/%s/v2.0", p.config.TenantID),
 			Claims:      make(map[string]interface{}),
 		}, nil
 	}
 
 	// Parse and validate JWT token
-	fmt.Printf("=== JWT SIGNATURE VALIDATION START ===\n")
 
 	// Parse token structure and check expiration
 	parserUnsafe := jwt.NewParser(jwt.WithoutClaimsValidation())
@@ -237,9 +238,8 @@ func (p *AzureOAuthProvider) ValidateToken(ctx context.Context, tokenString stri
 	// Additional validation: ensure token was issued for this specific MCP server
 	// This implements RFC 8707 resource binding validation
 	if err := p.validateResourceBinding(claims); err != nil {
-		fmt.Printf("Resource binding validation warning: %v\n", err)
+		log.Printf("Resource binding validation warning: %v\n", err)
 		// For now, log but don't fail - Azure AD may use different claim names
-		// In production, you should enable this validation based on your Azure AD setup
 	}
 
 	// Extract token information
@@ -392,57 +392,35 @@ func (p *AzureOAuthProvider) getKeyFunc(token *jwt.Token) (interface{}, error) {
 		}
 	}
 
-	fmt.Printf("JWT Key Resolution: issuer=%s, kid=%s\n", issuer, kid)
-
 	// Get the public key for this key ID using the appropriate issuer
 	key, err := p.getPublicKey(kid, issuer)
 	if err != nil {
-		fmt.Printf("*** PUBLIC KEY RETRIEVAL FAILED: %v ***\n", err)
+		log.Printf("PUBLIC KEY RETRIEVAL FAILED: %s\n", err)
 		return nil, fmt.Errorf("failed to get public key: %w", err)
 	}
 
-	fmt.Printf("Public key retrieved successfully (RSA %d bits)\n", key.N.BitLen())
 	return key, nil
 }
 
 // getPublicKey retrieves and caches Azure AD public keys
 func (p *AzureOAuthProvider) getPublicKey(kid string, issuer string) (*rsa.PublicKey, error) {
-	// TODO: Re-enable caching after fixing JWT signature validation issues
-	// Cache disabled for debugging JWT signature validation problems
-
 	// Generate cache key based on both kid and issuer to avoid conflicts between v1.0 and v2.0 keys
-	// cacheKey := fmt.Sprintf("%s_%s", kid, issuer)
+	cacheKey := fmt.Sprintf("%s_%s", kid, issuer)
 
-	// TODO: Re-enable cache checking logic
-	// Cache logic commented out for debugging
-	/*
-		// Force cache miss for v1.0 tokens to ensure we get the right key
-		if strings.Contains(issuer, "sts.windows.net") {
-			fmt.Printf("v1.0 token detected, forcing cache refresh for key %s\n", cacheKey)
-			p.keyCache.mu.Lock()
-			if p.keyCache.keys != nil {
-				// Clear ALL cached keys to force fresh fetch from correct endpoint
-				p.keyCache.keys = make(map[string]*rsa.PublicKey)
-				fmt.Printf("Cleared all cached keys for v1.0 token validation\n")
-			}
-			p.keyCache.mu.Unlock()
-		} else {
-			p.keyCache.mu.RLock()
-			if key, exists := p.keyCache.keys[cacheKey]; exists && time.Now().Before(p.keyCache.expiresAt) {
-				p.keyCache.mu.RUnlock()
-				fmt.Printf("Using cached key for %s\n", cacheKey)
-				return key, nil
-			}
+	// Check cache first if caching is enabled
+	if p.enableCache {
+		p.keyCache.mu.RLock()
+		if key, exists := p.keyCache.keys[cacheKey]; exists && time.Now().Before(p.keyCache.expiresAt) {
 			p.keyCache.mu.RUnlock()
+			return key, nil
 		}
-	*/
+		p.keyCache.mu.RUnlock()
+	}
 
 	// With Azure Management API scope, we should always get v2.0 format tokens
 	// Force using v2.0 JWKS endpoint for consistency
 	jwksURL := fmt.Sprintf("https://login.microsoftonline.com/%s/discovery/v2.0/keys", p.config.TenantID)
-	fmt.Printf("JWKS Using v2.0 endpoint (forced for Azure Management API scopes)\n")
-
-	fmt.Printf("JWKS Fetching from: %s\n", jwksURL)
+	log.Printf("JWKS Using v2.0 endpoint (forced for Azure Management API scopes)\n")
 
 	resp, err := p.httpClient.Get(jwksURL)
 	if err != nil {
@@ -472,7 +450,7 @@ func (p *AzureOAuthProvider) getPublicKey(kid string, issuer string) (*rsa.Publi
 		return nil, fmt.Errorf("failed to parse JWKS: %w", err)
 	}
 
-	fmt.Printf("JWKS Contains %d keys, searching for kid=%s\n", len(jwks.Keys), kid)
+	log.Printf("JWKS Contains %d keys, searching for kid=%s\n", len(jwks.Keys), kid)
 
 	// Parse keys and find the target key
 	var targetKey *rsa.PublicKey
@@ -482,27 +460,29 @@ func (p *AzureOAuthProvider) getPublicKey(kid string, issuer string) (*rsa.Publi
 		foundKeyIds = append(foundKeyIds, key.Kid)
 
 		if key.Kty == "RSA" && key.Kid == kid {
-			fmt.Printf("*** JWKS FOUND TARGET KEY %s ***\n", kid)
 			pubKey, err := parseRSAPublicKey(key.N, key.E)
 			if err != nil {
-				fmt.Printf("JWKS Failed to parse RSA key %s: %v\n", key.Kid, err)
+				log.Printf("JWKS Failed to parse RSA key %s: %v\n", key.Kid, err)
 				continue
 			}
-			fmt.Printf("JWKS RSA key details: %d bits\n", pubKey.N.BitLen())
 			targetKey = pubKey
 			break
 		}
 	}
 
-	// Return the requested key
+	// Cache the retrieved key and return it (only if caching is enabled)
 	if targetKey != nil {
-		fmt.Printf("JWKS Successfully returning RSA key for JWT signature validation\n")
+		if p.enableCache {
+			p.keyCache.mu.Lock()
+			if p.keyCache.keys == nil {
+				p.keyCache.keys = make(map[string]*rsa.PublicKey)
+			}
+			p.keyCache.keys[cacheKey] = targetKey
+			p.keyCache.expiresAt = time.Now().Add(24 * time.Hour) // Cache for 24 hours
+			p.keyCache.mu.Unlock()
+		}
 		return targetKey, nil
 	}
-
-	fmt.Printf("*** JWKS KEY NOT FOUND ***\n")
-	fmt.Printf("JWKS Requested key ID: %s\n", kid)
-	fmt.Printf("JWKS Available key IDs: %v\n", foundKeyIds)
 
 	return nil, fmt.Errorf("key with ID %s not found in JWKS (available: %v)", kid, foundKeyIds)
 }
@@ -532,43 +512,4 @@ func parseRSAPublicKey(nStr, eStr string) (*rsa.PublicKey, error) {
 	}
 
 	return pubKey, nil
-}
-
-// validateTokenWithAzureAD validates token directly with Azure AD token introspection endpoint
-func (p *AzureOAuthProvider) validateTokenWithAzureAD(token string) error {
-	// Use Azure AD token introspection endpoint to validate the token
-	introspectURL := fmt.Sprintf("https://login.microsoftonline.com/%s/oauth2/v2.0/introspect", p.config.TenantID)
-
-	data := url.Values{}
-	data.Set("token", token)
-	data.Set("client_id", p.config.ClientID)
-
-	resp, err := p.httpClient.PostForm(introspectURL, data)
-	if err != nil {
-		return fmt.Errorf("introspection request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("failed to read introspection response: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("introspection failed with status %d: %s", resp.StatusCode, string(body))
-	}
-
-	var introspectionResult struct {
-		Active bool `json:"active"`
-	}
-
-	if err := json.Unmarshal(body, &introspectionResult); err != nil {
-		return fmt.Errorf("failed to parse introspection response: %w", err)
-	}
-
-	if !introspectionResult.Active {
-		return fmt.Errorf("token is not active according to Azure AD")
-	}
-
-	return nil
 }

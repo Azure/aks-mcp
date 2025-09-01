@@ -23,9 +23,7 @@ type EndpointManager struct {
 
 // setCORSHeaders sets CORS headers for OAuth endpoints to allow MCP Inspector access
 func (em *EndpointManager) setCORSHeaders(w http.ResponseWriter) {
-	// In production, this should be more restrictive
-	// For development and MCP Inspector compatibility, allow broader access
-	origin := "*" // TODO: Restrict to specific origins in production
+	origin := "*" // TODO: Restrict to specific origins
 
 	w.Header().Set("Access-Control-Allow-Origin", origin)
 	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")

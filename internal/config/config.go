@@ -78,8 +78,8 @@ func (cfg *ConfigData) ParseFlags() {
 	flag.BoolVar(&cfg.OAuthConfig.Enabled, "oauth-enabled", false, "Enable OAuth authentication")
 	flag.StringVar(&cfg.OAuthConfig.TenantID, "oauth-tenant-id", "", "Azure AD tenant ID for OAuth (fallback to AZURE_TENANT_ID env var)")
 	flag.StringVar(&cfg.OAuthConfig.ClientID, "oauth-client-id", "", "Azure AD client ID for OAuth (fallback to AZURE_CLIENT_ID env var)")
-	// oauthRedirects := flag.String("oauth-redirects", "",
-	// 	"Comma-separated list of allowed OAuth redirect URIs (default: http://localhost:<port>/oauth/callback)")
+	oauthRedirects := flag.String("oauth-redirects", "",
+		"Comma-separated list of allowed OAuth redirect URIs (default: http://localhost:<port>/oauth/callback)")
 
 	// Kubernetes-specific settings
 	additionalTools := flag.String("additional-tools", "",
@@ -126,7 +126,7 @@ func (cfg *ConfigData) ParseFlags() {
 	cfg.SecurityConfig.AllowedNamespaces = cfg.AllowNamespaces
 
 	// Parse OAuth configuration
-	// cfg.parseOAuthConfig(*oauthScopes, *oauthRedirects)
+	cfg.parseOAuthConfig(*oauthRedirects)
 
 	// Parse additional tools
 	if *additionalTools != "" {
@@ -162,12 +162,8 @@ func (cfg *ConfigData) parseOAuthConfig(redirectsStr string) {
 	// If OAuth is enabled but redirect URIs are not provided, use defaults
 	if cfg.OAuthConfig.Enabled {
 		if len(cfg.OAuthConfig.AllowedRedirects) == 0 {
-			// Use the actual server port for the default callback URI
 			defaultCallback := fmt.Sprintf("http://localhost:%d/oauth/callback", cfg.Port)
-			// Also allow common MCP Inspector ports for development
-			inspectorCallback1 := "http://localhost:6274/oauth/callback"
-			inspectorCallback2 := "http://localhost:6274/oauth/callback/debug"
-			cfg.OAuthConfig.AllowedRedirects = []string{defaultCallback, inspectorCallback1, inspectorCallback2}
+			cfg.OAuthConfig.AllowedRedirects = []string{defaultCallback}
 		}
 	}
 }

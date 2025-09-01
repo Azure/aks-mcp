@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 
@@ -18,9 +19,7 @@ type AuthMiddleware struct {
 
 // setCORSHeaders sets CORS headers for OAuth endpoints to allow MCP Inspector access
 func (m *AuthMiddleware) setCORSHeaders(w http.ResponseWriter) {
-	// In production, this should be more restrictive
-	// For development and MCP Inspector compatibility, allow broader access
-	origin := "*" // TODO: Restrict to specific origins in production
+	origin := "*" // TODO: Restrict to specific origins
 
 	w.Header().Set("Access-Control-Allow-Origin", origin)
 	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
@@ -40,33 +39,28 @@ func NewAuthMiddleware(provider *AzureOAuthProvider, serverURL string) *AuthMidd
 // Middleware returns an HTTP middleware function for OAuth authentication
 func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Printf("=== MIDDLEWARE ENTRY ===\n")
-		fmt.Printf("MIDDLEWARE: Processing request: %s %s\n", r.Method, r.URL.Path)
 
 		// Skip authentication for specific endpoints
 		if m.shouldSkipAuth(r) {
-			fmt.Printf("MIDDLEWARE: Skipping auth for path: %s\n", r.URL.Path)
+			log.Printf("Skipping auth for path: %s\n", r.URL.Path)
 			next.ServeHTTP(w, r)
 			return
 		}
-		fmt.Printf("MIDDLEWARE: Auth required for path: %s\n", r.URL.Path)
 
 		// Perform authentication
 		authResult := m.authenticateRequest(r)
 
 		if !authResult.Authenticated {
-			fmt.Printf("MIDDLEWARE: Authentication FAILED - handling error\n")
+			log.Printf("Authentication FAILED - handling error\n")
 			m.handleAuthError(w, r, authResult)
 			return
 		}
 
-		fmt.Printf("MIDDLEWARE: Authentication SUCCESS - proceeding to handler\n")
 		// Add token info to request context
 		ctx := context.WithValue(r.Context(), "token_info", authResult.TokenInfo)
 		r = r.WithContext(ctx)
 
 		next.ServeHTTP(w, r)
-		fmt.Printf("MIDDLEWARE: Request completed successfully\n")
 	})
 }
 
@@ -93,16 +87,11 @@ func (m *AuthMiddleware) shouldSkipAuth(r *http.Request) bool {
 
 // authenticateRequest performs OAuth authentication on the request
 func (m *AuthMiddleware) authenticateRequest(r *http.Request) *auth.AuthResult {
-	fmt.Printf("=== MIDDLEWARE AUTH START ===\n")
-	fmt.Printf("MIDDLEWARE: Request URL: %s\n", r.URL.String())
-	fmt.Printf("MIDDLEWARE: Request Method: %s\n", r.Method)
-
 	// Extract Bearer token from Authorization header
 	authHeader := r.Header.Get("Authorization")
-	fmt.Printf("MIDDLEWARE: Authorization header present: %t\n", authHeader != "")
 
 	if authHeader == "" {
-		fmt.Printf("MIDDLEWARE: FAILED - Missing authorization header\n")
+		log.Printf("FAILED - Missing authorization header\n")
 		return &auth.AuthResult{
 			Authenticated: false,
 			Error:         "missing authorization header",
@@ -113,66 +102,52 @@ func (m *AuthMiddleware) authenticateRequest(r *http.Request) *auth.AuthResult {
 	// Check for Bearer token format
 	const bearerPrefix = "Bearer "
 	if !strings.HasPrefix(authHeader, bearerPrefix) {
-		fmt.Printf("MIDDLEWARE: FAILED - Invalid authorization header format (missing Bearer prefix)\n")
+		log.Printf("FAILED - Invalid authorization header format (missing Bearer prefix)\n")
 		return &auth.AuthResult{
 			Authenticated: false,
 			Error:         "invalid authorization header format",
 			StatusCode:    http.StatusUnauthorized,
 		}
 	}
-	fmt.Printf("MIDDLEWARE: Bearer token format validated\n")
 
 	token := strings.TrimPrefix(authHeader, bearerPrefix)
 	if token == "" {
-		fmt.Printf("MIDDLEWARE: FAILED - Empty bearer token\n")
+		log.Printf("FAILED - Empty bearer token\n")
 		return &auth.AuthResult{
 			Authenticated: false,
 			Error:         "empty bearer token",
 			StatusCode:    http.StatusUnauthorized,
 		}
 	}
-	fmt.Printf("MIDDLEWARE: Token extracted (length: %d characters)\n", len(token))
 
 	// Basic JWT structure validation
 	tokenParts := strings.Split(token, ".")
 	if len(tokenParts) != 3 {
-		fmt.Printf("MIDDLEWARE: FAILED - JWT structure validation (has %d parts, expected 3)\n", len(tokenParts))
+		log.Printf("FAILED - JWT structure validation (has %d parts, expected 3)\n", len(tokenParts))
 		return &auth.AuthResult{
 			Authenticated: false,
 			Error:         "invalid JWT structure",
 			StatusCode:    http.StatusUnauthorized,
 		}
 	}
-	fmt.Printf("MIDDLEWARE: JWT structure validated (3 parts)\n")
 
 	// Validate the token
-	fmt.Printf("MIDDLEWARE: Starting provider token validation...\n")
 	tokenInfo, err := m.provider.ValidateToken(r.Context(), token)
 	if err != nil {
-		fmt.Printf("MIDDLEWARE: FAILED - Provider token validation failed: %v\n", err)
+		log.Printf("FAILED - Provider token validation failed: %v\n", err)
 		return &auth.AuthResult{
 			Authenticated: false,
 			Error:         fmt.Sprintf("token validation failed: %v", err),
 			StatusCode:    http.StatusUnauthorized,
 		}
 	}
-	fmt.Printf("MIDDLEWARE: Provider token validation SUCCESS\n")
-	fmt.Printf("MIDDLEWARE: Token info - Subject: %s, Audience: %v, Scopes: %v\n",
-		tokenInfo.Subject, tokenInfo.Audience, tokenInfo.Scope)
 
 	// Validate required scopes (relaxed for OpenID Connect)
-	fmt.Printf("MIDDLEWARE: Starting scope validation...\n")
-	fmt.Printf("MIDDLEWARE: Required scopes: %v\n", m.provider.config.RequiredScopes)
-	fmt.Printf("MIDDLEWARE: Token scopes: %v\n", tokenInfo.Scope)
 
 	if !m.validateScopes(tokenInfo.Scope) {
-		fmt.Printf("MIDDLEWARE: SCOPE WARNING: Token scopes don't exactly match required, but allowing due to valid audience\n")
-	} else {
-		fmt.Printf("MIDDLEWARE: Scope validation SUCCESS\n")
+		log.Printf("SCOPE WARNING: Token scopes don't exactly match required, but allowing due to valid audience\n")
 	}
 
-	fmt.Printf("MIDDLEWARE: Authentication completed successfully\n")
-	fmt.Printf("=== MIDDLEWARE AUTH SUCCESS ===\n")
 	return &auth.AuthResult{
 		Authenticated: true,
 		TokenInfo:     tokenInfo,
@@ -236,10 +211,6 @@ func (m *AuthMiddleware) hasScopePermission(requiredScope string, tokenScopes []
 
 // handleAuthError handles authentication errors
 func (m *AuthMiddleware) handleAuthError(w http.ResponseWriter, r *http.Request, authResult *auth.AuthResult) {
-	fmt.Printf("=== MIDDLEWARE ERROR HANDLING ===\n")
-	fmt.Printf("MIDDLEWARE ERROR: Status code: %d\n", authResult.StatusCode)
-	fmt.Printf("MIDDLEWARE ERROR: Error message: %s\n", authResult.Error)
-
 	// Set CORS headers
 	m.setCORSHeaders(w)
 	w.Header().Set("Content-Type", "application/json")
@@ -267,7 +238,6 @@ func (m *AuthMiddleware) handleAuthError(w http.ResponseWriter, r *http.Request,
 		}
 
 		w.Header().Set("WWW-Authenticate", wwwAuth)
-		fmt.Printf("MIDDLEWARE ERROR: WWW-Authenticate header set: %s\n", wwwAuth)
 	}
 
 	w.WriteHeader(authResult.StatusCode)
@@ -278,11 +248,10 @@ func (m *AuthMiddleware) handleAuthError(w http.ResponseWriter, r *http.Request,
 	}
 
 	if err := json.NewEncoder(w).Encode(errorResponse); err != nil {
-		fmt.Printf("MIDDLEWARE ERROR: Failed to encode error response: %v\n", err)
+		log.Printf("MIDDLEWARE ERROR: Failed to encode error response: %v\n", err)
 	} else {
-		fmt.Printf("MIDDLEWARE ERROR: Error response sent successfully\n")
+		log.Printf("MIDDLEWARE ERROR: Error response sent\n")
 	}
-	fmt.Printf("=== MIDDLEWARE ERROR HANDLED ===\n")
 }
 
 // getOAuthErrorCode returns appropriate OAuth error code for HTTP status
