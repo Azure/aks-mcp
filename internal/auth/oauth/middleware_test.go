@@ -10,6 +10,12 @@ import (
 	"github.com/Azure/aks-mcp/internal/auth"
 )
 
+// GetTokenInfo extracts token information from request context (test helper)
+func GetTokenInfo(r *http.Request) (*auth.TokenInfo, bool) {
+	tokenInfo, ok := r.Context().Value(tokenInfoKey).(*auth.TokenInfo)
+	return tokenInfo, ok
+}
+
 func TestAuthMiddleware(t *testing.T) {
 	// Create test config with minimal required scopes for testing
 	// Note: We cannot test with empty RequiredScopes because the OAuth configuration
@@ -195,6 +201,12 @@ func TestShouldSkipAuth(t *testing.T) {
 	}{
 		{"/.well-known/oauth-protected-resource", true},
 		{"/.well-known/oauth-authorization-server", true},
+		{"/.well-known/openid-configuration", true},
+		{"/oauth2/v2.0/authorize", true},
+		{"/oauth/register", true},
+		{"/oauth/callback", true},
+		{"/oauth2/v2.0/token", true},
+		{"/oauth/introspect", true},
 		{"/health", true},
 		{"/ping", true},
 		{"/test", false},
@@ -220,7 +232,7 @@ func TestGetTokenInfo(t *testing.T) {
 		Subject:     "user123",
 	}
 
-	ctx := context.WithValue(context.Background(), "token_info", tokenInfo)
+	ctx := context.WithValue(context.Background(), tokenInfoKey, tokenInfo)
 	req := httptest.NewRequest("GET", "/test", nil)
 	req = req.WithContext(ctx)
 

@@ -40,7 +40,7 @@ func TestDynamicOAuthRedirectPort(t *testing.T) {
 			cfg.OAuthConfig.RequiredScopes = []string{auth.AzureADScope}
 
 			// Simulate the oauth config parsing which sets dynamic redirect
-			cfg.parseOAuthConfig("", "")
+			cfg.parseOAuthConfig("")
 
 			// Verify the redirect URI uses the configured port
 			if len(cfg.OAuthConfig.AllowedRedirects) != 1 {
@@ -66,7 +66,7 @@ func TestDynamicOAuthRedirectWithCustomRedirects(t *testing.T) {
 
 	// Provide custom redirects via CLI simulation
 	customRedirects := "http://example.com/callback,http://localhost:3000/custom"
-	cfg.parseOAuthConfig("", customRedirects)
+	cfg.parseOAuthConfig(customRedirects)
 
 	// Verify custom redirects are used, not the dynamic default
 	expectedRedirects := []string{

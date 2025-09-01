@@ -11,6 +11,11 @@ import (
 	"github.com/Azure/aks-mcp/internal/auth"
 )
 
+// contextKey is a custom type for context keys to avoid collisions
+type contextKey string
+
+const tokenInfoKey contextKey = "token_info"
+
 // AuthMiddleware handles OAuth authentication for HTTP requests
 type AuthMiddleware struct {
 	provider  *AzureOAuthProvider
@@ -57,7 +62,7 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		}
 
 		// Add token info to request context
-		ctx := context.WithValue(r.Context(), "token_info", authResult.TokenInfo)
+		ctx := context.WithValue(r.Context(), tokenInfoKey, authResult.TokenInfo)
 		r = r.WithContext(ctx)
 
 		next.ServeHTTP(w, r)
@@ -72,6 +77,12 @@ func (m *AuthMiddleware) shouldSkipAuth(r *http.Request) bool {
 	skipPaths := []string{
 		"/.well-known/oauth-protected-resource",
 		"/.well-known/oauth-authorization-server",
+		"/.well-known/openid-configuration",
+		"/oauth2/v2.0/authorize",
+		"/oauth/register",
+		"/oauth/callback",
+		"/oauth2/v2.0/token",
+		"/oauth/introspect",
 		"/health",
 		"/ping",
 	}
@@ -266,10 +277,4 @@ func getOAuthErrorCode(statusCode int) string {
 	default:
 		return "server_error"
 	}
-}
-
-// GetTokenInfo extracts token information from request context
-func GetTokenInfo(r *http.Request) (*auth.TokenInfo, bool) {
-	tokenInfo, ok := r.Context().Value("token_info").(*auth.TokenInfo)
-	return tokenInfo, ok
 }

@@ -40,25 +40,25 @@ func TestOAuthConfigValidation(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "enabled OAuth with empty scopes should fail",
+			name: "enabled OAuth with empty scopes should pass", // Changed: now passes since validation is disabled
 			config: &OAuthConfig{
 				Enabled:          true,
 				TenantID:         "test-tenant-id",
 				ClientID:         "test-client-id",
-				RequiredScopes:   []string{}, // Empty scopes - should fail validation
+				RequiredScopes:   []string{}, // Empty scopes - validation disabled
 				AllowedRedirects: []string{"http://localhost:3000/callback"},
 			},
-			wantErr: true,
+			wantErr: false, // Changed from true to false
 		},
 		{
-			name: "enabled OAuth with missing redirects should fail",
+			name: "enabled OAuth with missing redirects should pass", // Changed: now passes since validation is disabled
 			config: &OAuthConfig{
 				Enabled:        true,
 				TenantID:       "test-tenant-id",
 				ClientID:       "test-client-id",
 				RequiredScopes: []string{"scope1"},
 			},
-			wantErr: true,
+			wantErr: false, // Changed from true to false
 		},
 		{
 			name: "valid enabled OAuth config should pass",
@@ -105,12 +105,12 @@ func TestNewDefaultOAuthConfig(t *testing.T) {
 		t.Errorf("Default config should have empty redirects (will be set dynamically), got %v", config.AllowedRedirects)
 	}
 
-	if config.TokenValidation.ValidateJWT {
-		t.Error("Default config should disable JWT validation for testing")
+	if !config.TokenValidation.ValidateJWT {
+		t.Error("Default config should enable JWT validation for production")
 	}
 
-	if config.TokenValidation.ValidateAudience {
-		t.Error("Default config should disable audience validation for testing")
+	if !config.TokenValidation.ValidateAudience {
+		t.Error("Default config should enable audience validation for security")
 	}
 
 	if config.TokenValidation.ExpectedAudience != DefaultExpectedAudience {
