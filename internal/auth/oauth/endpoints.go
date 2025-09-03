@@ -88,6 +88,8 @@ func (em *EndpointManager) RegisterEndpoints(mux *http.ServeMux) {
 // authServerMetadataProxyHandler proxies authorization server metadata from Azure AD
 func (em *EndpointManager) authServerMetadataProxyHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("OAuth DEBUG: Received request for authorization server metadata: %s %s", r.Method, r.URL.Path)
+
 		// Set CORS headers for all requests
 		em.setCORSHeaders(w)
 
@@ -98,6 +100,7 @@ func (em *EndpointManager) authServerMetadataProxyHandler() http.HandlerFunc {
 		}
 
 		if r.Method != http.MethodGet {
+			log.Printf("OAuth ERROR: Invalid method %s for metadata endpoint", r.Method)
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
@@ -140,6 +143,8 @@ func (em *EndpointManager) authServerMetadataProxyHandler() http.HandlerFunc {
 // clientRegistrationHandler implements OAuth 2.0 Dynamic Client Registration (RFC 7591)
 func (em *EndpointManager) clientRegistrationHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("OAuth DEBUG: Received client registration request: %s %s", r.Method, r.URL.Path)
+
 		// Set CORS headers for all requests
 		em.setCORSHeaders(w)
 
@@ -150,6 +155,7 @@ func (em *EndpointManager) clientRegistrationHandler() http.HandlerFunc {
 		}
 
 		if r.Method != http.MethodPost {
+			log.Printf("OAuth ERROR: Invalid method %s for client registration endpoint, only POST allowed", r.Method)
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
@@ -166,12 +172,16 @@ func (em *EndpointManager) clientRegistrationHandler() http.HandlerFunc {
 		}
 
 		if err := json.NewDecoder(r.Body).Decode(&registrationRequest); err != nil {
+			log.Printf("OAuth ERROR: Failed to parse client registration JSON: %v", err)
 			em.writeErrorResponse(w, "invalid_request", "Invalid JSON in request body", http.StatusBadRequest)
 			return
 		}
 
+		log.Printf("OAuth DEBUG: Client registration request parsed - client_name: %s, redirect_uris: %v", registrationRequest.ClientName, registrationRequest.RedirectURIs)
+
 		// Validate registration request
 		if err := em.validateClientRegistration(&registrationRequest); err != nil {
+			log.Printf("OAuth ERROR: Client registration validation failed: %v", err)
 			em.writeErrorResponse(w, "invalid_client_metadata", err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -193,6 +203,8 @@ func (em *EndpointManager) clientRegistrationHandler() http.HandlerFunc {
 		// But since Azure AD requires pre-registered client IDs, we return the configured one
 		clientID := em.config.ClientID
 
+		log.Printf("OAuth DEBUG: Client registration successful - returning client_id: %s", clientID)
+
 		clientInfo := map[string]interface{}{
 			"client_id":                  clientID,          // Use configured Azure AD client ID
 			"client_id_issued_at":        time.Now().Unix(), // RFC 7591: timestamp of issuance
@@ -208,6 +220,7 @@ func (em *EndpointManager) clientRegistrationHandler() http.HandlerFunc {
 		w.WriteHeader(http.StatusCreated)
 
 		if err := json.NewEncoder(w).Encode(clientInfo); err != nil {
+			log.Printf("OAuth ERROR: Failed to encode client registration response: %v", err)
 			http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 			return
 		}
@@ -357,6 +370,8 @@ func (em *EndpointManager) healthHandler() http.HandlerFunc {
 // protectedResourceMetadataHandler handles OAuth 2.0 Protected Resource Metadata requests
 func (em *EndpointManager) protectedResourceMetadataHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("OAuth DEBUG: Received request for protected resource metadata: %s %s", r.Method, r.URL.Path)
+
 		// Set CORS headers for all requests
 		em.setCORSHeaders(w)
 
@@ -367,6 +382,7 @@ func (em *EndpointManager) protectedResourceMetadataHandler() http.HandlerFunc {
 		}
 
 		if r.Method != http.MethodGet {
+			log.Printf("OAuth ERROR: Invalid method %s for protected resource metadata endpoint", r.Method)
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
@@ -385,20 +401,24 @@ func (em *EndpointManager) protectedResourceMetadataHandler() http.HandlerFunc {
 
 		// Build the resource URL
 		resourceURL := fmt.Sprintf("%s://%s", scheme, host)
+		log.Printf("OAuth DEBUG: Building protected resource metadata for URL: %s", resourceURL)
 
 		provider := em.provider
 
 		metadata, err := provider.GetProtectedResourceMetadata(resourceURL)
 		if err != nil {
-			log.Printf("SCOPE DEBUG: Failed to get protected resource metadata: %v\n", err)
+			log.Printf("OAuth ERROR: Failed to get protected resource metadata: %v", err)
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
+
+		log.Printf("OAuth DEBUG: Successfully generated protected resource metadata with %d authorization servers", len(metadata.AuthorizationServers))
 
 		w.Header().Set("Content-Type", "application/json")
 		em.setCacheHeaders(w)
 
 		if err := json.NewEncoder(w).Encode(metadata); err != nil {
+			log.Printf("OAuth ERROR: Failed to encode protected resource metadata response: %v", err)
 			http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 			return
 		}
@@ -421,6 +441,8 @@ func (em *EndpointManager) writeErrorResponse(w http.ResponseWriter, errorCode, 
 // authorizationProxyHandler proxies authorization requests to Azure AD with resource parameter filtering
 func (em *EndpointManager) authorizationProxyHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("OAuth DEBUG: Received authorization proxy request: %s %s", r.Method, r.URL.Path)
+
 		// Set CORS headers for all requests
 		em.setCORSHeaders(w)
 
@@ -431,6 +453,7 @@ func (em *EndpointManager) authorizationProxyHandler() http.HandlerFunc {
 		}
 
 		if r.Method != http.MethodGet {
+			log.Printf("OAuth ERROR: Invalid method %s for authorization endpoint, only GET allowed", r.Method)
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
@@ -443,6 +466,7 @@ func (em *EndpointManager) authorizationProxyHandler() http.HandlerFunc {
 		codeChallengeMethod := query.Get("code_challenge_method")
 
 		if codeChallenge == "" {
+			log.Printf("OAuth ERROR: Missing PKCE code_challenge parameter (required for OAuth 2.1)")
 			em.writeErrorResponse(w, "invalid_request", "PKCE code_challenge is required", http.StatusBadRequest)
 			return
 		}
@@ -450,7 +474,9 @@ func (em *EndpointManager) authorizationProxyHandler() http.HandlerFunc {
 		if codeChallengeMethod == "" {
 			// Default to S256 if not specified
 			query.Set("code_challenge_method", "S256")
+			log.Printf("OAuth DEBUG: Setting default code_challenge_method to S256")
 		} else if codeChallengeMethod != "S256" {
+			log.Printf("OAuth ERROR: Unsupported code_challenge_method: %s (only S256 supported)", codeChallengeMethod)
 			em.writeErrorResponse(w, "invalid_request", "Only S256 code_challenge_method is supported", http.StatusBadRequest)
 			return
 		}
@@ -462,6 +488,7 @@ func (em *EndpointManager) authorizationProxyHandler() http.HandlerFunc {
 		// Remove the resource parameter if present for Azure AD compatibility
 		resourceParam := query.Get("resource")
 		if resourceParam != "" {
+			log.Printf("OAuth DEBUG: Removing resource parameter for Azure AD compatibility: %s", resourceParam)
 			query.Del("resource")
 		}
 
@@ -472,12 +499,14 @@ func (em *EndpointManager) authorizationProxyHandler() http.HandlerFunc {
 
 		finalScopeString := strings.Join(finalScopes, " ")
 		query.Set("scope", finalScopeString)
+		log.Printf("OAuth DEBUG: Setting final scope for Azure AD: %s", finalScopeString)
 
 		// Build the Azure AD authorization URL
 		azureAuthURL := fmt.Sprintf("https://login.microsoftonline.com/%s/oauth2/v2.0/authorize", em.config.TenantID)
 
 		// Create the redirect URL with filtered parameters
 		redirectURL := fmt.Sprintf("%s?%s", azureAuthURL, query.Encode())
+		log.Printf("OAuth DEBUG: Redirecting to Azure AD authorization endpoint: %s", azureAuthURL)
 
 		// Redirect to Azure AD
 		http.Redirect(w, r, redirectURL, http.StatusFound)
@@ -487,6 +516,8 @@ func (em *EndpointManager) authorizationProxyHandler() http.HandlerFunc {
 // callbackHandler handles OAuth 2.0 Authorization Code flow callback
 func (em *EndpointManager) callbackHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("OAuth DEBUG: Received callback request: %s %s", r.Method, r.URL.Path)
+
 		// Set CORS headers for all requests
 		em.setCORSHeaders(w)
 
@@ -497,6 +528,7 @@ func (em *EndpointManager) callbackHandler() http.HandlerFunc {
 		}
 
 		if r.Method != http.MethodGet {
+			log.Printf("OAuth ERROR: Invalid method %s for callback endpoint, only GET allowed", r.Method)
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
@@ -507,6 +539,7 @@ func (em *EndpointManager) callbackHandler() http.HandlerFunc {
 		// Check for error response from authorization server
 		if authError := query.Get("error"); authError != "" {
 			errorDesc := query.Get("error_description")
+			log.Printf("OAuth ERROR: Authorization server returned error: %s - %s", authError, errorDesc)
 			em.writeCallbackErrorResponse(w, fmt.Sprintf("Authorization failed: %s - %s", authError, errorDesc))
 			return
 		}
@@ -514,6 +547,7 @@ func (em *EndpointManager) callbackHandler() http.HandlerFunc {
 		// Get authorization code
 		code := query.Get("code")
 		if code == "" {
+			log.Printf("OAuth ERROR: Missing authorization code in callback")
 			em.writeCallbackErrorResponse(w, "Missing authorization code")
 			return
 		}
@@ -521,16 +555,22 @@ func (em *EndpointManager) callbackHandler() http.HandlerFunc {
 		// Get state parameter for CSRF protection
 		state := query.Get("state")
 		if state == "" {
+			log.Printf("OAuth ERROR: Missing state parameter in callback")
 			em.writeCallbackErrorResponse(w, "Missing state parameter")
 			return
 		}
 
+		log.Printf("OAuth DEBUG: Callback parameters validated - has_code: true, state: %s", state)
+
 		// Exchange authorization code for access token
 		tokenResponse, err := em.exchangeCodeForToken(code, state)
 		if err != nil {
+			log.Printf("OAuth ERROR: Failed to exchange authorization code for token: %v", err)
 			em.writeCallbackErrorResponse(w, fmt.Sprintf("Failed to exchange code for token: %v", err))
 			return
 		}
+
+		log.Printf("OAuth DEBUG: Token exchange successful, preparing callback success response")
 
 		// Skip token validation in callback - validation happens during MCP requests
 		// Create minimal token info for callback success page
@@ -737,6 +777,8 @@ func (em *EndpointManager) generateSessionToken() (string, error) {
 // tokenHandler handles OAuth 2.0 token endpoint requests (Authorization Code exchange)
 func (em *EndpointManager) tokenHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("OAuth DEBUG: Received token endpoint request: %s %s", r.Method, r.URL.Path)
+
 		// Set CORS headers for all requests
 		em.setCORSHeaders(w)
 
@@ -747,12 +789,14 @@ func (em *EndpointManager) tokenHandler() http.HandlerFunc {
 		}
 
 		if r.Method != http.MethodPost {
+			log.Printf("OAuth ERROR: Invalid method %s for token endpoint, only POST allowed", r.Method)
 			em.writeErrorResponse(w, "invalid_request", "Only POST method is allowed", http.StatusMethodNotAllowed)
 			return
 		}
 
 		// Parse form data
 		if err := r.ParseForm(); err != nil {
+			log.Printf("OAuth ERROR: Failed to parse form data: %v", err)
 			em.writeErrorResponse(w, "invalid_request", "Failed to parse form data", http.StatusBadRequest)
 			return
 		}
@@ -760,6 +804,7 @@ func (em *EndpointManager) tokenHandler() http.HandlerFunc {
 		// Validate grant type
 		grantType := r.FormValue("grant_type")
 		if grantType != "authorization_code" {
+			log.Printf("OAuth ERROR: Unsupported grant type: %s", grantType)
 			em.writeErrorResponse(w, "unsupported_grant_type", fmt.Sprintf("Unsupported grant type: %s", grantType), http.StatusBadRequest)
 			return
 		}
@@ -771,28 +816,35 @@ func (em *EndpointManager) tokenHandler() http.HandlerFunc {
 		codeVerifier := r.FormValue("code_verifier") // PKCE parameter
 
 		if code == "" {
+			log.Printf("OAuth ERROR: Missing authorization code in token request")
 			em.writeErrorResponse(w, "invalid_request", "Missing authorization code", http.StatusBadRequest)
 			return
 		}
 
 		if clientID == "" {
+			log.Printf("OAuth ERROR: Missing client_id in token request")
 			em.writeErrorResponse(w, "invalid_request", "Missing client_id", http.StatusBadRequest)
 			return
 		}
 
 		if redirectURI == "" {
+			log.Printf("OAuth ERROR: Missing redirect_uri in token request")
 			em.writeErrorResponse(w, "invalid_request", "Missing redirect_uri", http.StatusBadRequest)
 			return
 		}
 
 		// Enforce PKCE code_verifier for OAuth 2.1 compliance
 		if codeVerifier == "" {
+			log.Printf("OAuth ERROR: Missing PKCE code_verifier (required for OAuth 2.1)")
 			em.writeErrorResponse(w, "invalid_request", "PKCE code_verifier is required", http.StatusBadRequest)
 			return
 		}
 
+		log.Printf("OAuth DEBUG: Token request parameters validated - client_id: %s, redirect_uri: %s, has_code_verifier: %t", clientID, redirectURI, codeVerifier != "")
+
 		// Validate client ID (accept both configured and dynamically registered clients)
 		if !em.isValidClientID(clientID) {
+			log.Printf("OAuth ERROR: Invalid client_id: %s", clientID)
 			em.writeErrorResponse(w, "invalid_client", "Invalid client_id", http.StatusBadRequest)
 			return
 		}
@@ -804,13 +856,17 @@ func (em *EndpointManager) tokenHandler() http.HandlerFunc {
 			requestedScope = strings.Join(em.config.RequiredScopes, " ")
 		}
 
+		log.Printf("OAuth DEBUG: Exchanging authorization code for access token with Azure AD, scope: %s", requestedScope)
+
 		// Exchange authorization code for access token with Azure AD
 		tokenResponse, err := em.exchangeCodeForTokenDirect(code, redirectURI, codeVerifier, requestedScope)
 		if err != nil {
-			log.Printf("Token exchange failed: %v\n", err)
+			log.Printf("OAuth ERROR: Token exchange with Azure AD failed: %v", err)
 			em.writeErrorResponse(w, "invalid_grant", fmt.Sprintf("Authorization code exchange failed: %v", err), http.StatusBadRequest)
 			return
 		}
+
+		log.Printf("OAuth DEBUG: Token exchange successful, returning token response to client")
 
 		// Return token response
 		w.Header().Set("Content-Type", "application/json")
@@ -818,7 +874,7 @@ func (em *EndpointManager) tokenHandler() http.HandlerFunc {
 		w.Header().Set("Pragma", "no-cache")
 
 		if err := json.NewEncoder(w).Encode(tokenResponse); err != nil {
-			log.Printf("Failed to encode token response: %v\n", err)
+			log.Printf("OAuth ERROR: Failed to encode token response: %v", err)
 			http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 			return
 		}

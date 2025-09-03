@@ -98,54 +98,67 @@ func (p *AzureOAuthProvider) GetProtectedResourceMetadata(serverURL string) (*Pr
 // GetAuthorizationServerMetadata returns OAuth 2.0 Authorization Server Metadata (RFC 8414)
 func (p *AzureOAuthProvider) GetAuthorizationServerMetadata(serverURL string) (*AzureADMetadata, error) {
 	metadataURL := fmt.Sprintf("https://login.microsoftonline.com/%s/v2.0/.well-known/openid-configuration", p.config.TenantID)
+	log.Printf("OAuth DEBUG: Fetching Azure AD metadata from: %s", metadataURL)
 
 	resp, err := p.httpClient.Get(metadataURL)
 	if err != nil {
+		log.Printf("OAuth ERROR: Failed to fetch metadata from %s: %v", metadataURL, err)
 		return nil, fmt.Errorf("failed to fetch metadata from %s: %w", metadataURL, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
+		log.Printf("OAuth ERROR: Tenant ID '%s' not found (HTTP 404)", p.config.TenantID)
 		return nil, fmt.Errorf("tenant ID '%s' not found (HTTP 404). Please verify your Azure AD tenant ID is correct", p.config.TenantID)
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
+		log.Printf("OAuth ERROR: Metadata endpoint returned status %d: %s", resp.StatusCode, string(body))
 		return nil, fmt.Errorf("metadata endpoint returned status %d: %s", resp.StatusCode, string(body))
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
+		log.Printf("OAuth ERROR: Failed to read metadata response: %v", err)
 		return nil, fmt.Errorf("failed to read metadata response: %w", err)
 	}
 
 	var metadata AzureADMetadata
 	if err := json.Unmarshal(body, &metadata); err != nil {
+		log.Printf("OAuth ERROR: Failed to parse metadata JSON: %v", err)
 		return nil, fmt.Errorf("failed to parse metadata: %w", err)
 	}
 
+	log.Printf("OAuth DEBUG: Successfully parsed Azure AD metadata, original grant_types_supported: %v", metadata.GrantTypesSupported)
+
 	// Ensure grant_types_supported is populated for MCP Inspector compatibility
 	if len(metadata.GrantTypesSupported) == 0 {
+		log.Printf("OAuth DEBUG: Setting default grant_types_supported (was empty/nil)")
 		metadata.GrantTypesSupported = []string{"authorization_code", "refresh_token"}
 	}
 
 	// Ensure response_types_supported is populated for MCP Inspector compatibility
 	if len(metadata.ResponseTypesSupported) == 0 {
+		log.Printf("OAuth DEBUG: Setting default response_types_supported (was empty/nil)")
 		metadata.ResponseTypesSupported = []string{"code"}
 	}
 
 	// Ensure subject_types_supported is populated for MCP Inspector compatibility
 	if len(metadata.SubjectTypesSupported) == 0 {
+		log.Printf("OAuth DEBUG: Setting default subject_types_supported (was empty/nil)")
 		metadata.SubjectTypesSupported = []string{"public"}
 	}
 
 	// Ensure token_endpoint_auth_methods_supported is populated for MCP Inspector compatibility
 	if len(metadata.TokenEndpointAuthMethodsSupported) == 0 {
+		log.Printf("OAuth DEBUG: Setting default token_endpoint_auth_methods_supported (was empty/nil)")
 		metadata.TokenEndpointAuthMethodsSupported = []string{"none"}
 	}
 
 	// Add S256 code challenge method support (Azure AD supports this but may not advertise it)
 	// MCP specification requires S256 support, so we always ensure it's present
+	log.Printf("OAuth DEBUG: Enforcing S256 code challenge method support (MCP requirement)")
 	metadata.CodeChallengeMethodsSupported = []string{"S256"}
 
 	// Azure AD v2.0 has limited support for RFC 8707 Resource Indicators
@@ -168,6 +181,9 @@ func (p *AzureOAuthProvider) GetAuthorizationServerMetadata(serverURL string) (*
 		// Add dynamic client registration endpoint
 		metadata.RegistrationEndpoint = registrationURL
 	}
+
+	log.Printf("OAuth DEBUG: Final metadata prepared - grant_types_supported: %v, response_types_supported: %v, code_challenge_methods_supported: %v",
+		metadata.GrantTypesSupported, metadata.ResponseTypesSupported, metadata.CodeChallengeMethodsSupported)
 
 	return &metadata, nil
 }
