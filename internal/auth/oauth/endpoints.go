@@ -251,6 +251,7 @@ func (em *EndpointManager) validateClientRegistration(req *struct {
 func (em *EndpointManager) isValidRedirectURI(redirectURI string) bool {
 	parsedURL, err := url.Parse(redirectURI)
 	if err != nil {
+		log.Printf("OAuth WARN - Invalid redirect URI: %s, Error: %v\n", redirectURI, err)
 		return false
 	}
 
@@ -284,9 +285,13 @@ func (em *EndpointManager) isValidRedirectURI(redirectURI string) bool {
 
 	// Require HTTPS for non-localhost URLs
 	if parsedURL.Scheme != "https" && parsedURL.Hostname() != "localhost" && parsedURL.Hostname() != "127.0.0.1" {
+		log.Printf("OAuth WARN - Redirect URI rejected (non-HTTPS for non-localhost): %s\n", redirectURI)
+		log.Printf("OAuth WARN - Configured allowed redirects: %v\n", em.config.AllowedRedirects)
 		return false
 	}
 
+	log.Printf("OAuth WARN - Redirect URI not found in allowed list: %s\n", redirectURI)
+	log.Printf("OAuth WARN - Configured allowed redirects: %v\n", em.config.AllowedRedirects)
 	return false
 }
 
@@ -765,16 +770,6 @@ func (em *EndpointManager) isValidClientID(clientID string) bool {
 	// But for Azure AD integration, we primarily use the configured client ID
 
 	return false
-}
-
-// generateClientID generates a unique client ID for dynamic registration
-func (em *EndpointManager) generateClientID() (string, error) {
-	bytes := make([]byte, 16)
-	if _, err := rand.Read(bytes); err != nil {
-		return "", err
-	}
-	// Use a prefix to identify AKS-MCP generated client IDs
-	return fmt.Sprintf("aks-mcp-%s", base64.URLEncoding.EncodeToString(bytes)), nil
 }
 
 // generateSessionToken generates a secure random session token

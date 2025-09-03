@@ -92,11 +92,6 @@ const (
 	DefaultClockSkew        = 1 * time.Minute
 	DefaultExpectedAudience = "https://management.azure.com"
 	AzureADScope            = "https://management.azure.com/.default"
-	// OpenID Connect scopes for MCP Inspector compatibility
-	OpenIDScope   = "openid"
-	ProfileScope  = "profile"
-	EmailScope    = "email"
-	UserReadScope = "User.Read"
 )
 
 // NewDefaultOAuthConfig creates a default OAuth configuration

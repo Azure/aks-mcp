@@ -162,8 +162,11 @@ func (cfg *ConfigData) parseOAuthConfig(redirectsStr string) {
 	// If OAuth is enabled but redirect URIs are not provided, use defaults
 	if cfg.OAuthConfig.Enabled {
 		if len(cfg.OAuthConfig.AllowedRedirects) == 0 {
-			defaultCallback := fmt.Sprintf("http://localhost:%d/oauth/callback", cfg.Port)
+			defaultCallback := fmt.Sprintf("http://%s:%d/oauth/callback", cfg.Host, cfg.Port)
 			cfg.OAuthConfig.AllowedRedirects = []string{defaultCallback}
+			log.Printf("OAuth DEBUG - Using default redirect URI: %s\n", defaultCallback)
+		} else {
+			log.Printf("OAuth DEBUG - Using configured redirect URIs: %v\n", cfg.OAuthConfig.AllowedRedirects)
 		}
 	}
 }

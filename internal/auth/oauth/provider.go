@@ -64,7 +64,7 @@ func NewAzureOAuthProvider(config *auth.OAuthConfig) (*AzureOAuthProvider, error
 
 	return &AzureOAuthProvider{
 		config:      config,
-		enableCache: true, // Enable cache by default for performance
+		enableCache: false, // Enable cache by default for performance
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -123,11 +123,10 @@ func (p *AzureOAuthProvider) GetAuthorizationServerMetadata(serverURL string) (*
 		return nil, fmt.Errorf("failed to parse metadata: %w", err)
 	}
 
-	// Ensure PKCE support is advertised for MCP Inspector compatibility
-	if metadata.GrantTypesSupported == nil {
-		metadata.GrantTypesSupported = []string{"authorization_code", "refresh_token"}
-	}
-
+	// TODO: Validate if this should be used for Ensure PKCE support specifically for MCP Inspector compatibility
+	// if metadata.GrantTypesSupported == nil {
+	// 	metadata.GrantTypesSupported = []string{"authorization_code", "refresh_token"}
+	// }
 	// Add S256 code challenge method support (Azure AD supports this)
 	metadata.CodeChallengeMethodsSupported = []string{"S256"}
 
@@ -218,7 +217,6 @@ func (p *AzureOAuthProvider) ValidateToken(ctx context.Context, tokenString stri
 		return nil, fmt.Errorf("missing issuer claim")
 	}
 
-	// Azure Management API scope should return v2.0 issuer format
 	expectedIssuerV2 := fmt.Sprintf("https://login.microsoftonline.com/%s/v2.0", p.config.TenantID)
 	expectedIssuerV1 := fmt.Sprintf("https://sts.windows.net/%s/", p.config.TenantID)
 
@@ -228,18 +226,11 @@ func (p *AzureOAuthProvider) ValidateToken(ctx context.Context, tokenString stri
 
 	// Azure AD may return v1.0 or v2.0 issuer format depending on token scope
 
-	// Validate audience
+	// Validate audience and resource binding
 	if p.config.TokenValidation.ValidateAudience {
 		if err := p.validateAudience(claims); err != nil {
 			return nil, err
 		}
-	}
-
-	// Additional validation: ensure token was issued for this specific MCP server
-	// This implements RFC 8707 resource binding validation
-	if err := p.validateResourceBinding(claims); err != nil {
-		log.Printf("Resource binding validation warning: %v\n", err)
-		// For now, log but don't fail - Azure AD may use different claim names
 	}
 
 	// Extract token information
@@ -294,7 +285,7 @@ func (p *AzureOAuthProvider) ValidateToken(ctx context.Context, tokenString stri
 	return tokenInfo, nil
 }
 
-// validateAudience validates the audience claim
+// validateAudience validates the audience claim and resource binding (RFC 8707)
 func (p *AzureOAuthProvider) validateAudience(claims jwt.MapClaims) error {
 	expectedAudience := p.config.TokenValidation.ExpectedAudience
 
@@ -324,46 +315,6 @@ func (p *AzureOAuthProvider) validateAudience(claims jwt.MapClaims) error {
 	}
 
 	return fmt.Errorf("missing audience claim")
-}
-
-// validateResourceBinding validates that the token was issued for this specific MCP server
-// This implements RFC 8707 resource binding validation
-func (p *AzureOAuthProvider) validateResourceBinding(claims jwt.MapClaims) error {
-	// Azure AD may include resource information in different claims
-	// Check for common resource-related claims
-
-	// Check for 'aud' claim that matches our expected resource
-	if p.config.TokenValidation.ExpectedAudience != "" {
-		expectedResource := strings.TrimSuffix(p.config.TokenValidation.ExpectedAudience, "/")
-
-		// Check single audience
-		if aud, ok := claims["aud"].(string); ok {
-			normalizedAud := strings.TrimSuffix(aud, "/")
-			if normalizedAud == expectedResource {
-				return nil // Resource binding validated
-			}
-		}
-
-		// Check audience array
-		if audSlice, ok := claims["aud"].([]interface{}); ok {
-			for _, a := range audSlice {
-				if audStr, ok := a.(string); ok {
-					normalizedAud := strings.TrimSuffix(audStr, "/")
-					if normalizedAud == expectedResource {
-						return nil // Resource binding validated
-					}
-				}
-			}
-		}
-	}
-
-	// If no specific resource validation is configured, accept the token
-	// This maintains backward compatibility
-	if p.config.TokenValidation.ExpectedAudience == "" {
-		return nil
-	}
-
-	return fmt.Errorf("token was not issued for this MCP server resource: expected audience %s", p.config.TokenValidation.ExpectedAudience)
 }
 
 // getKeyFunc returns a function to retrieve JWT signing keys
@@ -420,7 +371,6 @@ func (p *AzureOAuthProvider) getPublicKey(kid string, issuer string) (*rsa.Publi
 	// With Azure Management API scope, we should always get v2.0 format tokens
 	// Force using v2.0 JWKS endpoint for consistency
 	jwksURL := fmt.Sprintf("https://login.microsoftonline.com/%s/discovery/v2.0/keys", p.config.TenantID)
-	log.Printf("JWKS Using v2.0 endpoint (forced for Azure Management API scopes)\n")
 
 	resp, err := p.httpClient.Get(jwksURL)
 	if err != nil {

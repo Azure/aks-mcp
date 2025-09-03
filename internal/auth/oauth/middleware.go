@@ -102,7 +102,8 @@ func (m *AuthMiddleware) authenticateRequest(r *http.Request) *auth.AuthResult {
 	authHeader := r.Header.Get("Authorization")
 
 	if authHeader == "" {
-		log.Printf("FAILED - Missing authorization header\n")
+		log.Printf("OAuth DEBUG - Missing authorization header for %s %s\n", r.Method, r.URL.Path)
+		log.Printf("OAuth DEBUG - Request headers: %+v\n", r.Header)
 		return &auth.AuthResult{
 			Authenticated: false,
 			Error:         "missing authorization header",
