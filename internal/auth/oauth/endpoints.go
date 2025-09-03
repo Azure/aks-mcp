@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/Azure/aks-mcp/internal/auth"
+	"github.com/Azure/aks-mcp/internal/config"
 )
 
 // EndpointManager manages OAuth-related HTTP endpoints
@@ -30,6 +31,19 @@ func (em *EndpointManager) setCORSHeaders(w http.ResponseWriter) {
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, mcp-protocol-version")
 	w.Header().Set("Access-Control-Max-Age", "86400")           // 24 hours
 	w.Header().Set("Access-Control-Allow-Credentials", "false") // Explicit false for wildcard origin
+}
+
+// setCacheHeaders sets cache control headers based on EnableCache configuration
+func (em *EndpointManager) setCacheHeaders(w http.ResponseWriter) {
+	if config.EnableCache {
+		// Enable caching for 1 hour when cache is enabled
+		w.Header().Set("Cache-Control", "max-age=3600")
+	} else {
+		// Disable all caching when cache is disabled (for debugging)
+		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		w.Header().Set("Pragma", "no-cache")
+		w.Header().Set("Expires", "0")
+	}
 }
 
 // NewEndpointManager creates a new OAuth endpoint manager
@@ -113,7 +127,7 @@ func (em *EndpointManager) authServerMetadataProxyHandler() http.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Cache-Control", "public, max-age=3600")
+		em.setCacheHeaders(w)
 
 		if err := json.NewEncoder(w).Encode(metadata); err != nil {
 			log.Printf("Failed to encode response: %v\n", err)
@@ -382,7 +396,7 @@ func (em *EndpointManager) protectedResourceMetadataHandler() http.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Cache-Control", "public, max-age=3600") // Cache for 1 hour
+		em.setCacheHeaders(w)
 
 		if err := json.NewEncoder(w).Encode(metadata); err != nil {
 			http.Error(w, "Failed to encode response", http.StatusInternalServerError)

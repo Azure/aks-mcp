@@ -15,6 +15,11 @@ import (
 	flag "github.com/spf13/pflag"
 )
 
+// EnableCache controls whether caching is enabled globally
+// Set to false during debugging to avoid cache-related issues
+// This affects both web cache headers and AzureOAuthProvider cache
+const EnableCache = false
+
 // ConfigData holds the global configuration
 type ConfigData struct {
 	// Command execution timeout in seconds

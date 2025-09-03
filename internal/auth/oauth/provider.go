@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/Azure/aks-mcp/internal/auth"
+	internalConfig "github.com/Azure/aks-mcp/internal/config"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -64,7 +65,7 @@ func NewAzureOAuthProvider(config *auth.OAuthConfig) (*AzureOAuthProvider, error
 
 	return &AzureOAuthProvider{
 		config:      config,
-		enableCache: false, // Enable cache by default for performance
+		enableCache: internalConfig.EnableCache, // Use config constant for cache control
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -123,11 +124,28 @@ func (p *AzureOAuthProvider) GetAuthorizationServerMetadata(serverURL string) (*
 		return nil, fmt.Errorf("failed to parse metadata: %w", err)
 	}
 
-	// TODO: Validate if this should be used for Ensure PKCE support specifically for MCP Inspector compatibility
-	// if metadata.GrantTypesSupported == nil {
-	// 	metadata.GrantTypesSupported = []string{"authorization_code", "refresh_token"}
-	// }
-	// Add S256 code challenge method support (Azure AD supports this)
+	// Ensure grant_types_supported is populated for MCP Inspector compatibility
+	if len(metadata.GrantTypesSupported) == 0 {
+		metadata.GrantTypesSupported = []string{"authorization_code", "refresh_token"}
+	}
+
+	// Ensure response_types_supported is populated for MCP Inspector compatibility
+	if len(metadata.ResponseTypesSupported) == 0 {
+		metadata.ResponseTypesSupported = []string{"code"}
+	}
+
+	// Ensure subject_types_supported is populated for MCP Inspector compatibility
+	if len(metadata.SubjectTypesSupported) == 0 {
+		metadata.SubjectTypesSupported = []string{"public"}
+	}
+
+	// Ensure token_endpoint_auth_methods_supported is populated for MCP Inspector compatibility
+	if len(metadata.TokenEndpointAuthMethodsSupported) == 0 {
+		metadata.TokenEndpointAuthMethodsSupported = []string{"none"}
+	}
+
+	// Add S256 code challenge method support (Azure AD supports this but may not advertise it)
+	// MCP specification requires S256 support, so we always ensure it's present
 	metadata.CodeChallengeMethodsSupported = []string{"S256"}
 
 	// Azure AD v2.0 has limited support for RFC 8707 Resource Indicators
