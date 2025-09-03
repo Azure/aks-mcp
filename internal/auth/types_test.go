@@ -22,52 +22,48 @@ func TestOAuthConfigValidation(t *testing.T) {
 		{
 			name: "enabled OAuth with missing tenant ID should fail",
 			config: &OAuthConfig{
-				Enabled:          true,
-				ClientID:         "test-client-id",
-				RequiredScopes:   []string{"scope1"},
-				AllowedRedirects: []string{"http://localhost:3000/callback"},
+				Enabled:        true,
+				ClientID:       "test-client-id",
+				RequiredScopes: []string{"scope1"},
 			},
 			wantErr: true,
 		},
 		{
 			name: "enabled OAuth with missing client ID should fail",
 			config: &OAuthConfig{
-				Enabled:          true,
-				TenantID:         "test-tenant-id",
-				RequiredScopes:   []string{"scope1"},
-				AllowedRedirects: []string{"http://localhost:3000/callback"},
+				Enabled:        true,
+				TenantID:       "test-tenant-id",
+				RequiredScopes: []string{"scope1"},
 			},
 			wantErr: true,
 		},
 		{
-			name: "enabled OAuth with empty scopes should pass", // Changed: now passes since validation is disabled
+			name: "enabled OAuth with empty scopes should pass",
 			config: &OAuthConfig{
-				Enabled:          true,
-				TenantID:         "test-tenant-id",
-				ClientID:         "test-client-id",
-				RequiredScopes:   []string{}, // Empty scopes - validation disabled
-				AllowedRedirects: []string{"http://localhost:3000/callback"},
+				Enabled:        true,
+				TenantID:       "test-tenant-id",
+				ClientID:       "test-client-id",
+				RequiredScopes: []string{},
 			},
-			wantErr: false, // Changed from true to false
+			wantErr: false,
 		},
 		{
-			name: "enabled OAuth with missing redirects should pass", // Changed: now passes since validation is disabled
+			name: "valid enabled OAuth config should pass",
 			config: &OAuthConfig{
 				Enabled:        true,
 				TenantID:       "test-tenant-id",
 				ClientID:       "test-client-id",
 				RequiredScopes: []string{"scope1"},
 			},
-			wantErr: false, // Changed from true to false
+			wantErr: false,
 		},
 		{
-			name: "valid enabled OAuth config should pass",
+			name: "valid enabled OAuth config with full token validation should pass",
 			config: &OAuthConfig{
-				Enabled:          true,
-				TenantID:         "test-tenant-id",
-				ClientID:         "test-client-id",
-				RequiredScopes:   []string{"scope1"},
-				AllowedRedirects: []string{"http://localhost:3000/callback"},
+				Enabled:        true,
+				TenantID:       "test-tenant-id",
+				ClientID:       "test-client-id",
+				RequiredScopes: []string{"scope1"},
 				TokenValidation: TokenValidationConfig{
 					ValidateJWT:      true,
 					ValidateAudience: true,
@@ -99,10 +95,6 @@ func TestNewDefaultOAuthConfig(t *testing.T) {
 
 	if len(config.RequiredScopes) != 1 || config.RequiredScopes[0] != AzureADScope {
 		t.Errorf("Default config should have Azure AD scope, got %v", config.RequiredScopes)
-	}
-
-	if len(config.AllowedRedirects) != 0 {
-		t.Errorf("Default config should have empty redirects (will be set dynamically), got %v", config.AllowedRedirects)
 	}
 
 	if !config.TokenValidation.ValidateJWT {
@@ -166,11 +158,6 @@ func TestOAuthConfigEnvironmentVariables(t *testing.T) {
 	}
 	if config.ClientID == "" {
 		config.ClientID = os.Getenv("AZURE_CLIENT_ID")
-	}
-
-	// Set a default redirect URI since config parsing would set this dynamically
-	if len(config.AllowedRedirects) == 0 {
-		config.AllowedRedirects = []string{"http://localhost:8000/oauth/callback"}
 	}
 
 	if config.TenantID != "env-tenant-id" {

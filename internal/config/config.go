@@ -78,8 +78,6 @@ func (cfg *ConfigData) ParseFlags() {
 	flag.BoolVar(&cfg.OAuthConfig.Enabled, "oauth-enabled", false, "Enable OAuth authentication")
 	flag.StringVar(&cfg.OAuthConfig.TenantID, "oauth-tenant-id", "", "Azure AD tenant ID for OAuth (fallback to AZURE_TENANT_ID env var)")
 	flag.StringVar(&cfg.OAuthConfig.ClientID, "oauth-client-id", "", "Azure AD client ID for OAuth (fallback to AZURE_CLIENT_ID env var)")
-	oauthRedirects := flag.String("oauth-redirects", "",
-		"Comma-separated list of allowed OAuth redirect URIs (default: http://localhost:<port>/oauth/callback)")
 
 	// Kubernetes-specific settings
 	additionalTools := flag.String("additional-tools", "",
@@ -126,7 +124,7 @@ func (cfg *ConfigData) ParseFlags() {
 	cfg.SecurityConfig.AllowedNamespaces = cfg.AllowNamespaces
 
 	// Parse OAuth configuration
-	cfg.parseOAuthConfig(*oauthRedirects)
+	cfg.parseOAuthConfig()
 
 	// Parse additional tools
 	if *additionalTools != "" {
@@ -138,18 +136,9 @@ func (cfg *ConfigData) ParseFlags() {
 }
 
 // parseOAuthConfig parses OAuth-related command line arguments
-func (cfg *ConfigData) parseOAuthConfig(redirectsStr string) {
+func (cfg *ConfigData) parseOAuthConfig() {
 	// Note: OAuth scopes are automatically configured to use "https://management.azure.com/.default"
 	// and are not configurable via command line per design
-
-	// Parse OAuth redirect URIs
-	if redirectsStr != "" {
-		redirects := strings.Split(redirectsStr, ",")
-		cfg.OAuthConfig.AllowedRedirects = make([]string, len(redirects))
-		for i, redirect := range redirects {
-			cfg.OAuthConfig.AllowedRedirects[i] = strings.TrimSpace(redirect)
-		}
-	}
 
 	// Load OAuth configuration from environment variables if not set via CLI
 	if cfg.OAuthConfig.TenantID == "" {
@@ -157,17 +146,6 @@ func (cfg *ConfigData) parseOAuthConfig(redirectsStr string) {
 	}
 	if cfg.OAuthConfig.ClientID == "" {
 		cfg.OAuthConfig.ClientID = os.Getenv("AZURE_CLIENT_ID")
-	}
-
-	// If OAuth is enabled but redirect URIs are not provided, use defaults
-	if cfg.OAuthConfig.Enabled {
-		if len(cfg.OAuthConfig.AllowedRedirects) == 0 {
-			defaultCallback := fmt.Sprintf("http://%s:%d/oauth/callback", cfg.Host, cfg.Port)
-			cfg.OAuthConfig.AllowedRedirects = []string{defaultCallback}
-			log.Printf("OAuth DEBUG - Using default redirect URI: %s\n", defaultCallback)
-		} else {
-			log.Printf("OAuth DEBUG - Using configured redirect URIs: %v\n", cfg.OAuthConfig.AllowedRedirects)
-		}
 	}
 }
 

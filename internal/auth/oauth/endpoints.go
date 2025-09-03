@@ -210,14 +210,15 @@ func (em *EndpointManager) validateClientRegistration(req *struct {
 	ClientURI               string   `json:"client_uri"`
 	Scope                   string   `json:"scope"`
 }) error {
-	// Validate redirect URIs
+	// Validate redirect URIs - require at least one
 	if len(req.RedirectURIs) == 0 {
 		return fmt.Errorf("at least one redirect_uri is required")
 	}
 
+	// Basic URL validation for redirect URIs
 	for _, redirectURI := range req.RedirectURIs {
-		if !em.isValidRedirectURI(redirectURI) {
-			return fmt.Errorf("invalid redirect_uri: %s", redirectURI)
+		if _, err := url.Parse(redirectURI); err != nil {
+			return fmt.Errorf("invalid redirect_uri format: %s", redirectURI)
 		}
 	}
 
@@ -245,54 +246,6 @@ func (em *EndpointManager) validateClientRegistration(req *struct {
 	}
 
 	return nil
-}
-
-// isValidRedirectURI validates a redirect URI
-func (em *EndpointManager) isValidRedirectURI(redirectURI string) bool {
-	parsedURL, err := url.Parse(redirectURI)
-	if err != nil {
-		log.Printf("OAuth WARN - Invalid redirect URI: %s, Error: %v\n", redirectURI, err)
-		return false
-	}
-
-	// Check against allowed redirects
-	for _, allowed := range em.config.AllowedRedirects {
-		if redirectURI == allowed {
-			return true
-		}
-
-		// Allow localhost with any port for development
-		if strings.HasPrefix(allowed, "http://localhost") &&
-			strings.HasPrefix(redirectURI, "http://localhost") {
-			return true
-		}
-
-		// Allow 127.0.0.1 with any port for development
-		if strings.HasPrefix(allowed, "http://127.0.0.1") &&
-			strings.HasPrefix(redirectURI, "http://127.0.0.1") {
-			return true
-		}
-	}
-
-	// Special handling for MCP Inspector debug endpoints
-	// Allow any localhost/127.0.0.1 redirect URI for OAuth testing
-	if parsedURL.Hostname() == "localhost" || parsedURL.Hostname() == "127.0.0.1" {
-		if parsedURL.Scheme == "http" {
-			log.Printf("Allowing development redirect URI: %s\n", redirectURI)
-			return true
-		}
-	}
-
-	// Require HTTPS for non-localhost URLs
-	if parsedURL.Scheme != "https" && parsedURL.Hostname() != "localhost" && parsedURL.Hostname() != "127.0.0.1" {
-		log.Printf("OAuth WARN - Redirect URI rejected (non-HTTPS for non-localhost): %s\n", redirectURI)
-		log.Printf("OAuth WARN - Configured allowed redirects: %v\n", em.config.AllowedRedirects)
-		return false
-	}
-
-	log.Printf("OAuth WARN - Redirect URI not found in allowed list: %s\n", redirectURI)
-	log.Printf("OAuth WARN - Configured allowed redirects: %v\n", em.config.AllowedRedirects)
-	return false
 }
 
 // tokenIntrospectionHandler implements RFC 7662 OAuth 2.0 Token Introspection
@@ -597,22 +550,8 @@ func (em *EndpointManager) exchangeCodeForToken(code, state string) (*TokenRespo
 	// Prepare token exchange request
 	tokenURL := fmt.Sprintf("https://login.microsoftonline.com/%s/oauth2/v2.0/token", em.config.TenantID)
 
-	// Find the correct redirect URI from configuration
-	var redirectURI string
-	for _, uri := range em.config.AllowedRedirects {
-		if strings.Contains(uri, "/oauth/callback") {
-			redirectURI = uri
-			break
-		}
-	}
-	if redirectURI == "" {
-		// Fallback to first allowed redirect
-		if len(em.config.AllowedRedirects) > 0 {
-			redirectURI = em.config.AllowedRedirects[0]
-		} else {
-			return nil, fmt.Errorf("no valid redirect URI configured")
-		}
-	}
+	// Use default callback redirect URI for token exchange
+	redirectURI := fmt.Sprintf("http://localhost:%d/oauth/callback", 8080) // Default for MCP servers
 
 	// Prepare form data
 	data := url.Values{}

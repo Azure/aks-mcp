@@ -12,11 +12,10 @@ import (
 
 func TestEndpointManager_RegisterEndpoints(t *testing.T) {
 	config := &auth.OAuthConfig{
-		Enabled:          true,
-		TenantID:         "test-tenant",
-		ClientID:         "test-client",
-		RequiredScopes:   []string{"https://management.azure.com/.default"},
-		AllowedRedirects: []string{"http://localhost:3000/callback"},
+		Enabled:        true,
+		TenantID:       "test-tenant",
+		ClientID:       "test-client",
+		RequiredScopes: []string{"https://management.azure.com/.default"},
 		TokenValidation: auth.TokenValidationConfig{
 			ValidateJWT:      false,
 			ValidateAudience: false,
@@ -60,11 +59,10 @@ func TestEndpointManager_RegisterEndpoints(t *testing.T) {
 
 func TestProtectedResourceMetadataEndpoint(t *testing.T) {
 	config := &auth.OAuthConfig{
-		Enabled:          true,
-		TenantID:         "test-tenant",
-		ClientID:         "test-client",
-		RequiredScopes:   []string{"https://management.azure.com/.default"},
-		AllowedRedirects: []string{"http://localhost:3000/callback"},
+		Enabled:        true,
+		TenantID:       "test-tenant",
+		ClientID:       "test-client",
+		RequiredScopes: []string{"https://management.azure.com/.default"},
 	}
 
 	provider, _ := NewAzureOAuthProvider(config)
@@ -97,11 +95,10 @@ func TestProtectedResourceMetadataEndpoint(t *testing.T) {
 
 func TestClientRegistrationEndpoint(t *testing.T) {
 	config := &auth.OAuthConfig{
-		Enabled:          true,
-		TenantID:         "test-tenant",
-		ClientID:         "test-client",
-		RequiredScopes:   []string{"https://management.azure.com/.default"},
-		AllowedRedirects: []string{"http://localhost:3000/callback"},
+		Enabled:        true,
+		TenantID:       "test-tenant",
+		ClientID:       "test-client",
+		RequiredScopes: []string{"https://management.azure.com/.default"},
 	}
 
 	provider, _ := NewAzureOAuthProvider(config)
@@ -144,50 +141,14 @@ func TestClientRegistrationEndpoint(t *testing.T) {
 	}
 }
 
-func TestClientRegistrationEndpointInvalidRedirect(t *testing.T) {
-	config := &auth.OAuthConfig{
-		Enabled:          true,
-		TenantID:         "test-tenant",
-		ClientID:         "test-client",
-		RequiredScopes:   []string{"https://management.azure.com/.default"},
-		AllowedRedirects: []string{"http://localhost:3000/callback"},
-	}
-
-	provider, _ := NewAzureOAuthProvider(config)
-	manager := NewEndpointManager(provider, config)
-
-	// Test invalid redirect URI
-	registrationRequest := map[string]interface{}{
-		"redirect_uris":              []string{"http://malicious.com/callback"},
-		"token_endpoint_auth_method": "none",
-		"grant_types":                []string{"authorization_code"},
-		"response_types":             []string{"code"},
-		"scope":                      "https://management.azure.com/.default",
-		"client_name":                "Test Client",
-	}
-
-	reqBody, _ := json.Marshal(registrationRequest)
-	req := httptest.NewRequest("POST", "/oauth/register", strings.NewReader(string(reqBody)))
-	req.Header.Set("Content-Type", "application/json")
-
-	w := httptest.NewRecorder()
-	handler := manager.clientRegistrationHandler()
-	handler(w, req)
-
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("Expected status 400 for invalid redirect URI, got %d", w.Code)
-	}
-}
-
 func TestTokenIntrospectionEndpoint(t *testing.T) {
 	config := &auth.OAuthConfig{
-		Enabled:          true,
-		TenantID:         "test-tenant",
-		ClientID:         "test-client",
-		RequiredScopes:   []string{"https://management.azure.com/.default"},
-		AllowedRedirects: []string{"http://localhost:3000/callback"},
+		Enabled:        true,
+		TenantID:       "test-tenant",
+		ClientID:       "test-client",
+		RequiredScopes: []string{"https://management.azure.com/.default"},
 		TokenValidation: auth.TokenValidationConfig{
-			ValidateJWT:      false, // Disable JWT validation for testing
+			ValidateJWT:      false,
 			ValidateAudience: false,
 		},
 	}
@@ -220,11 +181,10 @@ func TestTokenIntrospectionEndpoint(t *testing.T) {
 
 func TestTokenIntrospectionEndpointMissingToken(t *testing.T) {
 	config := &auth.OAuthConfig{
-		Enabled:          true,
-		TenantID:         "test-tenant",
-		ClientID:         "test-client",
-		RequiredScopes:   []string{"https://management.azure.com/.default"},
-		AllowedRedirects: []string{"http://localhost:3000/callback"},
+		Enabled:        true,
+		TenantID:       "test-tenant",
+		ClientID:       "test-client",
+		RequiredScopes: []string{"https://management.azure.com/.default"},
 	}
 
 	provider, _ := NewAzureOAuthProvider(config)
@@ -245,11 +205,10 @@ func TestTokenIntrospectionEndpointMissingToken(t *testing.T) {
 
 func TestHealthEndpoint(t *testing.T) {
 	config := &auth.OAuthConfig{
-		Enabled:          true,
-		TenantID:         "test-tenant",
-		ClientID:         "test-client",
-		RequiredScopes:   []string{"https://management.azure.com/.default"},
-		AllowedRedirects: []string{"http://localhost:3000/callback"},
+		Enabled:        true,
+		TenantID:       "test-tenant",
+		ClientID:       "test-client",
+		RequiredScopes: []string{"https://management.azure.com/.default"},
 	}
 
 	provider, _ := NewAzureOAuthProvider(config)
@@ -286,11 +245,10 @@ func TestHealthEndpoint(t *testing.T) {
 
 func TestValidateClientRegistration(t *testing.T) {
 	config := &auth.OAuthConfig{
-		Enabled:          true,
-		TenantID:         "test-tenant",
-		ClientID:         "test-client",
-		RequiredScopes:   []string{"https://management.azure.com/.default"},
-		AllowedRedirects: []string{"http://localhost:3000/callback"},
+		Enabled:        true,
+		TenantID:       "test-tenant",
+		ClientID:       "test-client",
+		RequiredScopes: []string{"https://management.azure.com/.default"},
 	}
 
 	provider, _ := NewAzureOAuthProvider(config)
@@ -371,11 +329,10 @@ func TestValidateClientRegistration(t *testing.T) {
 
 func TestCallbackEndpointMissingCode(t *testing.T) {
 	config := &auth.OAuthConfig{
-		Enabled:          true,
-		TenantID:         "test-tenant",
-		ClientID:         "test-client",
-		RequiredScopes:   []string{"https://management.azure.com/.default"},
-		AllowedRedirects: []string{"http://localhost:3000/oauth/callback"},
+		Enabled:        true,
+		TenantID:       "test-tenant",
+		ClientID:       "test-client",
+		RequiredScopes: []string{"https://management.azure.com/.default"},
 	}
 
 	provider, _ := NewAzureOAuthProvider(config)
@@ -406,11 +363,10 @@ func TestCallbackEndpointMissingCode(t *testing.T) {
 
 func TestCallbackEndpointMissingState(t *testing.T) {
 	config := &auth.OAuthConfig{
-		Enabled:          true,
-		TenantID:         "test-tenant",
-		ClientID:         "test-client",
-		RequiredScopes:   []string{"https://management.azure.com/.default"},
-		AllowedRedirects: []string{"http://localhost:3000/oauth/callback"},
+		Enabled:        true,
+		TenantID:       "test-tenant",
+		ClientID:       "test-client",
+		RequiredScopes: []string{"https://management.azure.com/.default"},
 	}
 
 	provider, _ := NewAzureOAuthProvider(config)
@@ -435,11 +391,10 @@ func TestCallbackEndpointMissingState(t *testing.T) {
 
 func TestCallbackEndpointAuthError(t *testing.T) {
 	config := &auth.OAuthConfig{
-		Enabled:          true,
-		TenantID:         "test-tenant",
-		ClientID:         "test-client",
-		RequiredScopes:   []string{"https://management.azure.com/.default"},
-		AllowedRedirects: []string{"http://localhost:3000/oauth/callback"},
+		Enabled:        true,
+		TenantID:       "test-tenant",
+		ClientID:       "test-client",
+		RequiredScopes: []string{"https://management.azure.com/.default"},
 	}
 
 	provider, _ := NewAzureOAuthProvider(config)
@@ -467,11 +422,10 @@ func TestCallbackEndpointAuthError(t *testing.T) {
 
 func TestCallbackEndpointMethodNotAllowed(t *testing.T) {
 	config := &auth.OAuthConfig{
-		Enabled:          true,
-		TenantID:         "test-tenant",
-		ClientID:         "test-client",
-		RequiredScopes:   []string{"https://management.azure.com/.default"},
-		AllowedRedirects: []string{"http://localhost:3000/oauth/callback"},
+		Enabled:        true,
+		TenantID:       "test-tenant",
+		ClientID:       "test-client",
+		RequiredScopes: []string{"https://management.azure.com/.default"},
 	}
 
 	provider, _ := NewAzureOAuthProvider(config)

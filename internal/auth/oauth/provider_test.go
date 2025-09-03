@@ -21,11 +21,10 @@ func TestNewAzureOAuthProvider(t *testing.T) {
 		{
 			name: "valid config should create provider",
 			config: &auth.OAuthConfig{
-				Enabled:          true,
-				TenantID:         "test-tenant",
-				ClientID:         "test-client",
-				RequiredScopes:   []string{"https://management.azure.com/.default"},
-				AllowedRedirects: []string{"http://localhost:3000/callback"},
+				Enabled:        true,
+				TenantID:       "test-tenant",
+				ClientID:       "test-client",
+				RequiredScopes: []string{"https://management.azure.com/.default"},
 				TokenValidation: auth.TokenValidationConfig{
 					ValidateJWT:      true,
 					ValidateAudience: true,
@@ -62,11 +61,10 @@ func TestNewAzureOAuthProvider(t *testing.T) {
 
 func TestGetProtectedResourceMetadata(t *testing.T) {
 	config := &auth.OAuthConfig{
-		Enabled:          true,
-		TenantID:         "test-tenant-id",
-		ClientID:         "test-client-id",
-		RequiredScopes:   []string{"https://management.azure.com/.default"},
-		AllowedRedirects: []string{"http://localhost:3000/callback"},
+		Enabled:        true,
+		TenantID:       "test-tenant-id",
+		ClientID:       "test-client-id",
+		RequiredScopes: []string{"https://management.azure.com/.default"},
 		TokenValidation: auth.TokenValidationConfig{
 			ValidateJWT:      true,
 			ValidateAudience: true,
@@ -117,11 +115,10 @@ func TestGetAuthorizationServerMetadata(t *testing.T) {
 	defer server.Close()
 
 	config := &auth.OAuthConfig{
-		Enabled:          true,
-		TenantID:         "test-tenant",
-		ClientID:         "test-client",
-		RequiredScopes:   []string{"https://management.azure.com/.default"},
-		AllowedRedirects: []string{"http://localhost:3000/callback"},
+		Enabled:        true,
+		TenantID:       "test-tenant",
+		ClientID:       "test-client",
+		RequiredScopes: []string{"https://management.azure.com/.default"},
 		TokenValidation: auth.TokenValidationConfig{
 			ValidateJWT:      true,
 			ValidateAudience: true,
@@ -166,11 +163,10 @@ func TestGetAuthorizationServerMetadata(t *testing.T) {
 
 func TestValidateTokenWithoutJWT(t *testing.T) {
 	config := &auth.OAuthConfig{
-		Enabled:          true,
-		TenantID:         "test-tenant",
-		ClientID:         "test-client",
-		RequiredScopes:   []string{"https://management.azure.com/.default"},
-		AllowedRedirects: []string{"http://localhost:3000/callback"},
+		Enabled:        true,
+		TenantID:       "test-tenant",
+		ClientID:       "test-client",
+		RequiredScopes: []string{"https://management.azure.com/.default"},
 		TokenValidation: auth.TokenValidationConfig{
 			ValidateJWT:      false, // Disable JWT validation
 			ValidateAudience: false,
@@ -204,11 +200,10 @@ func TestValidateTokenWithoutJWT(t *testing.T) {
 
 func TestValidateAudience(t *testing.T) {
 	config := &auth.OAuthConfig{
-		Enabled:          true,
-		TenantID:         "test-tenant",
-		ClientID:         "test-client-id",
-		RequiredScopes:   []string{"https://management.azure.com/.default"},
-		AllowedRedirects: []string{"http://localhost:3000/callback"},
+		Enabled:        true,
+		TenantID:       "test-tenant",
+		ClientID:       "test-client-id",
+		RequiredScopes: []string{"https://management.azure.com/.default"},
 		TokenValidation: auth.TokenValidationConfig{
 			ValidateJWT:      true,
 			ValidateAudience: true,

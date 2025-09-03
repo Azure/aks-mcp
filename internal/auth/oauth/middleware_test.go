@@ -22,13 +22,12 @@ func TestAuthMiddleware(t *testing.T) {
 	// validation now requires at least one scope to be specified. This is intentional
 	// to prevent security misconfigurations in production environments.
 	config := &auth.OAuthConfig{
-		Enabled:          true,
-		TenantID:         "test-tenant",
-		ClientID:         "test-client",
-		RequiredScopes:   []string{"https://management.azure.com/.default"}, // Minimal scope for testing
-		AllowedRedirects: []string{"http://localhost:3000/callback"},
+		Enabled:        true,
+		TenantID:       "test-tenant",
+		ClientID:       "test-client",
+		RequiredScopes: []string{"https://management.azure.com/.default"},
 		TokenValidation: auth.TokenValidationConfig{
-			ValidateJWT:      false, // Disable JWT validation for testing
+			ValidateJWT:      false,
 			ValidateAudience: false,
 			ExpectedAudience: "https://management.azure.com/",
 			CacheTTL:         5 * time.Minute,
@@ -123,13 +122,12 @@ func TestAuthMiddlewareContextPropagation(t *testing.T) {
 	// Note: We cannot test with empty RequiredScopes because the OAuth configuration
 	// validation now requires at least one scope to be specified.
 	config := &auth.OAuthConfig{
-		Enabled:          true,
-		TenantID:         "test-tenant",
-		ClientID:         "test-client",
-		RequiredScopes:   []string{"https://management.azure.com/.default"}, // Minimal scope for testing
-		AllowedRedirects: []string{"http://localhost:3000/callback"},
+		Enabled:        true,
+		TenantID:       "test-tenant",
+		ClientID:       "test-client",
+		RequiredScopes: []string{"https://management.azure.com/.default"},
 		TokenValidation: auth.TokenValidationConfig{
-			ValidateJWT:      false, // Disable JWT validation for testing
+			ValidateJWT:      false,
 			ValidateAudience: false,
 			ExpectedAudience: "https://management.azure.com/",
 			CacheTTL:         5 * time.Minute,
@@ -175,11 +173,10 @@ func TestShouldSkipAuth(t *testing.T) {
 	// Note: We cannot test with empty RequiredScopes because the OAuth configuration
 	// validation now requires at least one scope to be specified.
 	config := &auth.OAuthConfig{
-		Enabled:          true,
-		TenantID:         "test-tenant",
-		ClientID:         "test-client",
-		RequiredScopes:   []string{"https://management.azure.com/.default"}, // Minimal scope for testing
-		AllowedRedirects: []string{"http://localhost:3000/callback"},
+		Enabled:        true,
+		TenantID:       "test-tenant",
+		ClientID:       "test-client",
+		RequiredScopes: []string{"https://management.azure.com/.default"}, // Minimal scope for testing
 		TokenValidation: auth.TokenValidationConfig{
 			ValidateJWT:      false,
 			ValidateAudience: false,
