@@ -77,6 +77,8 @@ func generateToolDescription(accessLevel string) string {
 	// Only show write operation examples if access level allows it
 	if accessLevel == "readwrite" || accessLevel == "admin" {
 		desc += "- Scale cluster: operation=\"scale\", args=\"--name myCluster --resource-group myRG --node-count 5\"\n"
+		desc += "- Update cluster (enable autoscaler): operation=\"update\", args=\"--name myCluster --resource-group myRG --enable-cluster-autoscaler --min-count 1 --max-count 5\"\n"
+		desc += "- Update cluster (disable autoscaler): operation=\"update\", args=\"--name myCluster --resource-group myRG --disable-cluster-autoscaler\"\n"
 	}
 
 	return desc
