@@ -59,6 +59,10 @@ func CreateToolHandler(executor CommandExecutor, cfg *config.ConfigData) func(ct
 		}
 
 		if err != nil {
+			// Include command output (often stderr) in the error for context
+			if result != "" {
+				return mcp.NewToolResultError(fmt.Sprintf("%s\n%s", err.Error(), result)), nil
+			}
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 
@@ -96,6 +100,10 @@ func CreateResourceHandler(handler ResourceHandler, cfg *config.ConfigData) func
 		}
 
 		if err != nil {
+			// Include handler output in the error message for better diagnostics
+			if result != "" {
+				return mcp.NewToolResultError(fmt.Sprintf("%s\n%s", err.Error(), result)), nil
+			}
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 
