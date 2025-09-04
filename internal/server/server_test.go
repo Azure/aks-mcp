@@ -35,7 +35,7 @@ func (m *MockToolCounter) AddTool(toolName string) {
 
 	// Categorize tools
 	azureToolPrefixes := []string{"az_", "azure_", "get_aks_", "list_detectors", "run_detector", "inspektor_gadget_observability"}
-	k8sToolPrefixes := []string{"kubectl_", "k8s_", "helm", "cilium"}
+	k8sToolPrefixes := []string{"kubectl_", "k8s_", "helm", "cilium", "hubble"}
 
 	isAzureTool := false
 	for _, prefix := range azureToolPrefixes {
@@ -119,6 +119,7 @@ func TestService(t *testing.T) {
 			additionalTools: map[string]bool{
 				"helm":   true,
 				"cilium": true,
+				"hubble": true,
 			},
 			expectedAzureTools: 8, // Same as readonly (Inspektor Gadget now included automatically)
 			expectedK8sTools:   0, // Will be calculated + 2 optional tools
@@ -144,6 +145,9 @@ func TestService(t *testing.T) {
 				optionalToolsCount++
 			}
 			if tt.additionalTools["cilium"] {
+				optionalToolsCount++
+			}
+			if tt.additionalTools["hubble"] {
 				optionalToolsCount++
 			}
 
@@ -242,6 +246,7 @@ func TestComponentToolCounts(t *testing.T) {
 		t.Logf("Optional Kubernetes Components:")
 		t.Logf("  - Helm: 1 tool (when enabled)")
 		t.Logf("  - Cilium: 1 tool (when enabled)")
+		t.Logf("  - Hubble: 1 tool (when enabled)")
 		t.Logf("Note: Inspektor Gadget is now automatically enabled as part of Azure Components")
 	})
 
@@ -344,7 +349,7 @@ func TestExpectedToolsByAccessLevel(t *testing.T) {
 
 			t.Logf("Kubernetes Tools:")
 			t.Logf("  - Kubectl Tools: %d", k8sToolsCount)
-			t.Logf("  - Optional Tools: 0-2 (helm, cilium)")
+			t.Logf("  - Optional Tools: 0-3 (helm, cilium, hubble)")
 
 			t.Logf("kubectl tools for %s:", level)
 			for i, tool := range kubectlTools {

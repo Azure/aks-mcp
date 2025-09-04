@@ -71,7 +71,7 @@ func (cfg *ConfigData) ParseFlags() {
 
 	// Kubernetes-specific settings
 	additionalTools := flag.String("additional-tools", "",
-		"Comma-separated list of additional Kubernetes tools to support (kubectl is always enabled). Available: helm,cilium")
+		"Comma-separated list of additional Kubernetes tools to support (kubectl is always enabled). Available: helm,cilium,hubble")
 	flag.StringVar(&cfg.AllowNamespaces, "allow-namespaces", "",
 		"Comma-separated list of allowed Kubernetes namespaces (empty means all namespaces)")
 

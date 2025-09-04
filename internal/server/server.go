@@ -24,6 +24,7 @@ import (
 	"github.com/Azure/aks-mcp/internal/version"
 	"github.com/Azure/mcp-kubernetes/pkg/cilium"
 	"github.com/Azure/mcp-kubernetes/pkg/helm"
+	"github.com/Azure/mcp-kubernetes/pkg/hubble"
 	"github.com/Azure/mcp-kubernetes/pkg/kubectl"
 	k8stools "github.com/Azure/mcp-kubernetes/pkg/tools"
 	"github.com/mark3labs/mcp-go/server"
@@ -335,8 +336,11 @@ func (s *Service) registerOptionalKubernetesComponents() {
 	// Register cilium if enabled
 	s.registerCiliumComponent()
 
+	// Register hubble if enabled
+	s.registerHubbleComponent()
+
 	// Log if no optional components are enabled
-	if !s.cfg.AdditionalTools["helm"] && !s.cfg.AdditionalTools["cilium"] {
+	if !s.cfg.AdditionalTools["helm"] && !s.cfg.AdditionalTools["cilium"] && !s.cfg.AdditionalTools["hubble"] {
 		log.Println("No optional Kubernetes components enabled")
 	}
 }
@@ -441,5 +445,15 @@ func (s *Service) registerCiliumComponent() {
 		ciliumTool := cilium.RegisterCilium()
 		ciliumExecutor := k8s.WrapK8sExecutor(cilium.NewExecutor())
 		s.mcpServer.AddTool(ciliumTool, tools.CreateToolHandler(ciliumExecutor, s.cfg))
+	}
+}
+
+// registerHubbleComponent registers hubble tools if enabled
+func (s *Service) registerHubbleComponent() {
+	if s.cfg.AdditionalTools["hubble"] {
+		log.Println("Registering Kubernetes tool: hubble")
+		hubbleTool := hubble.RegisterHubble()
+		hubbleExecutor := k8s.WrapK8sExecutor(hubble.NewExecutor())
+		s.mcpServer.AddTool(hubbleTool, tools.CreateToolHandler(hubbleExecutor, s.cfg))
 	}
 }
