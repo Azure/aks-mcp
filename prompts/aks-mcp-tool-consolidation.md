@@ -27,6 +27,7 @@ The current AKS-MCP server registers approximately 40+ individual tools, which c
    - kubectl commands
    - helm (optional)
    - cilium (optional)
+   - hubble (optional)
 
 5. **Advisor Tools** (1 tool)
    - Advisor recommendations
@@ -160,11 +161,12 @@ The current AKS-MCP server registers approximately 40+ individual tools, which c
 - kubectl commands
 - helm operations (if enabled)
 - cilium operations (if enabled)
+- hubble commands (if enabled)
 
 **Parameters:**
 ```json
 {
-  "tool": "kubectl|helm|cilium",
+  "tool": "kubectl|helm|cilium|hubble",
   "command": "specific command",
   "args": "command arguments"
 }

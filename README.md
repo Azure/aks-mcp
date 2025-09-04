@@ -634,7 +634,7 @@ Command line arguments:
 ```sh
 Usage of ./aks-mcp:
       --access-level string       Access level (readonly, readwrite, admin) (default "readonly")
-      --additional-tools string   Comma-separated list of additional Kubernetes tools to support (kubectl is always enabled). Available: helm,cilium
+      --additional-tools string   Comma-separated list of additional Kubernetes tools to support (kubectl is always enabled). Available: helm,cilium,hubble
       --allow-namespaces string   Comma-separated list of allowed Kubernetes namespaces (empty means all namespaces)
       --host string               Host to listen for the server (only used with transport sse or streamable-http) (default "127.0.0.1")
       --otlp-endpoint string      OTLP endpoint for OpenTelemetry traces (e.g. localhost:4317, default "")

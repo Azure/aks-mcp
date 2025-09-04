@@ -58,7 +58,7 @@ func TestConvertConfig_MapsFields(t *testing.T) {
 		Host:            "127.0.0.1",
 		Port:            8000,
 		AccessLevel:     "readonly",
-		AdditionalTools: map[string]bool{"helm": true, "cilium": false},
+		AdditionalTools: map[string]bool{"helm": true, "cilium": false, "hubble": false},
 		AllowNamespaces: "default,platform",
 		OTLPEndpoint:    "otel:4317",
 	}
@@ -220,7 +220,7 @@ func BenchmarkConvertConfig(b *testing.B) {
 		Host:            "127.0.0.1",
 		Port:            8000,
 		AccessLevel:     "readonly",
-		AdditionalTools: map[string]bool{"helm": true, "cilium": false},
+		AdditionalTools: map[string]bool{"helm": true, "cilium": false, "hubble": false},
 		AllowNamespaces: "default,platform",
 		OTLPEndpoint:    "otel:4317",
 	}

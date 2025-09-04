@@ -55,6 +55,12 @@ func (v *Validator) validateCli() bool {
 		valid = false
 	}
 
+	// hubble is optional - only validate if explicitly enabled
+	if v.config.AdditionalTools["hubble"] && !v.isCliInstalled("hubble") {
+		v.errors = append(v.errors, "hubble is not installed or not found in PATH (required when --additional-tools includes hubble)")
+		valid = false
+	}
+
 	return valid
 }
 
