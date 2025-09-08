@@ -149,7 +149,7 @@ func (s *Service) initializeOAuth() error {
 	s.authMiddleware = oauth.NewAuthMiddleware(provider, serverURL)
 
 	// Create endpoint manager
-	s.endpointManager = oauth.NewEndpointManager(provider, s.cfg.OAuthConfig)
+	s.endpointManager = oauth.NewEndpointManager(provider, s.cfg)
 
 	log.Printf("OAuth authentication initialized with tenant: %s", s.cfg.OAuthConfig.TenantID)
 	return nil

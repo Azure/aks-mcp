@@ -103,20 +103,7 @@ AKS-MCP uses the same environment variables (`AZURE_TENANT_ID`, `AZURE_CLIENT_ID
 ```bash
 # Create Azure AD application with public client platform
 az ad app create --display-name "AKS-MCP-OAuth" \
-  --public-client-redirect-uris "http://localhost:8000/oauth/callback" "http://localhost:6274/oauth/callback/debug"
-
-# Get application details
-az ad app list --display-name "AKS-MCP-OAuth" --query "[0].{appId:appId,objectId:objectId}"
-
-# Get your tenant ID
-az account show --query "tenantId" -o tsv
-```
-
-**For Single-page application platform:**
-```bash
-# Create Azure AD application with SPA platform
-az ad app create --display-name "AKS-MCP-OAuth" \
-  --spa-redirect-uris "http://localhost:8000/oauth/callback" "http://localhost:6274/oauth/callback/debug"
+  --public-client-redirect-uris "http://localhost:8000/oauth/callback"
 
 # Get application details
 az ad app list --display-name "AKS-MCP-OAuth" --query "[0].{appId:appId,objectId:objectId}"
@@ -196,8 +183,6 @@ curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8000/mcp
 ./aks-mcp --oauth-enabled --access-level=readonly
 ```
 
-**Note for MCP Inspector**: MCP Inspector requires the callback URL `http://localhost:6274/oauth/callback/debug` to be configured in your Azure AD application redirect URIs for proper OAuth testing.
-
 ### Step 4: Start AKS-MCP with OAuth
 
 ```bash
@@ -208,7 +193,7 @@ curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8000/mcp
   --oauth-enabled \
   --oauth-tenant-id="$AZURE_TENANT_ID" \
   --oauth-client-id="$AZURE_CLIENT_ID" \
-  --oauth-redirects="http://localhost:8000/oauth/callback,http://localhost:6274/oauth/callback/debug" \
+  --oauth-redirects="http://localhost:8000/oauth/callback" \
   --access-level=readonly
 
 # Using SSE transport with OAuth (alternative)
@@ -218,7 +203,7 @@ curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8000/mcp
   --oauth-enabled \
   --oauth-tenant-id="$AZURE_TENANT_ID" \
   --oauth-client-id="$AZURE_CLIENT_ID" \
-  --oauth-redirects="http://localhost:8000/oauth/callback,http://localhost:6274/oauth/callback/debug" \
+  --oauth-redirects="http://localhost:8000/oauth/callback" \
   --access-level=readonly
 
 # Environment variables are automatically used if set
@@ -243,7 +228,7 @@ curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8000/mcp
 ./aks-mcp --transport=sse --oauth-enabled=true \
   --oauth-tenant-id="12345678-1234-1234-1234-123456789012" \
   --oauth-client-id="87654321-4321-4321-4321-210987654321" \
-  --oauth-redirects="http://localhost:8000/oauth/callback,http://localhost:6274/oauth/callback/debug"
+  --oauth-redirects="http://localhost:8000/oauth/callback"
 ```
 
 **Note**: Scopes are automatically set to `https://management.azure.com/.default` and cannot be customized via command line.

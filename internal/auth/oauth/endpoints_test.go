@@ -8,10 +8,15 @@ import (
 	"testing"
 
 	"github.com/Azure/aks-mcp/internal/auth"
+	"github.com/Azure/aks-mcp/internal/config"
 )
 
-func TestEndpointManager_RegisterEndpoints(t *testing.T) {
-	config := &auth.OAuthConfig{
+// createTestConfig creates a test ConfigData with OAuth configuration
+func createTestConfig() *config.ConfigData {
+	cfg := config.NewConfig()
+	cfg.Host = "127.0.0.1"
+	cfg.Port = 8000
+	cfg.OAuthConfig = &auth.OAuthConfig{
 		Enabled:        true,
 		TenantID:       "test-tenant",
 		ClientID:       "test-client",
@@ -22,9 +27,14 @@ func TestEndpointManager_RegisterEndpoints(t *testing.T) {
 			ExpectedAudience: "https://management.azure.com/",
 		},
 	}
+	return cfg
+}
 
-	provider, _ := NewAzureOAuthProvider(config)
-	manager := NewEndpointManager(provider, config)
+func TestEndpointManager_RegisterEndpoints(t *testing.T) {
+	cfg := createTestConfig()
+
+	provider, _ := NewAzureOAuthProvider(cfg.OAuthConfig)
+	manager := NewEndpointManager(provider, cfg)
 
 	mux := http.NewServeMux()
 	manager.RegisterEndpoints(mux)
@@ -58,15 +68,10 @@ func TestEndpointManager_RegisterEndpoints(t *testing.T) {
 }
 
 func TestProtectedResourceMetadataEndpoint(t *testing.T) {
-	config := &auth.OAuthConfig{
-		Enabled:        true,
-		TenantID:       "test-tenant",
-		ClientID:       "test-client",
-		RequiredScopes: []string{"https://management.azure.com/.default"},
-	}
+	cfg := createTestConfig()
 
-	provider, _ := NewAzureOAuthProvider(config)
-	manager := NewEndpointManager(provider, config)
+	provider, _ := NewAzureOAuthProvider(cfg.OAuthConfig)
+	manager := NewEndpointManager(provider, cfg)
 
 	req := httptest.NewRequest("GET", "/.well-known/oauth-protected-resource", nil)
 	w := httptest.NewRecorder()
@@ -89,20 +94,15 @@ func TestProtectedResourceMetadataEndpoint(t *testing.T) {
 	}
 
 	if len(metadata.ScopesSupported) != 1 || metadata.ScopesSupported[0] != "https://management.azure.com/.default" {
-		t.Errorf("Expected scopes %v, got %v", config.RequiredScopes, metadata.ScopesSupported)
+		t.Errorf("Expected scopes %v, got %v", cfg.OAuthConfig.RequiredScopes, metadata.ScopesSupported)
 	}
 }
 
 func TestClientRegistrationEndpoint(t *testing.T) {
-	config := &auth.OAuthConfig{
-		Enabled:        true,
-		TenantID:       "test-tenant",
-		ClientID:       "test-client",
-		RequiredScopes: []string{"https://management.azure.com/.default"},
-	}
+	cfg := createTestConfig()
 
-	provider, _ := NewAzureOAuthProvider(config)
-	manager := NewEndpointManager(provider, config)
+	provider, _ := NewAzureOAuthProvider(cfg.OAuthConfig)
+	manager := NewEndpointManager(provider, cfg)
 
 	// Test valid registration request
 	registrationRequest := map[string]interface{}{
@@ -142,19 +142,10 @@ func TestClientRegistrationEndpoint(t *testing.T) {
 }
 
 func TestTokenIntrospectionEndpoint(t *testing.T) {
-	config := &auth.OAuthConfig{
-		Enabled:        true,
-		TenantID:       "test-tenant",
-		ClientID:       "test-client",
-		RequiredScopes: []string{"https://management.azure.com/.default"},
-		TokenValidation: auth.TokenValidationConfig{
-			ValidateJWT:      false,
-			ValidateAudience: false,
-		},
-	}
+	cfg := createTestConfig()
 
-	provider, _ := NewAzureOAuthProvider(config)
-	manager := NewEndpointManager(provider, config)
+	provider, _ := NewAzureOAuthProvider(cfg.OAuthConfig)
+	manager := NewEndpointManager(provider, cfg)
 
 	// Test with valid token (since JWT validation is disabled, any token works)
 	// Note: Must use a token that looks like a JWT (has dots) to pass initial format checks
@@ -180,15 +171,10 @@ func TestTokenIntrospectionEndpoint(t *testing.T) {
 }
 
 func TestTokenIntrospectionEndpointMissingToken(t *testing.T) {
-	config := &auth.OAuthConfig{
-		Enabled:        true,
-		TenantID:       "test-tenant",
-		ClientID:       "test-client",
-		RequiredScopes: []string{"https://management.azure.com/.default"},
-	}
+	cfg := createTestConfig()
 
-	provider, _ := NewAzureOAuthProvider(config)
-	manager := NewEndpointManager(provider, config)
+	provider, _ := NewAzureOAuthProvider(cfg.OAuthConfig)
+	manager := NewEndpointManager(provider, cfg)
 
 	// Test without token parameter
 	req := httptest.NewRequest("POST", "/oauth/introspect", strings.NewReader(""))
@@ -204,15 +190,10 @@ func TestTokenIntrospectionEndpointMissingToken(t *testing.T) {
 }
 
 func TestHealthEndpoint(t *testing.T) {
-	config := &auth.OAuthConfig{
-		Enabled:        true,
-		TenantID:       "test-tenant",
-		ClientID:       "test-client",
-		RequiredScopes: []string{"https://management.azure.com/.default"},
-	}
+	cfg := createTestConfig()
 
-	provider, _ := NewAzureOAuthProvider(config)
-	manager := NewEndpointManager(provider, config)
+	provider, _ := NewAzureOAuthProvider(cfg.OAuthConfig)
+	manager := NewEndpointManager(provider, cfg)
 
 	req := httptest.NewRequest("GET", "/health", nil)
 	w := httptest.NewRecorder()
@@ -244,15 +225,10 @@ func TestHealthEndpoint(t *testing.T) {
 }
 
 func TestValidateClientRegistration(t *testing.T) {
-	config := &auth.OAuthConfig{
-		Enabled:        true,
-		TenantID:       "test-tenant",
-		ClientID:       "test-client",
-		RequiredScopes: []string{"https://management.azure.com/.default"},
-	}
+	cfg := createTestConfig()
 
-	provider, _ := NewAzureOAuthProvider(config)
-	manager := NewEndpointManager(provider, config)
+	provider, _ := NewAzureOAuthProvider(cfg.OAuthConfig)
+	manager := NewEndpointManager(provider, cfg)
 
 	tests := []struct {
 		name    string
@@ -320,15 +296,10 @@ func TestValidateClientRegistration(t *testing.T) {
 }
 
 func TestCallbackEndpointMissingCode(t *testing.T) {
-	config := &auth.OAuthConfig{
-		Enabled:        true,
-		TenantID:       "test-tenant",
-		ClientID:       "test-client",
-		RequiredScopes: []string{"https://management.azure.com/.default"},
-	}
+	cfg := createTestConfig()
 
-	provider, _ := NewAzureOAuthProvider(config)
-	manager := NewEndpointManager(provider, config)
+	provider, _ := NewAzureOAuthProvider(cfg.OAuthConfig)
+	manager := NewEndpointManager(provider, cfg)
 
 	// Test callback without authorization code
 	req := httptest.NewRequest("GET", "/oauth/callback?state=test-state", nil)
@@ -354,15 +325,10 @@ func TestCallbackEndpointMissingCode(t *testing.T) {
 }
 
 func TestCallbackEndpointMissingState(t *testing.T) {
-	config := &auth.OAuthConfig{
-		Enabled:        true,
-		TenantID:       "test-tenant",
-		ClientID:       "test-client",
-		RequiredScopes: []string{"https://management.azure.com/.default"},
-	}
+	cfg := createTestConfig()
 
-	provider, _ := NewAzureOAuthProvider(config)
-	manager := NewEndpointManager(provider, config)
+	provider, _ := NewAzureOAuthProvider(cfg.OAuthConfig)
+	manager := NewEndpointManager(provider, cfg)
 
 	// Test callback without state parameter
 	req := httptest.NewRequest("GET", "/oauth/callback?code=test-code", nil)
@@ -382,15 +348,10 @@ func TestCallbackEndpointMissingState(t *testing.T) {
 }
 
 func TestCallbackEndpointAuthError(t *testing.T) {
-	config := &auth.OAuthConfig{
-		Enabled:        true,
-		TenantID:       "test-tenant",
-		ClientID:       "test-client",
-		RequiredScopes: []string{"https://management.azure.com/.default"},
-	}
+	cfg := createTestConfig()
 
-	provider, _ := NewAzureOAuthProvider(config)
-	manager := NewEndpointManager(provider, config)
+	provider, _ := NewAzureOAuthProvider(cfg.OAuthConfig)
+	manager := NewEndpointManager(provider, cfg)
 
 	// Test callback with authorization error
 	req := httptest.NewRequest("GET", "/oauth/callback?error=access_denied&error_description=User%20denied%20access", nil)
@@ -413,15 +374,10 @@ func TestCallbackEndpointAuthError(t *testing.T) {
 }
 
 func TestCallbackEndpointMethodNotAllowed(t *testing.T) {
-	config := &auth.OAuthConfig{
-		Enabled:        true,
-		TenantID:       "test-tenant",
-		ClientID:       "test-client",
-		RequiredScopes: []string{"https://management.azure.com/.default"},
-	}
+	cfg := createTestConfig()
 
-	provider, _ := NewAzureOAuthProvider(config)
-	manager := NewEndpointManager(provider, config)
+	provider, _ := NewAzureOAuthProvider(cfg.OAuthConfig)
+	manager := NewEndpointManager(provider, cfg)
 
 	// Test callback with POST method (should only accept GET)
 	req := httptest.NewRequest("POST", "/oauth/callback", nil)

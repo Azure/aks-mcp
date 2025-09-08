@@ -44,14 +44,14 @@ func validateAzureADURL(tokenURL string) error {
 // EndpointManager manages OAuth-related HTTP endpoints
 type EndpointManager struct {
 	provider *AzureOAuthProvider
-	config   *auth.OAuthConfig
+	cfg      *config.ConfigData
 }
 
 // NewEndpointManager creates a new OAuth endpoint manager
-func NewEndpointManager(provider *AzureOAuthProvider, config *auth.OAuthConfig) *EndpointManager {
+func NewEndpointManager(provider *AzureOAuthProvider, cfg *config.ConfigData) *EndpointManager {
 	return &EndpointManager{
 		provider: provider,
-		config:   config,
+		cfg:      cfg,
 	}
 }
 
@@ -218,7 +218,7 @@ func (em *EndpointManager) clientRegistrationHandler() http.HandlerFunc {
 		// For Azure AD compatibility, use the configured client ID
 		// In a full RFC 7591 implementation, each registration would get a unique ID
 		// But since Azure AD requires pre-registered client IDs, we return the configured one
-		clientID := em.config.ClientID
+		clientID := em.cfg.OAuthConfig.ClientID
 
 		log.Printf("OAuth DEBUG: Client registration successful - returning client_id: %s", clientID)
 
@@ -330,7 +330,7 @@ func (em *EndpointManager) tokenIntrospectionHandler() http.HandlerFunc {
 		// Return active token response
 		response := map[string]interface{}{
 			"active":    true,
-			"client_id": em.config.ClientID,
+			"client_id": em.cfg.OAuthConfig.ClientID,
 			"scope":     strings.Join(tokenInfo.Scope, " "),
 			"sub":       tokenInfo.Subject,
 			"aud":       tokenInfo.Audience,
@@ -366,7 +366,7 @@ func (em *EndpointManager) healthHandler() http.HandlerFunc {
 		response := map[string]interface{}{
 			"status": "healthy",
 			"oauth": map[string]interface{}{
-				"enabled": em.config.Enabled,
+				"enabled": em.cfg.OAuthConfig.Enabled,
 			},
 		}
 
@@ -508,14 +508,14 @@ func (em *EndpointManager) authorizationProxyHandler() http.HandlerFunc {
 		// Use only server-required scopes for Azure AD compatibility
 		// Azure AD .default scopes cannot be mixed with OpenID Connect scopes
 		// We prioritize Azure Management API access over OpenID Connect user info
-		finalScopes := em.config.RequiredScopes
+		finalScopes := em.cfg.OAuthConfig.RequiredScopes
 
 		finalScopeString := strings.Join(finalScopes, " ")
 		query.Set("scope", finalScopeString)
 		log.Printf("OAuth DEBUG: Setting final scope for Azure AD: %s", finalScopeString)
 
 		// Build the Azure AD authorization URL
-		azureAuthURL := fmt.Sprintf("https://login.microsoftonline.com/%s/oauth2/v2.0/authorize", em.config.TenantID)
+		azureAuthURL := fmt.Sprintf("https://login.microsoftonline.com/%s/oauth2/v2.0/authorize", em.cfg.OAuthConfig.TenantID)
 
 		// Create the redirect URL with filtered parameters
 		redirectURL := fmt.Sprintf("%s?%s", azureAuthURL, query.Encode())
@@ -590,11 +590,11 @@ func (em *EndpointManager) callbackHandler() http.HandlerFunc {
 		tokenInfo := &auth.TokenInfo{
 			AccessToken: tokenResponse.AccessToken,
 			TokenType:   "Bearer",
-			ExpiresAt:   time.Now().Add(time.Hour), // Default 1 hour expiration
-			Scope:       em.config.RequiredScopes,  // Use configured scopes
-			Subject:     "authenticated_user",      // Placeholder
-			Audience:    []string{fmt.Sprintf("https://sts.windows.net/%s/", em.config.TenantID)},
-			Issuer:      fmt.Sprintf("https://sts.windows.net/%s/", em.config.TenantID),
+			ExpiresAt:   time.Now().Add(time.Hour),         // Default 1 hour expiration
+			Scope:       em.cfg.OAuthConfig.RequiredScopes, // Use configured scopes
+			Subject:     "authenticated_user",              // Placeholder
+			Audience:    []string{fmt.Sprintf("https://sts.windows.net/%s/", em.cfg.OAuthConfig.TenantID)},
+			Issuer:      fmt.Sprintf("https://sts.windows.net/%s/", em.cfg.OAuthConfig.TenantID),
 			Claims:      make(map[string]interface{}),
 		}
 
@@ -615,7 +615,7 @@ type TokenResponse struct {
 // exchangeCodeForToken exchanges authorization code for access token
 func (em *EndpointManager) exchangeCodeForToken(code, state string) (*TokenResponse, error) {
 	// Prepare token exchange request
-	tokenURL := fmt.Sprintf("https://login.microsoftonline.com/%s/oauth2/v2.0/token", em.config.TenantID)
+	tokenURL := fmt.Sprintf("https://login.microsoftonline.com/%s/oauth2/v2.0/token", em.cfg.OAuthConfig.TenantID)
 
 	// Validate URL for security
 	if err := validateAzureADURL(tokenURL); err != nil {
@@ -623,15 +623,15 @@ func (em *EndpointManager) exchangeCodeForToken(code, state string) (*TokenRespo
 	}
 
 	// Use default callback redirect URI for token exchange
-	redirectURI := fmt.Sprintf("http://localhost:%d/oauth/callback", 8080) // Default for MCP servers
+	redirectURI := fmt.Sprintf("http://%s:%d/oauth/callback", em.cfg.Host, em.cfg.Port)
 
 	// Prepare form data
 	data := url.Values{}
 	data.Set("grant_type", "authorization_code")
-	data.Set("client_id", em.config.ClientID)
+	data.Set("client_id", em.cfg.OAuthConfig.ClientID)
 	data.Set("code", code)
 	data.Set("redirect_uri", redirectURI)
-	data.Set("scope", strings.Join(em.config.RequiredScopes, " "))
+	data.Set("scope", strings.Join(em.cfg.OAuthConfig.RequiredScopes, " "))
 
 	// Note: Azure AD v2.0 doesn't support the 'resource' parameter in token requests
 	// It uses scope-based resource identification instead
@@ -781,7 +781,7 @@ func (em *EndpointManager) writeCallbackSuccessResponse(w http.ResponseWriter, t
 // isValidClientID validates if a client ID is acceptable
 func (em *EndpointManager) isValidClientID(clientID string) bool {
 	// Accept configured client ID (primary method for Azure AD)
-	if clientID == em.config.ClientID {
+	if clientID == em.cfg.OAuthConfig.ClientID {
 		return true
 	}
 
@@ -879,7 +879,7 @@ func (em *EndpointManager) tokenHandler() http.HandlerFunc {
 		requestedScope := r.FormValue("scope")
 		if requestedScope == "" {
 			// Fallback to server required scopes if not provided
-			requestedScope = strings.Join(em.config.RequiredScopes, " ")
+			requestedScope = strings.Join(em.cfg.OAuthConfig.RequiredScopes, " ")
 		}
 
 		log.Printf("OAuth DEBUG: Exchanging authorization code for access token with Azure AD, scope: %s", requestedScope)
@@ -910,7 +910,7 @@ func (em *EndpointManager) tokenHandler() http.HandlerFunc {
 // exchangeCodeForTokenDirect exchanges authorization code for access token directly with Azure AD
 func (em *EndpointManager) exchangeCodeForTokenDirect(code, redirectURI, codeVerifier, scope string) (*TokenResponse, error) {
 	// Prepare token exchange request to Azure AD
-	tokenURL := fmt.Sprintf("https://login.microsoftonline.com/%s/oauth2/v2.0/token", em.config.TenantID)
+	tokenURL := fmt.Sprintf("https://login.microsoftonline.com/%s/oauth2/v2.0/token", em.cfg.OAuthConfig.TenantID)
 
 	// Validate URL for security
 	if err := validateAzureADURL(tokenURL); err != nil {
@@ -920,7 +920,7 @@ func (em *EndpointManager) exchangeCodeForTokenDirect(code, redirectURI, codeVer
 	// Prepare form data
 	data := url.Values{}
 	data.Set("grant_type", "authorization_code")
-	data.Set("client_id", em.config.ClientID)
+	data.Set("client_id", em.cfg.OAuthConfig.ClientID)
 	data.Set("code", code)
 	data.Set("redirect_uri", redirectURI)
 	data.Set("scope", scope) // Use the scope provided by the client

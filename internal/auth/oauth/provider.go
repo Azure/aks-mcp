@@ -205,9 +205,11 @@ func (p *AzureOAuthProvider) GetAuthorizationServerMetadata(serverURL string) (*
 
 // ValidateToken validates an OAuth access token
 func (p *AzureOAuthProvider) ValidateToken(ctx context.Context, tokenString string) (*auth.TokenInfo, error) {
-	// Check if token looks like a valid JWT (should have exactly 2 dots)
+	// JWTs have three parts (header.payload.signature) separated by two dots.
+	const jwtExpectedDotCount = 2
+
 	dotCount := strings.Count(tokenString, ".")
-	if dotCount != 2 {
+	if dotCount != jwtExpectedDotCount {
 		return nil, fmt.Errorf("invalid JWT token format: expected 3 parts separated by dots, got %d dots", dotCount)
 	}
 
