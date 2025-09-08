@@ -113,7 +113,9 @@ func TestGetAuthorizationServerMetadataWithDefaults(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(mockMetadata)
+		if err := json.NewEncoder(w).Encode(mockMetadata); err != nil {
+			http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		}
 	}))
 	defer server.Close()
 
@@ -211,7 +213,9 @@ func TestGetAuthorizationServerMetadata(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(mockMetadata)
+		if err := json.NewEncoder(w).Encode(mockMetadata); err != nil {
+			http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		}
 	}))
 	defer server.Close()
 

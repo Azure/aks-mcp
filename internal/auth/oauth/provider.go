@@ -116,7 +116,11 @@ func (p *AzureOAuthProvider) GetAuthorizationServerMetadata(serverURL string) (*
 		log.Printf("OAuth ERROR: Failed to fetch metadata from %s: %v", metadataURL, err)
 		return nil, fmt.Errorf("failed to fetch metadata from %s: %w", metadataURL, err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("Failed to close response body: %v", err)
+		}
+	}()
 
 	if resp.StatusCode == http.StatusNotFound {
 		log.Printf("OAuth ERROR: Tenant ID '%s' not found (HTTP 404)", p.config.TenantID)
@@ -181,7 +185,7 @@ func (p *AzureOAuthProvider) GetAuthorizationServerMetadata(serverURL string) (*
 	if err == nil {
 		// If the server URL includes /mcp path, include it in the proxy endpoint
 		proxyPath := "/oauth2/v2.0/authorize"
-		tokenPath := "/oauth2/v2.0/token"
+		tokenPath := "/oauth2/v2.0/token" // #nosec G101 -- This is an OAuth endpoint path, not credentials
 		registrationPath := "/oauth/register"
 		proxyAuthURL := fmt.Sprintf("%s://%s%s", parsedURL.Scheme, parsedURL.Host, proxyPath)
 		tokenURL := fmt.Sprintf("%s://%s%s", parsedURL.Scheme, parsedURL.Host, tokenPath)
@@ -421,7 +425,11 @@ func (p *AzureOAuthProvider) getPublicKey(kid string, issuer string) (*rsa.Publi
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch JWKS from %s: %w", jwksURL, err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("Failed to close response body: %v", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("JWKS endpoint returned status %d", resp.StatusCode)

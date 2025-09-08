@@ -142,12 +142,20 @@ func TestOAuthConfigEnvironmentVariables(t *testing.T) {
 	oldClientID := os.Getenv("AZURE_CLIENT_ID")
 
 	defer func() {
-		os.Setenv("AZURE_TENANT_ID", oldTenantID)
-		os.Setenv("AZURE_CLIENT_ID", oldClientID)
+		if err := os.Setenv("AZURE_TENANT_ID", oldTenantID); err != nil {
+			t.Logf("Failed to restore AZURE_TENANT_ID: %v", err)
+		}
+		if err := os.Setenv("AZURE_CLIENT_ID", oldClientID); err != nil {
+			t.Logf("Failed to restore AZURE_CLIENT_ID: %v", err)
+		}
 	}()
 
-	os.Setenv("AZURE_TENANT_ID", "env-tenant-id")
-	os.Setenv("AZURE_CLIENT_ID", "env-client-id")
+	if err := os.Setenv("AZURE_TENANT_ID", "env-tenant-id"); err != nil {
+		t.Fatalf("Failed to set AZURE_TENANT_ID: %v", err)
+	}
+	if err := os.Setenv("AZURE_CLIENT_ID", "env-client-id"); err != nil {
+		t.Fatalf("Failed to set AZURE_CLIENT_ID: %v", err)
+	}
 
 	config := NewDefaultOAuthConfig()
 	config.Enabled = true

@@ -16,6 +16,31 @@ import (
 	"github.com/Azure/aks-mcp/internal/config"
 )
 
+// validateAzureADURL validates that the URL is a legitimate Azure AD endpoint
+func validateAzureADURL(tokenURL string) error {
+	parsedURL, err := url.Parse(tokenURL)
+	if err != nil {
+		return fmt.Errorf("invalid URL format: %w", err)
+	}
+
+	// Only allow HTTPS for security
+	if parsedURL.Scheme != "https" {
+		return fmt.Errorf("only HTTPS URLs are allowed")
+	}
+
+	// Only allow Azure AD endpoints
+	if parsedURL.Host != "login.microsoftonline.com" {
+		return fmt.Errorf("only Azure AD endpoints are allowed")
+	}
+
+	// Validate path format for token endpoint (should be /{tenantId}/oauth2/v2.0/token)
+	if !strings.Contains(parsedURL.Path, "/oauth2/v2.0/token") {
+		return fmt.Errorf("invalid Azure AD token endpoint path")
+	}
+
+	return nil
+}
+
 // EndpointManager manages OAuth-related HTTP endpoints
 type EndpointManager struct {
 	provider *AzureOAuthProvider
@@ -296,7 +321,9 @@ func (em *EndpointManager) tokenIntrospectionHandler() http.HandlerFunc {
 			}
 
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(response)
+			if err := json.NewEncoder(w).Encode(response); err != nil {
+				log.Printf("Failed to encode introspection response: %v", err)
+			}
 			return
 		}
 
@@ -419,7 +446,9 @@ func (em *EndpointManager) writeErrorResponse(w http.ResponseWriter, errorCode, 
 		"error_description": description,
 	}
 
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		log.Printf("Failed to encode error response: %v", err)
+	}
 }
 
 // authorizationProxyHandler proxies authorization requests to Azure AD with resource parameter filtering
@@ -588,6 +617,11 @@ func (em *EndpointManager) exchangeCodeForToken(code, state string) (*TokenRespo
 	// Prepare token exchange request
 	tokenURL := fmt.Sprintf("https://login.microsoftonline.com/%s/oauth2/v2.0/token", em.config.TenantID)
 
+	// Validate URL for security
+	if err := validateAzureADURL(tokenURL); err != nil {
+		return nil, fmt.Errorf("invalid token URL: %w", err)
+	}
+
 	// Use default callback redirect URI for token exchange
 	redirectURI := fmt.Sprintf("http://localhost:%d/oauth/callback", 8080) // Default for MCP servers
 
@@ -604,11 +638,15 @@ func (em *EndpointManager) exchangeCodeForToken(code, state string) (*TokenRespo
 	// For MCP compliance, we handle resource binding through audience validation
 
 	// Make token exchange request
-	resp, err := http.PostForm(tokenURL, data)
+	resp, err := http.PostForm(tokenURL, data) // #nosec G107 -- URL is validated above
 	if err != nil {
 		return nil, fmt.Errorf("token exchange request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("Failed to close response body: %v", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -649,7 +687,9 @@ func (em *EndpointManager) writeCallbackErrorResponse(w http.ResponseWriter, mes
 </body>
 </html>`, message)
 
-	w.Write([]byte(html))
+	if _, err := w.Write([]byte(html)); err != nil {
+		log.Printf("Failed to write error response: %v", err)
+	}
 }
 
 // writeCallbackSuccessResponse writes a success response for callback
@@ -733,7 +773,9 @@ func (em *EndpointManager) writeCallbackSuccessResponse(w http.ResponseWriter, t
 		tokenResponse.AccessToken,
 		tokenResponse.AccessToken)
 
-	w.Write([]byte(html))
+	if _, err := w.Write([]byte(html)); err != nil {
+		log.Printf("Failed to write success response: %v", err)
+	}
 }
 
 // isValidClientID validates if a client ID is acceptable
@@ -870,6 +912,11 @@ func (em *EndpointManager) exchangeCodeForTokenDirect(code, redirectURI, codeVer
 	// Prepare token exchange request to Azure AD
 	tokenURL := fmt.Sprintf("https://login.microsoftonline.com/%s/oauth2/v2.0/token", em.config.TenantID)
 
+	// Validate URL for security
+	if err := validateAzureADURL(tokenURL); err != nil {
+		return nil, fmt.Errorf("invalid token URL: %w", err)
+	}
+
 	// Prepare form data
 	data := url.Values{}
 	data.Set("grant_type", "authorization_code")
@@ -892,11 +939,15 @@ func (em *EndpointManager) exchangeCodeForTokenDirect(code, redirectURI, codeVer
 	log.Printf("Azure AD token request with scope: %s", scope)
 
 	// Make token exchange request to Azure AD
-	resp, err := http.PostForm(tokenURL, data)
+	resp, err := http.PostForm(tokenURL, data) // #nosec G107 -- URL is validated above
 	if err != nil {
 		return nil, fmt.Errorf("token exchange request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("Failed to close response body: %v", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)

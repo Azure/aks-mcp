@@ -44,7 +44,9 @@ func TestAuthMiddleware(t *testing.T) {
 	// Create a test handler
 	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("success"))
+		if _, err := w.Write([]byte("success")); err != nil {
+			t.Errorf("Failed to write test response: %v", err)
+		}
 	})
 
 	wrappedHandler := middleware.Middleware(testHandler)
