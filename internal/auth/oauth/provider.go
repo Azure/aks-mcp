@@ -213,8 +213,11 @@ func (p *AzureOAuthProvider) ValidateToken(ctx context.Context, tokenString stri
 		return nil, fmt.Errorf("invalid JWT token format: expected 3 parts separated by dots, got %d dots", dotCount)
 	}
 
-	// If JWT validation is disabled, return a minimal token info without full validation
+	// SECURITY WARNING: JWT validation bypass - for development and testing ONLY
+	// ValidateJWT should ALWAYS be true in production environments
+	// This bypass creates a significant security vulnerability if enabled in production
 	if !p.config.TokenValidation.ValidateJWT {
+		log.Printf("WARNING: JWT validation is DISABLED - this should ONLY be used in development/testing")
 		return &auth.TokenInfo{
 			AccessToken: tokenString,
 			TokenType:   "Bearer",

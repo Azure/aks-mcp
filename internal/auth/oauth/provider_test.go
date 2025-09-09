@@ -267,6 +267,9 @@ func TestGetAuthorizationServerMetadata(t *testing.T) {
 }
 
 func TestValidateTokenWithoutJWT(t *testing.T) {
+	// SECURITY WARNING: This test verifies the JWT validation bypass functionality
+	// ValidateJWT=false should ONLY be used in development/testing environments
+	// This functionality should NEVER be enabled in production
 	config := &auth.OAuthConfig{
 		Enabled:        true,
 		TenantID:       "test-tenant",

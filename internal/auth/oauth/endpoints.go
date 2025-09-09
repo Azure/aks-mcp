@@ -55,15 +55,29 @@ func NewEndpointManager(provider *AzureOAuthProvider, cfg *config.ConfigData) *E
 	}
 }
 
-// setCORSHeaders sets CORS headers for OAuth endpoints to allow MCP Inspector access
-func (em *EndpointManager) setCORSHeaders(w http.ResponseWriter) {
-	origin := "*" // TODO: Restrict to specific origins
+// setCORSHeaders sets CORS headers for OAuth endpoints with origin whitelisting
+func (em *EndpointManager) setCORSHeaders(w http.ResponseWriter, r *http.Request) {
+	requestOrigin := r.Header.Get("Origin")
 
-	w.Header().Set("Access-Control-Allow-Origin", origin)
-	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, mcp-protocol-version")
-	w.Header().Set("Access-Control-Max-Age", "86400")           // 24 hours
-	w.Header().Set("Access-Control-Allow-Credentials", "false") // Explicit false for wildcard origin
+	// Check if the request origin is in the allowed list
+	var allowedOrigin string
+	for _, allowed := range em.provider.config.AllowedOrigins {
+		if requestOrigin == allowed {
+			allowedOrigin = requestOrigin
+			break
+		}
+	}
+
+	// Only set CORS headers if origin is allowed
+	if allowedOrigin != "" {
+		w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, mcp-protocol-version")
+		w.Header().Set("Access-Control-Max-Age", "86400") // 24 hours
+		w.Header().Set("Access-Control-Allow-Credentials", "false")
+	} else if requestOrigin != "" {
+		log.Printf("CORS ERROR: Origin %s is not in the allowed list - cross-origin requests will be blocked for security", requestOrigin)
+	}
 }
 
 // setCacheHeaders sets cache control headers based on EnableCache configuration
@@ -116,7 +130,7 @@ func (em *EndpointManager) authServerMetadataProxyHandler() http.HandlerFunc {
 		log.Printf("OAuth DEBUG: Received request for authorization server metadata: %s %s", r.Method, r.URL.Path)
 
 		// Set CORS headers for all requests
-		em.setCORSHeaders(w)
+		em.setCORSHeaders(w, r)
 
 		// Handle preflight OPTIONS request
 		if r.Method == http.MethodOptions {
@@ -171,7 +185,7 @@ func (em *EndpointManager) clientRegistrationHandler() http.HandlerFunc {
 		log.Printf("OAuth DEBUG: Received client registration request: %s %s", r.Method, r.URL.Path)
 
 		// Set CORS headers for all requests
-		em.setCORSHeaders(w)
+		em.setCORSHeaders(w, r)
 
 		// Handle preflight OPTIONS request
 		if r.Method == http.MethodOptions {
@@ -219,8 +233,6 @@ func (em *EndpointManager) clientRegistrationHandler() http.HandlerFunc {
 		// In a full RFC 7591 implementation, each registration would get a unique ID
 		// But since Azure AD requires pre-registered client IDs, we return the configured one
 		clientID := em.cfg.OAuthConfig.ClientID
-
-		log.Printf("OAuth DEBUG: Client registration successful - returning client_id: %s", clientID)
 
 		clientInfo := map[string]interface{}{
 			"client_id":                  clientID,          // Use configured Azure AD client ID
@@ -284,11 +296,28 @@ func (em *EndpointManager) validateClientRegistration(req *ClientRegistrationReq
 	return nil
 }
 
+// validateRedirectURI validates that a redirect URI is registered and allowed
+func (em *EndpointManager) validateRedirectURI(redirectURI string) error {
+	if len(em.cfg.OAuthConfig.RedirectURIs) == 0 {
+		return fmt.Errorf("no redirect URIs configured")
+	}
+
+	for _, allowed := range em.cfg.OAuthConfig.RedirectURIs {
+		if redirectURI == allowed {
+			return nil
+		}
+	}
+
+	log.Printf("OAuth SECURITY WARNING: Invalid redirect URI attempted: %s, allowed: %v",
+		redirectURI, em.cfg.OAuthConfig.RedirectURIs)
+	return fmt.Errorf("redirect_uri not registered: %s", redirectURI)
+}
+
 // tokenIntrospectionHandler implements RFC 7662 OAuth 2.0 Token Introspection
 func (em *EndpointManager) tokenIntrospectionHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Set CORS headers for all requests
-		em.setCORSHeaders(w)
+		em.setCORSHeaders(w, r)
 
 		// Handle preflight OPTIONS request
 		if r.Method == http.MethodOptions {
@@ -350,7 +379,7 @@ func (em *EndpointManager) tokenIntrospectionHandler() http.HandlerFunc {
 func (em *EndpointManager) healthHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Set CORS headers for all requests
-		em.setCORSHeaders(w)
+		em.setCORSHeaders(w, r)
 
 		// Handle preflight OPTIONS request
 		if r.Method == http.MethodOptions {
@@ -384,7 +413,7 @@ func (em *EndpointManager) protectedResourceMetadataHandler() http.HandlerFunc {
 		log.Printf("OAuth DEBUG: Received request for protected resource metadata: %s %s", r.Method, r.URL.Path)
 
 		// Set CORS headers for all requests
-		em.setCORSHeaders(w)
+		em.setCORSHeaders(w, r)
 
 		// Handle preflight OPTIONS request
 		if r.Method == http.MethodOptions {
@@ -457,7 +486,7 @@ func (em *EndpointManager) authorizationProxyHandler() http.HandlerFunc {
 		log.Printf("OAuth DEBUG: Received authorization proxy request: %s %s", r.Method, r.URL.Path)
 
 		// Set CORS headers for all requests
-		em.setCORSHeaders(w)
+		em.setCORSHeaders(w, r)
 
 		// Handle preflight OPTIONS request
 		if r.Method == http.MethodOptions {
@@ -473,6 +502,23 @@ func (em *EndpointManager) authorizationProxyHandler() http.HandlerFunc {
 
 		// Parse query parameters
 		query := r.URL.Query()
+
+		// Validate redirect_uri parameter for security and better user experience
+		redirectURI := query.Get("redirect_uri")
+		if redirectURI == "" {
+			log.Printf("OAuth ERROR: Missing redirect_uri parameter in authorization request")
+			log.Printf("OAuth HELP: To fix this error, configure redirect URIs using --oauth-redirects flag")
+			log.Printf("OAuth HELP: For MCP Inspector, use: --oauth-redirects=\"http://localhost:8000/oauth/callback,http://localhost:6274/oauth/callback\"")
+			em.writeErrorResponse(w, "invalid_request", "redirect_uri parameter is required", http.StatusBadRequest)
+			return
+		}
+
+		// Validate that the redirect_uri is registered and allowed
+		if err := em.validateRedirectURI(redirectURI); err != nil {
+			log.Printf("OAuth ERROR: redirect_uri %s not registered - requests will be blocked for security", redirectURI)
+			em.writeErrorResponse(w, "invalid_request", fmt.Sprintf("redirect_uri not registered: %s", redirectURI), http.StatusBadRequest)
+			return
+		}
 
 		// Enforce PKCE for OAuth 2.1 compliance (MCP requirement)
 		codeChallenge := query.Get("code_challenge")
@@ -532,7 +578,7 @@ func (em *EndpointManager) callbackHandler() http.HandlerFunc {
 		log.Printf("OAuth DEBUG: Received callback request: %s %s", r.Method, r.URL.Path)
 
 		// Set CORS headers for all requests
-		em.setCORSHeaders(w)
+		em.setCORSHeaders(w, r)
 
 		// Handle preflight OPTIONS request
 		if r.Method == http.MethodOptions {
@@ -575,6 +621,14 @@ func (em *EndpointManager) callbackHandler() http.HandlerFunc {
 
 		log.Printf("OAuth DEBUG: Callback parameters validated - has_code: true, state: %s", state)
 
+		// Validate redirect URI for security - construct expected URI and validate it
+		expectedRedirectURI := fmt.Sprintf("http://%s:%d/oauth/callback", em.cfg.Host, em.cfg.Port)
+		if err := em.validateRedirectURI(expectedRedirectURI); err != nil {
+			log.Printf("OAuth ERROR: Redirect URI validation failed: %v", err)
+			em.writeCallbackErrorResponse(w, "Invalid redirect URI")
+			return
+		}
+
 		// Exchange authorization code for access token
 		tokenResponse, err := em.exchangeCodeForToken(code, state)
 		if err != nil {
@@ -582,8 +636,6 @@ func (em *EndpointManager) callbackHandler() http.HandlerFunc {
 			em.writeCallbackErrorResponse(w, fmt.Sprintf("Failed to exchange code for token: %v", err))
 			return
 		}
-
-		log.Printf("OAuth DEBUG: Token exchange successful, preparing callback success response")
 
 		// Skip token validation in callback - validation happens during MCP requests
 		// Create minimal token info for callback success page
@@ -806,7 +858,7 @@ func (em *EndpointManager) tokenHandler() http.HandlerFunc {
 		log.Printf("OAuth DEBUG: Received token endpoint request: %s %s", r.Method, r.URL.Path)
 
 		// Set CORS headers for all requests
-		em.setCORSHeaders(w)
+		em.setCORSHeaders(w, r)
 
 		// Handle preflight OPTIONS request
 		if r.Method == http.MethodOptions {
@@ -866,12 +918,17 @@ func (em *EndpointManager) tokenHandler() http.HandlerFunc {
 			return
 		}
 
-		log.Printf("OAuth DEBUG: Token request parameters validated - client_id: %s, redirect_uri: %s, has_code_verifier: %t", clientID, redirectURI, codeVerifier != "")
-
 		// Validate client ID (accept both configured and dynamically registered clients)
 		if !em.isValidClientID(clientID) {
 			log.Printf("OAuth ERROR: Invalid client_id: %s", clientID)
 			em.writeErrorResponse(w, "invalid_client", "Invalid client_id", http.StatusBadRequest)
+			return
+		}
+
+		// Validate redirect URI for security
+		if err := em.validateRedirectURI(redirectURI); err != nil {
+			log.Printf("OAuth ERROR: Redirect URI validation failed in token endpoint: %v", err)
+			em.writeErrorResponse(w, "invalid_request", "Invalid redirect_uri", http.StatusBadRequest)
 			return
 		}
 
@@ -891,8 +948,6 @@ func (em *EndpointManager) tokenHandler() http.HandlerFunc {
 			em.writeErrorResponse(w, "invalid_grant", fmt.Sprintf("Authorization code exchange failed: %v", err), http.StatusBadRequest)
 			return
 		}
-
-		log.Printf("OAuth DEBUG: Token exchange successful, returning token response to client")
 
 		// Return token response
 		w.Header().Set("Content-Type", "application/json")

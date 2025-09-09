@@ -22,15 +22,29 @@ type AuthMiddleware struct {
 	serverURL string
 }
 
-// setCORSHeaders sets CORS headers for OAuth endpoints to allow MCP Inspector access
-func (m *AuthMiddleware) setCORSHeaders(w http.ResponseWriter) {
-	origin := "*" // TODO: Restrict to specific origins
+// setCORSHeaders sets CORS headers for OAuth endpoints with origin whitelisting
+func (m *AuthMiddleware) setCORSHeaders(w http.ResponseWriter, r *http.Request) {
+	requestOrigin := r.Header.Get("Origin")
 
-	w.Header().Set("Access-Control-Allow-Origin", origin)
-	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, mcp-protocol-version")
-	w.Header().Set("Access-Control-Max-Age", "86400")           // 24 hours
-	w.Header().Set("Access-Control-Allow-Credentials", "false") // Explicit false for wildcard origin
+	// Check if the request origin is in the allowed list
+	var allowedOrigin string
+	for _, allowed := range m.provider.config.AllowedOrigins {
+		if requestOrigin == allowed {
+			allowedOrigin = requestOrigin
+			break
+		}
+	}
+
+	// Only set CORS headers if origin is allowed
+	if allowedOrigin != "" {
+		w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, mcp-protocol-version")
+		w.Header().Set("Access-Control-Max-Age", "86400") // 24 hours
+		w.Header().Set("Access-Control-Allow-Credentials", "false")
+	} else if requestOrigin != "" {
+		log.Printf("CORS ERROR: Origin %s is not in the allowed list - cross-origin requests will be blocked for security", requestOrigin)
+	}
 }
 
 // NewAuthMiddleware creates a new authentication middleware
@@ -228,7 +242,7 @@ func (m *AuthMiddleware) hasScopePermission(requiredScope string, tokenScopes []
 // handleAuthError handles authentication errors
 func (m *AuthMiddleware) handleAuthError(w http.ResponseWriter, r *http.Request, authResult *auth.AuthResult) {
 	// Set CORS headers
-	m.setCORSHeaders(w)
+	m.setCORSHeaders(w, r)
 	w.Header().Set("Content-Type", "application/json")
 
 	// Add WWW-Authenticate header for 401 responses (RFC 9728 Section 5.1)

@@ -219,6 +219,7 @@ curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8000/mcp
 - `--oauth-tenant-id`: Azure AD tenant ID (or use AZURE_TENANT_ID env var)
 - `--oauth-client-id`: Azure AD client ID (or use AZURE_CLIENT_ID env var)
 - `--oauth-redirects`: Comma-separated list of allowed redirect URIs (required when OAuth enabled)
+- `--oauth-cors-origins`: Comma-separated list of allowed CORS origins for OAuth endpoints (e.g. http://localhost:6274 for MCP Inspector). If empty, no cross-origin requests are allowed for security
 
 **Note**: OAuth scopes are automatically configured to use `https://management.azure.com/.default` for optimal Azure AD compatibility. Custom scopes are not currently configurable via command line.
 
@@ -227,8 +228,7 @@ curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8000/mcp
 ```bash
 ./aks-mcp --transport=sse --oauth-enabled=true \
   --oauth-tenant-id="12345678-1234-1234-1234-123456789012" \
-  --oauth-client-id="87654321-4321-4321-4321-210987654321" \
-  --oauth-redirects="http://localhost:8000/oauth/callback"
+  --oauth-client-id="87654321-4321-4321-4321-210987654321"
 ```
 
 **Note**: Scopes are automatically set to `https://management.azure.com/.default` and cannot be customized via command line.
@@ -435,5 +435,40 @@ To migrate from a non-OAuth AKS-MCP deployment:
 ## Integration with MCP Inspector
 
 The MCP Inspector tool can be used to test OAuth-enabled AKS-MCP servers. Configure the Inspector's OAuth settings to match your AKS-MCP OAuth configuration for testing.
+
+### Important: Redirect URI Configuration for MCP Inspector
+
+When using MCP Inspector with OAuth authentication, you need to add the Inspector's proxy redirect URI to your OAuth configuration:
+
+```bash
+# Add Inspector's redirect URI (typically http://localhost:6274/oauth/callback)
+./aks-mcp \
+  --transport=streamable-http \
+  --port=8000 \
+  --oauth-enabled \
+  --oauth-redirects="http://localhost:8000/oauth/callback,http://localhost:6274/oauth/callback" \
+  --access-level=readonly
+```
+
+**Key Points:**
+- MCP Inspector typically runs on port 6274 by default
+- The Inspector creates a proxy redirect URI at `/oauth/callback`
+- You must include both your server's redirect URI AND the Inspector's redirect URI
+- You must also configure CORS origins to allow the Inspector's web interface to make requests
+- Comma-separate multiple redirect URIs in the `--oauth-redirects` parameter
+- Comma-separate multiple CORS origins in the `--oauth-cors-origins` parameter
+- Without the Inspector's redirect URI, OAuth authentication will fail with "redirect_uri not registered" error
+- Without the Inspector's CORS origin, the web interface will be blocked by browser CORS policy
+
+**Example with MCP Inspector configuration:**
+```bash
+./aks-mcp \
+  --transport=streamable-http \
+  --port=8000 \
+  --oauth-enabled \
+  --oauth-redirects="http://localhost:8000/oauth/callback,http://localhost:6274/oauth/callback" \
+  --oauth-cors-origins="http://localhost:6274" \
+  --access-level=readonly
+```
 
 For more information, see the MCP OAuth specification and Azure AD documentation.

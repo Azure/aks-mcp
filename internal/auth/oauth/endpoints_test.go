@@ -21,6 +21,7 @@ func createTestConfig() *config.ConfigData {
 		TenantID:       "test-tenant",
 		ClientID:       "test-client",
 		RequiredScopes: []string{"https://management.azure.com/.default"},
+		RedirectURIs:   []string{"http://127.0.0.1:8000/oauth/callback", "http://localhost:8000/oauth/callback"},
 		TokenValidation: auth.TokenValidationConfig{
 			ValidateJWT:      false,
 			ValidateAudience: false,
@@ -388,5 +389,213 @@ func TestCallbackEndpointMethodNotAllowed(t *testing.T) {
 
 	if w.Code != http.StatusMethodNotAllowed {
 		t.Errorf("Expected status 405 for POST method, got %d", w.Code)
+	}
+}
+
+func TestValidateRedirectURI(t *testing.T) {
+	cfg := createTestConfig()
+
+	provider, _ := NewAzureOAuthProvider(cfg.OAuthConfig)
+	manager := NewEndpointManager(provider, cfg)
+
+	tests := []struct {
+		name        string
+		redirectURI string
+		wantErr     bool
+	}{
+		{
+			name:        "valid redirect URI - 127.0.0.1",
+			redirectURI: "http://127.0.0.1:8000/oauth/callback",
+			wantErr:     false,
+		},
+		{
+			name:        "valid redirect URI - localhost",
+			redirectURI: "http://localhost:8000/oauth/callback",
+			wantErr:     false,
+		},
+		{
+			name:        "invalid redirect URI - wrong port",
+			redirectURI: "http://127.0.0.1:9000/oauth/callback",
+			wantErr:     true,
+		},
+		{
+			name:        "invalid redirect URI - wrong path",
+			redirectURI: "http://127.0.0.1:8000/oauth/malicious",
+			wantErr:     true,
+		},
+		{
+			name:        "invalid redirect URI - external domain",
+			redirectURI: "http://malicious.com:8000/oauth/callback",
+			wantErr:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := manager.validateRedirectURI(tt.redirectURI)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("validateRedirectURI() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+
+	// Test with empty redirect URIs configuration
+	cfgEmpty := createTestConfig()
+	cfgEmpty.OAuthConfig.RedirectURIs = []string{}
+	managerEmpty := NewEndpointManager(provider, cfgEmpty)
+
+	err := managerEmpty.validateRedirectURI("http://127.0.0.1:8000/oauth/callback")
+	if err == nil {
+		t.Error("Expected error when no redirect URIs are configured")
+	}
+}
+
+// TestAuthorizationProxyRedirectURIValidation tests the authorization endpoint redirect URI validation
+func TestCORSHeaders(t *testing.T) {
+	cfg := createTestConfig()
+	cfg.OAuthConfig.AllowedOrigins = []string{"http://localhost:6274"}
+
+	provider, _ := NewAzureOAuthProvider(cfg.OAuthConfig)
+	manager := NewEndpointManager(provider, cfg)
+
+	tests := []struct {
+		name          string
+		origin        string
+		expectCORSSet bool
+		expectOrigin  string
+	}{
+		{
+			name:          "allowed origin",
+			origin:        "http://localhost:6274",
+			expectCORSSet: true,
+			expectOrigin:  "http://localhost:6274",
+		},
+		{
+			name:          "disallowed origin",
+			origin:        "http://malicious.com",
+			expectCORSSet: false,
+			expectOrigin:  "",
+		},
+		{
+			name:          "no origin header",
+			origin:        "",
+			expectCORSSet: false,
+			expectOrigin:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/health", nil)
+			if tt.origin != "" {
+				req.Header.Set("Origin", tt.origin)
+			}
+			w := httptest.NewRecorder()
+
+			handler := manager.healthHandler()
+			handler(w, req)
+
+			corsOrigin := w.Header().Get("Access-Control-Allow-Origin")
+			if tt.expectCORSSet {
+				if corsOrigin != tt.expectOrigin {
+					t.Errorf("Expected CORS origin %s, got %s", tt.expectOrigin, corsOrigin)
+				}
+			} else {
+				if corsOrigin != "" {
+					t.Errorf("Expected no CORS headers, but got Access-Control-Allow-Origin: %s", corsOrigin)
+				}
+			}
+		})
+	}
+}
+
+func TestAuthorizationProxyRedirectURIValidation(t *testing.T) {
+	cfg := createTestConfig()
+	provider, _ := NewAzureOAuthProvider(cfg.OAuthConfig)
+	manager := NewEndpointManager(provider, cfg)
+
+	tests := []struct {
+		name        string
+		redirectURI string
+		expectError bool
+		expectCode  int
+	}{
+		{
+			name:        "missing redirect_uri",
+			redirectURI: "",
+			expectError: true,
+			expectCode:  http.StatusBadRequest,
+		},
+		{
+			name:        "valid redirect_uri - 127.0.0.1",
+			redirectURI: "http://127.0.0.1:8000/oauth/callback",
+			expectError: false,
+			expectCode:  http.StatusFound, // Should redirect to Azure AD
+		},
+		{
+			name:        "valid redirect_uri - localhost",
+			redirectURI: "http://localhost:8000/oauth/callback",
+			expectError: false,
+			expectCode:  http.StatusFound, // Should redirect to Azure AD
+		},
+		{
+			name:        "invalid redirect_uri - wrong port",
+			redirectURI: "http://127.0.0.1:9000/oauth/callback",
+			expectError: true,
+			expectCode:  http.StatusBadRequest,
+		},
+		{
+			name:        "invalid redirect_uri - wrong path",
+			redirectURI: "http://127.0.0.1:8000/oauth/malicious",
+			expectError: true,
+			expectCode:  http.StatusBadRequest,
+		},
+		{
+			name:        "invalid redirect_uri - external domain",
+			redirectURI: "http://malicious.com:8000/oauth/callback",
+			expectError: true,
+			expectCode:  http.StatusBadRequest,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create request URL with redirect_uri parameter if provided
+			requestURL := "/oauth2/v2.0/authorize?response_type=code&client_id=test-client&code_challenge=test&code_challenge_method=S256&state=test"
+			if tt.redirectURI != "" {
+				requestURL += "&redirect_uri=" + tt.redirectURI
+			}
+
+			req := httptest.NewRequest("GET", requestURL, nil)
+			w := httptest.NewRecorder()
+
+			handler := manager.authorizationProxyHandler()
+			handler(w, req)
+
+			if tt.expectError {
+				if w.Code != tt.expectCode {
+					t.Errorf("Expected status code %d, got %d", tt.expectCode, w.Code)
+				}
+
+				// Check that error response contains helpful information
+				body := w.Body.String()
+				if !strings.Contains(body, "redirect_uri") {
+					t.Errorf("Error response should mention redirect_uri, got: %s", body)
+				}
+			} else {
+				if w.Code != tt.expectCode {
+					t.Errorf("Expected status code %d, got %d", tt.expectCode, w.Code)
+				}
+
+				// For successful cases, check redirect location contains expected parameters
+				location := w.Header().Get("Location")
+				if location == "" {
+					t.Errorf("Expected redirect location header, got empty")
+				}
+				if !strings.Contains(location, "login.microsoftonline.com") {
+					t.Errorf("Expected redirect to Azure AD, got: %s", location)
+				}
+			}
+		})
 	}
 }

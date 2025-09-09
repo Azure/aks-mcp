@@ -19,13 +19,21 @@ type OAuthConfig struct {
 	// Required OAuth scopes for accessing AKS-MCP
 	RequiredScopes []string `json:"required_scopes"`
 
+	// Allowed redirect URIs for OAuth callback
+	RedirectURIs []string `json:"redirect_uris"`
+
+	// Allowed CORS origins for OAuth endpoints (for security, wildcard "*" should be avoided)
+	AllowedOrigins []string `json:"allowed_origins"`
+
 	// Token validation settings
 	TokenValidation TokenValidationConfig `json:"token_validation"`
 }
 
 // TokenValidationConfig represents token validation configuration
 type TokenValidationConfig struct {
-	// Enable JWT token validation
+	// SECURITY CRITICAL: Enable JWT token validation
+	// Setting this to false creates a security vulnerability - for development/testing ONLY
+	// MUST be true in production environments
 	ValidateJWT bool `json:"validate_jwt"`
 
 	// Enable audience validation
@@ -98,8 +106,10 @@ func NewDefaultOAuthConfig() *OAuthConfig {
 		// Use Azure Management API scope to get v2.0 format tokens
 		// This ensures we get v2.0 issuer format which works with v2.0 JWKS endpoints
 		RequiredScopes: []string{AzureADScope}, // "https://management.azure.com/.default"
+		// RedirectURIs will be populated dynamically based on host/port configuration
+		RedirectURIs: []string{},
 		TokenValidation: TokenValidationConfig{
-			ValidateJWT:      true,                    // Re-enabled now that we'll get v2.0 tokens
+			ValidateJWT:      true,                    // SECURITY CRITICAL: Always true in production
 			ValidateAudience: true,                    // Re-enabled with correct audience
 			ExpectedAudience: DefaultExpectedAudience, // "https://management.azure.com"
 			CacheTTL:         DefaultTokenCacheTTL,
