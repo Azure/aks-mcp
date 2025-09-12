@@ -1,0 +1,79 @@
+# Values file for MCP Inspector deployment
+# This configuration is optimized for connecting with MCP Inspector tool
+# MCP Inspector runs on localhost:6274 and connects to AKS-MCP via port-forward
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/azure/aks-mcp
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+app:
+  transport: "streamable-http"
+  port: 8081
+  accessLevel: "readonly"
+  timeout: 600
+  verbose: false
+  cache: true
+
+# OAuth configuration for MCP Inspector
+oauth:
+  enabled: true
+  tenantId: ""  # Replace with your actual tenant ID
+  clientId: ""  # Replace with your actual client ID
+  redirectURIs:
+    - "http://localhost:6274/oauth/callback"
+  corsOrigins:
+    - "http://localhost:6274"
+
+# Azure configuration - rely on default authentication
+azure:
+  existingSecret: ""
+  tenantId: ""
+  clientId: ""
+  clientSecret: ""
+  subscriptionId: ""
+
+config:
+  additionalTools: []
+  allowNamespaces: []
+  cacheTimeout: "60s"
+
+service:
+  type: "NodePort"
+  port: 8081
+  nodePort: 30082
+
+serviceAccount:
+  create: true
+  automount: true
+  name: ""
+
+rbac:
+  create: true
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 5
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 30
+  periodSeconds: 10
+
+autoscaling:
+  enabled: false

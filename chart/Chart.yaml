@@ -1,0 +1,17 @@
+apiVersion: v2
+name: aks-mcp
+description: A Helm chart for AKS-MCP (Azure Kubernetes Service Model Context Protocol server)
+type: application
+version: 0.1.0
+appVersion: "v0.0.8"
+home: https://github.com/Azure/aks-mcp
+sources:
+  - https://github.com/Azure/aks-mcp
+maintainers:
+  - name: AKS-MCP
+keywords:
+  - azure
+  - kubernetes
+  - mcp
+  - model-context-protocol
+  - aks

@@ -1,0 +1,169 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "aks-mcp.fullname" . }}
+  labels:
+    {{- include "aks-mcp.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "aks-mcp.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- if not .Values.azure.existingSecret }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- end }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "aks-mcp.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "aks-mcp.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.app.port }}
+              protocol: TCP
+          args:
+            - "--transport"
+            - {{ .Values.app.transport | quote }}
+            - "--host"
+            - "0.0.0.0"
+            - "--port"
+            - {{ .Values.app.port | quote }}
+            - "--access-level"
+            - {{ .Values.app.accessLevel | quote }}
+            - "--timeout"
+            - {{ .Values.app.timeout | quote }}
+            {{- if .Values.oauth.enabled }}
+            - "--oauth-enabled"
+            - "true"
+            {{- if .Values.oauth.tenantId }}
+            - "--oauth-tenant-id"
+            - {{ .Values.oauth.tenantId | quote }}
+            {{- end }}
+            {{- if .Values.oauth.clientId }}
+            - "--oauth-client-id"
+            - {{ .Values.oauth.clientId | quote }}
+            {{- end }}
+            {{- $redirectURIs := include "aks-mcp.oauthRedirectURIs" . }}
+            {{- if $redirectURIs }}
+            - "--oauth-redirects"
+            - {{ $redirectURIs | quote }}
+            {{- end }}
+            {{- $corsOrigins := include "aks-mcp.oauthCorsOrigins" . }}
+            {{- if $corsOrigins }}
+            - "--oauth-cors-origins"
+            - {{ $corsOrigins | quote }}
+            {{- end }}
+            {{- end }}
+            {{- if .Values.app.verbose }}
+            - "--verbose"
+            {{- end }}
+            {{- if .Values.config.additionalTools }}
+            - "--additional-tools"
+            - {{ join "," .Values.config.additionalTools | quote }}
+            {{- end }}
+            {{- if .Values.config.allowNamespaces }}
+            - "--allow-namespaces"
+            - {{ join "," .Values.config.allowNamespaces | quote }}
+            {{- end }}
+            {{- if .Values.telemetry.otlpEndpoint }}
+            - "--otlp-endpoint"
+            - {{ .Values.telemetry.otlpEndpoint | quote }}
+            {{- end }}
+          env:
+            # Azure Authentication
+            {{- if or .Values.azure.tenantId .Values.azure.existingSecret }}
+            - name: AZURE_TENANT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "aks-mcp.azureSecretName" . }}
+                  key: tenant-id
+                  optional: true
+            {{- end }}
+            {{- if or .Values.azure.clientId .Values.azure.existingSecret }}
+            - name: AZURE_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "aks-mcp.azureSecretName" . }}
+                  key: client-id
+                  optional: true
+            {{- end }}
+            {{- if or .Values.azure.clientSecret .Values.azure.existingSecret }}
+            - name: AZURE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "aks-mcp.azureSecretName" . }}
+                  key: client-secret
+                  optional: true
+            {{- end }}
+            {{- if or .Values.azure.subscriptionId .Values.azure.existingSecret }}
+            - name: AZURE_SUBSCRIPTION_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "aks-mcp.azureSecretName" . }}
+                  key: subscription-id
+                  optional: true
+            {{- end }}
+            # Application Configuration
+            - name: DISABLE_CACHE
+              value: {{ not .Values.app.cache | quote }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          volumeMounts:
+            {{- if .Values.kubeconfig.enabled }}
+            - name: kubeconfig
+              mountPath: /home/mcp/.kube
+              readOnly: true
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          livenessProbe:
+            {{- toYaml .Values.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        {{- if .Values.kubeconfig.enabled }}
+        - name: kubeconfig
+          secret:
+            secretName: {{ .Values.kubeconfig.secretName }}
+            optional: true
+            defaultMode: 0600
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
