@@ -5,7 +5,7 @@ go 1.24.0
 toolchain go1.24.5
 
 require (
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.19.0
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.19.1
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.11.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v4 v4.2.1
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2 v2.4.0
@@ -22,7 +22,7 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.38.0
 	go.opentelemetry.io/otel/sdk v1.38.0
 	go.opentelemetry.io/otel/trace v1.38.0
-	helm.sh/helm/v3 v3.18.6
+	helm.sh/helm/v3 v3.19.0
 	k8s.io/apimachinery v0.34.1
 	k8s.io/cli-runtime v0.34.1
 	k8s.io/client-go v0.34.1
@@ -37,7 +37,7 @@ require (
 	github.com/BurntSushi/toml v1.5.0 // indirect
 	github.com/MakeNowJust/heredoc v1.0.0 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
-	github.com/Masterminds/semver/v3 v3.3.0 // indirect
+	github.com/Masterminds/semver/v3 v3.4.0 // indirect
 	github.com/Masterminds/sprig/v3 v3.3.0 // indirect
 	github.com/Masterminds/squirrel v1.5.4 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
@@ -124,7 +124,7 @@ require (
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spf13/afero v1.12.0 // indirect
 	github.com/spf13/cast v1.8.0 // indirect
-	github.com/spf13/cobra v1.9.1 // indirect
+	github.com/spf13/cobra v1.10.1 // indirect
 	github.com/spf13/viper v1.20.1 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
@@ -155,12 +155,12 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/api v0.34.1 // indirect
-	k8s.io/apiextensions-apiserver v0.33.4 // indirect
-	k8s.io/apiserver v0.33.4 // indirect
-	k8s.io/component-base v0.33.4 // indirect
+	k8s.io/apiextensions-apiserver v0.34.0 // indirect
+	k8s.io/apiserver v0.34.0 // indirect
+	k8s.io/component-base v0.34.0 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20250710124328-f3f2b991d03b // indirect
-	k8s.io/kubectl v0.33.3 // indirect
+	k8s.io/kubectl v0.34.0 // indirect
 	k8s.io/utils v0.0.0-20250604170112-4c0f3b243397 // indirect
 	oras.land/oras-go/v2 v2.6.0 // indirect
 	sigs.k8s.io/json v0.0.0-20241014173422-cfa47c3a1cc8 // indirect
