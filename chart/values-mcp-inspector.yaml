@@ -1,0 +1,86 @@
+# Values file for MCP Inspector deployment
+# This configuration is optimized for connecting with MCP Inspector tool
+# MCP Inspector runs on localhost:6274 and connects to AKS-MCP via port-forward
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/azure/aks-mcp
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+app:
+  transport: "streamable-http"
+  port: 8081  # Match your test port
+  accessLevel: "readonly"
+  timeout: 600
+  verbose: false
+  cache: true
+
+# OAuth configuration matching your test
+oauth:
+  enabled: true
+  tenantId: "84f68ef7-1b9b-45ae-9817-8706a841c544"  # Replace with your actual tenant ID
+  clientId: "1bb9e07f-0913-4145-859c-744b6810e206"  # Replace with your actual client ID
+  redirectURIs:
+    - "http://localhost:6274/oauth/callback"
+  corsOrigins:
+    - "http://localhost:6274"
+
+# Azure configuration - minimal, rely on pod identity or existing session
+azure:
+  # No explicit credentials - let the pod use default authentication
+  existingSecret: ""
+  tenantId: ""
+  clientId: ""
+  clientSecret: ""
+  subscriptionId: ""
+
+config:
+  resourceGroup: ""
+  additionalTools: []
+  allowNamespaces: []
+  cacheTimeout: "60s"
+
+service:
+  type: "NodePort"
+  port: 8081  # Match your test port
+  nodePort: 30082
+
+# ServiceAccount for test environment
+serviceAccount:
+  create: true
+  automount: true
+  annotations: {}
+  name: ""
+
+# RBAC settings for test environment
+rbac:
+  create: true
+
+# Development-like resource settings
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# Standard health checks
+readinessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 5
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 30
+  periodSeconds: 10
+
+autoscaling:
+  enabled: false
