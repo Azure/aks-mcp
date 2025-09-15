@@ -132,7 +132,7 @@ func EnsureAzCliLoginWithProc(proc Proc, cfg *config.ConfigData) (string, error)
 
 	// 3) User-assigned Managed Identity (client ID provided)
 	if clientID != "" {
-		if err := runLoginCommand(proc, fmt.Sprintf("login --identity -u %s", clientID), "user-assigned managed identity"); err != nil {
+		if err := runLoginCommand(proc, fmt.Sprintf("login --identity --client-id %s", clientID), "user-assigned managed identity"); err != nil {
 			return "", err
 		}
 		if err := setSubscription(proc, subscriptionID, "user-assigned managed identity"); err != nil {

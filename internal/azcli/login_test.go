@@ -263,7 +263,7 @@ func TestEnsureAzCliLogin_ManagedIdentity_UserAssigned(t *testing.T) {
 	t.Setenv("AZURE_SUBSCRIPTION_ID", "dummy-subscription-id")
 
 	p := &loginCommands{resp: []loginCommandResponses{
-		{cmd: "login --identity -u dummy-managed-identity-client-id", out: "", err: nil},
+		{cmd: "login --identity --client-id dummy-managed-identity-client-id", out: "", err: nil},
 		{cmd: "account set --subscription dummy-subscription-id", out: "", err: nil},
 		{cmd: "account show --query id -o tsv", out: "sub-id", err: nil},
 	}}
@@ -335,7 +335,7 @@ func TestEnsureAzCliLogin_LoginPromptInOutput(t *testing.T) {
 	// After the command.go fix, stderr content is returned WITH the error, not instead of it
 	// This test ensures we don't incorrectly think there's a valid login when there isn't
 	p := &loginCommands{resp: []loginCommandResponses{
-		{cmd: "login --identity -u cid", out: "", err: nil},
+		{cmd: "login --identity --client-id cid", out: "", err: nil},
 		{cmd: "account show --query id -o tsv", out: "sub-id", err: nil},
 	}}
 
