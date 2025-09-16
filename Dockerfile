@@ -43,6 +43,14 @@ RUN echo $TARGETARCH; curl -LO "https://dl.k8s.io/release/$(curl -L -s https://d
     chmod +x kubectl && \
     mv kubectl /usr/local/bin/kubectl
 
+# Install kubelogin
+RUN KUBELOGIN_VERSION="v0.2.10" && \
+    curl -LO "https://github.com/Azure/kubelogin/releases/download/${KUBELOGIN_VERSION}/kubelogin-linux-${TARGETARCH}.zip" && \
+    unzip kubelogin-linux-${TARGETARCH}.zip && \
+    mv bin/linux_${TARGETARCH}/kubelogin /usr/local/bin/kubelogin && \
+    chmod +x /usr/local/bin/kubelogin && \
+    rm -r bin/linux_${TARGETARCH} kubelogin-linux-${TARGETARCH}.zip
+
 # Install helm
 RUN HELM_ARCH=${TARGETARCH} && \
     curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 && \
