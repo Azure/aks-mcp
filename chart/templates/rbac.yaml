@@ -7,8 +7,11 @@ metadata:
     {{- include "aks-mcp.labels" . | nindent 4 }}
 rules:
 - apiGroups: [""]
-  resources: ["pods", "services", "endpoints", "persistentvolumeclaims", "events", "configmaps", "secrets", "nodes", "namespaces"]
+  resources: ["pods", "services", "endpoints", "persistentvolumeclaims", "events", "nodes"]
   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: [""]
+  resources: ["configmaps", "secrets", "namespaces"]
+  verbs: ["get", "list", "watch"]
 - apiGroups: ["apps"]
   resources: ["deployments", "daemonsets", "replicasets", "statefulsets"]
   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
