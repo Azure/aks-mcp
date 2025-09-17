@@ -2,8 +2,6 @@
 # This configuration is optimized for connecting with MCP Inspector tool
 # MCP Inspector runs on localhost:6274 and connects to AKS-MCP via port-forward
 
-replicaCount: 1
-
 image:
   repository: ghcr.io/azure/aks-mcp
   tag: "latest"
@@ -74,6 +72,3 @@ livenessProbe:
     port: http
   initialDelaySeconds: 30
   periodSeconds: 10
-
-autoscaling:
-  enabled: false

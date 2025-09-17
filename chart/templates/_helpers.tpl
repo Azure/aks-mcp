@@ -76,38 +76,16 @@ Create Azure credentials secret name
 Generate OAuth redirect URIs
 */}}
 {{- define "aks-mcp.oauthRedirectURIs" -}}
-{{- $redirects := list -}}
 {{- if .Values.oauth.redirectURIs -}}
-{{- $redirects = .Values.oauth.redirectURIs -}}
-{{- else -}}
-{{- if eq .Values.service.type "NodePort" -}}
-{{- $redirects = append $redirects (printf "http://localhost:%d/oauth/callback" (.Values.service.nodePort | int)) -}}
+{{- join "," .Values.oauth.redirectURIs -}}
 {{- end -}}
-{{- if .Values.ingress.enabled -}}
-{{- range .Values.ingress.hosts -}}
-{{- $redirects = append $redirects (printf "https://%s/oauth/callback" .host) -}}
-{{- end -}}
-{{- end -}}
-{{- end -}}
-{{- join "," $redirects -}}
 {{- end }}
 
 {{/*
 Generate OAuth CORS origins
 */}}
 {{- define "aks-mcp.oauthCorsOrigins" -}}
-{{- $origins := list -}}
 {{- if .Values.oauth.corsOrigins -}}
-{{- $origins = .Values.oauth.corsOrigins -}}
-{{- else -}}
-{{- if eq .Values.service.type "NodePort" -}}
-{{- $origins = append $origins (printf "http://localhost:%d" (.Values.service.nodePort | int)) -}}
+{{- join "," .Values.oauth.corsOrigins -}}
 {{- end -}}
-{{- if .Values.ingress.enabled -}}
-{{- range .Values.ingress.hosts -}}
-{{- $origins = append $origins (printf "https://%s" .host) -}}
-{{- end -}}
-{{- end -}}
-{{- end -}}
-{{- join "," $origins -}}
 {{- end }}

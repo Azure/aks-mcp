@@ -6,30 +6,61 @@ metadata:
   labels:
     {{- include "aks-mcp.labels" . | nindent 4 }}
 rules:
+# Core readonly permissions for all access levels
 - apiGroups: [""]
-  resources: ["pods", "services", "endpoints", "persistentvolumeclaims", "events", "nodes"]
-  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  resources: ["pods", "services", "endpoints", "nodes", "namespaces", "events"]
+  verbs: ["get", "list", "watch"]
 - apiGroups: [""]
-  resources: ["configmaps", "secrets", "namespaces"]
+  resources: ["configmaps", "secrets"]
   verbs: ["get", "list", "watch"]
 - apiGroups: ["apps"]
   resources: ["deployments", "daemonsets", "replicasets", "statefulsets"]
-  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  verbs: ["get", "list", "watch"]
 - apiGroups: ["extensions", "networking.k8s.io"]
   resources: ["ingresses", "networkpolicies"]
-  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  verbs: ["get", "list", "watch"]
 - apiGroups: ["batch"]
   resources: ["jobs", "cronjobs"]
-  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  verbs: ["get", "list", "watch"]
 - apiGroups: ["autoscaling"]
   resources: ["horizontalpodautoscalers"]
-  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  verbs: ["get", "list", "watch"]
 - apiGroups: ["policy"]
   resources: ["poddisruptionbudgets"]
-  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  verbs: ["get", "list", "watch"]
 - apiGroups: ["metrics.k8s.io"]
   resources: ["pods", "nodes"]
   verbs: ["get", "list"]
+{{- if or (eq .Values.app.accessLevel "readwrite") (eq .Values.app.accessLevel "admin") }}
+# Additional write permissions for readwrite and admin access levels
+- apiGroups: [""]
+  resources: ["pods", "services", "endpoints", "persistentvolumeclaims"]
+  verbs: ["create", "update", "patch", "delete"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "daemonsets", "replicasets", "statefulsets"]
+  verbs: ["create", "update", "patch", "delete"]
+- apiGroups: ["extensions", "networking.k8s.io"]
+  resources: ["ingresses", "networkpolicies"]
+  verbs: ["create", "update", "patch", "delete"]
+- apiGroups: ["batch"]
+  resources: ["jobs", "cronjobs"]
+  verbs: ["create", "update", "patch", "delete"]
+- apiGroups: ["autoscaling"]
+  resources: ["horizontalpodautoscalers"]
+  verbs: ["create", "update", "patch", "delete"]
+- apiGroups: ["policy"]
+  resources: ["poddisruptionbudgets"]
+  verbs: ["create", "update", "patch", "delete"]
+{{- end }}
+{{- if eq .Values.app.accessLevel "admin" }}
+# Additional admin permissions for full access
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["create", "update", "patch", "delete"]
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["create", "update", "patch", "delete"]
+{{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

@@ -5,18 +5,13 @@ metadata:
   labels:
     {{- include "aks-mcp.labels" . | nindent 4 }}
 spec:
-  {{- if not .Values.autoscaling.enabled }}
-  replicas: {{ .Values.replicaCount }}
-  {{- end }}
+  replicas: 1
   selector:
     matchLabels:
       {{- include "aks-mcp.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       annotations:
-        {{- with .Values.configmap }}
-        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
-        {{- end }}
         {{- if not .Values.azure.existingSecret }}
         checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
         {{- end }}
@@ -132,6 +127,8 @@ spec:
             {{- toYaml . | nindent 12 }}
             {{- end }}
           volumeMounts:
+            - name: tmp
+              mountPath: /tmp
             {{- if .Values.kubeconfig.enabled }}
             - name: kubeconfig
               mountPath: /home/mcp/.kube
@@ -147,6 +144,8 @@ spec:
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       volumes:
+        - name: tmp
+          emptyDir: {}
         {{- if .Values.kubeconfig.enabled }}
         - name: kubeconfig
           secret:
