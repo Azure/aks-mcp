@@ -14,7 +14,9 @@ spec:
   template:
     metadata:
       annotations:
+        {{- with .Values.configmap }}
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- end }}
         {{- if not .Values.azure.existingSecret }}
         checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
         {{- end }}
