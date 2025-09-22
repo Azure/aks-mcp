@@ -43,6 +43,10 @@ service:
   port: 8081
   nodePort: 30082
 
+# Ingress configuration (disabled for NodePort deployment)
+ingress:
+  enabled: false
+
 serviceAccount:
   create: true
   automount: true

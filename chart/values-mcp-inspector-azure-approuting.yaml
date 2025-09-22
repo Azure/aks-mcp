@@ -1,0 +1,99 @@
+# Values file for MCP Inspector deployment with Azure App Routing
+# Uses Azure managed app routing instead of self-managed nginx
+
+image:
+  repository: ghcr.io/azure/aks-mcp
+  tag: "latest"
+  pullPolicy: Always
+
+app:
+  transport: "streamable-http"
+  port: 8081
+  accessLevel: "readonly"
+  timeout: 600
+  verbose: false
+  cache: true
+
+# OAuth configuration for MCP Inspector via Azure App Routing
+oauth:
+  enabled: true
+  tenantId: "YOUR_TENANT_ID"  # Replace with your actual tenant ID
+  clientId: "YOUR_CLIENT_ID"  # Replace with your actual client ID
+  redirectURIs:
+    - "http://localhost:6274/oauth/callback"
+    - "http://localhost:6274/oauth/callback/debug"
+    - "http://AZURE_APP_ROUTING_IP/oauth/callback"  # Replace with your Azure app routing IP
+  corsOrigins:
+    # these could be optional, we have them configured in the ingress below
+    - "http://localhost:6274"
+    - "http://AZURE_APP_ROUTING_IP"  # Replace with your Azure app routing IP
+
+# Azure configuration - rely on default authentication
+azure:
+  existingSecret: ""
+  tenantId: ""
+  clientId: ""
+  clientSecret: ""
+  subscriptionId: ""
+
+config:
+  additionalTools: []
+  allowNamespaces: []
+  cacheTimeout: "60s"
+
+# Service configuration for Ingress access
+service:
+  type: "ClusterIP"
+  port: 8081
+
+# Ingress configuration using Azure App Routing
+ingress:
+  enabled: true
+  ingressClassName: "webapprouting.kubernetes.azure.com"  # Azure managed ingress class
+  annotations:
+    # Azure app routing specific annotations
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    # Add CORS headers for MCP Inspector
+    nginx.ingress.kubernetes.io/cors-allow-origin: "http://localhost:6274, http://AZURE_APP_ROUTING_IP" # Replace with your Azure app routing IP
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, OPTIONS, PUT, DELETE"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization,mcp-protocol-version,Content-Length,Accept,Accept-Encoding"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-expose-headers: "mcp-protocol-version"
+    nginx.ingress.kubernetes.io/cors-max-age: "86400"
+  hosts:
+    - host: ""  # Empty host to use IP directly
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+serviceAccount:
+  create: true
+  automount: true
+  name: ""
+
+rbac:
+  create: true
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 5
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 30
+  periodSeconds: 10

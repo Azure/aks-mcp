@@ -72,6 +72,11 @@ telemetry:
   # OTLP endpoint for OpenTelemetry traces
   otlpEndpoint: ""
 
+# Ingress configuration
+ingress:
+  # Enable ingress for the application
+  enabled: false
+
 serviceAccount:
   # Specifies whether a service account should be created
   create: true
