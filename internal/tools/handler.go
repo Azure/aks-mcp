@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 
 	"github.com/Azure/aks-mcp/internal/config"
+	"github.com/Azure/aks-mcp/internal/logger"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
@@ -14,29 +14,27 @@ import (
 func logToolCall(toolName string, arguments interface{}) {
 	// Try to format as JSON for better readability
 	if jsonBytes, err := json.Marshal(arguments); err == nil {
-		log.Printf("\n>>> [%s] %s", toolName, string(jsonBytes))
+		logger.Debugf("\n>>> [%s] %s", toolName, string(jsonBytes))
 	} else {
-		log.Printf("\n>>> [%s] %v", toolName, arguments)
+		logger.Debugf("\n>>> [%s] %v", toolName, arguments)
 	}
 }
 
 // logToolResult logs the result or error of a tool call
 func logToolResult(toolName string, result string, err error) {
 	if err != nil {
-		log.Printf("\n<<< [%s] ERROR: %v", toolName, err)
+		logger.Debugf("\n<<< [%s] ERROR: %v", toolName, err)
 	} else if len(result) > 500 {
-		log.Printf("\n<<< [%s] Result: %d bytes (truncated): %.500s...", toolName, len(result), result)
+		logger.Debugf("\n<<< [%s] Result: %d bytes (truncated): %.500s...", toolName, len(result), result)
 	} else {
-		log.Printf("\n<<< [%s] Result: %s", toolName, result)
+		logger.Debugf("\n<<< [%s] Result: %s", toolName, result)
 	}
 }
 
 // CreateToolHandler creates an adapter that converts CommandExecutor to the format expected by MCP server
 func CreateToolHandler(executor CommandExecutor, cfg *config.ConfigData) func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		if cfg.Verbose {
-			logToolCall(req.Params.Name, req.Params.Arguments)
-		}
+		logToolCall(req.Params.Name, req.Params.Arguments)
 
 		args, ok := req.Params.Arguments.(map[string]interface{})
 		if !ok {
@@ -54,9 +52,7 @@ func CreateToolHandler(executor CommandExecutor, cfg *config.ConfigData) func(ct
 			cfg.TelemetryService.TrackToolInvocation(ctx, req.Params.Name, operation, err == nil)
 		}
 
-		if cfg.Verbose {
-			logToolResult(req.Params.Name, result, err)
-		}
+		logToolResult(req.Params.Name, result, err)
 
 		if err != nil {
 			// Include command output (often stderr) in the error for context
@@ -73,9 +69,7 @@ func CreateToolHandler(executor CommandExecutor, cfg *config.ConfigData) func(ct
 // CreateResourceHandler creates an adapter that converts ResourceHandler to the format expected by MCP server
 func CreateResourceHandler(handler ResourceHandler, cfg *config.ConfigData) func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		if cfg.Verbose {
-			logToolCall(req.Params.Name, req.Params.Arguments)
-		}
+		logToolCall(req.Params.Name, req.Params.Arguments)
 
 		args, ok := req.Params.Arguments.(map[string]interface{})
 		if !ok {
@@ -95,9 +89,7 @@ func CreateResourceHandler(handler ResourceHandler, cfg *config.ConfigData) func
 			cfg.TelemetryService.TrackToolInvocation(ctx, req.Params.Name, operation, err == nil)
 		}
 
-		if cfg.Verbose {
-			logToolResult(req.Params.Name, result, err)
-		}
+		logToolResult(req.Params.Name, result, err)
 
 		if err != nil {
 			// Include handler output in the error message for better diagnostics

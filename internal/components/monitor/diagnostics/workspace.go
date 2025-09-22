@@ -3,12 +3,12 @@ package diagnostics
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 
 	"github.com/Azure/aks-mcp/internal/azcli"
 	"github.com/Azure/aks-mcp/internal/azureclient"
 	"github.com/Azure/aks-mcp/internal/config"
+	"github.com/Azure/aks-mcp/internal/logger"
 )
 
 // ExtractWorkspaceGUIDFromDiagnosticSettings extracts workspace GUID from diagnostic settings
@@ -138,7 +138,7 @@ func FindDiagnosticSettingForCategory(subscriptionID, resourceGroup, clusterName
 						destinationType = string(*setting.Properties.LogAnalyticsDestinationType)
 					}
 
-					log.Printf("Using diagnostic setting '%s' for log category '%s' in cluster '%s': workspaceId=%s, destinationType=%s, isResourceSpecific=%t",
+					logger.Debugf("Using diagnostic setting '%s' for log category '%s' in cluster '%s': workspaceId=%s, destinationType=%s, isResourceSpecific=%t",
 						settingName, logCategory, clusterName, workspaceResourceID, destinationType, isResourceSpecific)
 
 					return workspaceResourceID, isResourceSpecific, nil

@@ -3,12 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/Azure/aks-mcp/internal/config"
+	"github.com/Azure/aks-mcp/internal/logger"
 	"github.com/Azure/aks-mcp/internal/server"
 	"github.com/Azure/aks-mcp/internal/version"
 )
@@ -17,6 +17,13 @@ func main() {
 	// Create configuration instance and parse command line arguments
 	cfg := config.NewConfig()
 	cfg.ParseFlags()
+
+	// Initialize logger with configured level
+	if err := logger.SetLevel(cfg.LogLevel); err != nil {
+		fmt.Fprintf(os.Stderr, "Invalid log level '%s': %v\n", cfg.LogLevel, err)
+		os.Exit(1)
+	}
+	logger.Debugf("Log level set to: %s", cfg.LogLevel)
 
 	// Create validator and run validation checks
 	v := config.NewValidator(cfg)
@@ -41,7 +48,7 @@ func main() {
 	defer func() {
 		if cfg.TelemetryService != nil {
 			if err := cfg.TelemetryService.Shutdown(context.Background()); err != nil {
-				log.Printf("Failed to shutdown telemetry: %v", err)
+				logger.Errorf("Failed to shutdown telemetry: %v", err)
 			}
 		}
 	}()
@@ -65,7 +72,8 @@ func main() {
 		cancel()
 	case err := <-errChan:
 		if err != nil {
-			log.Fatalf("Service error: %v\n", err)
+			logger.Errorf("Service error: %v", err)
+			os.Exit(1)
 		}
 	}
 }

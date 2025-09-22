@@ -143,7 +143,7 @@ func TestCreateResourceHandler_ErrorWithoutOutput(t *testing.T) {
 
 func TestCreateToolHandler_Success_Verbose_Telemetry_LongResult(t *testing.T) {
 	cfg := config.NewConfig()
-	cfg.Verbose = true // exercise logToolCall + logToolResult
+	cfg.LogLevel = "debug" // exercise logToolCall + logToolResult
 	// Provide non-nil telemetry to exercise TrackToolInvocation path
 	cfg.TelemetryService = telemetry.NewService(telemetry.NewConfig("svc", "1.0"))
 
@@ -177,7 +177,7 @@ func TestCreateToolHandler_Success_Verbose_Telemetry_LongResult(t *testing.T) {
 
 func TestCreateToolHandler_InvalidArguments_Verbose_LogsFallback_TracksTelemetry(t *testing.T) {
 	cfg := config.NewConfig()
-	cfg.Verbose = true
+	cfg.LogLevel = "debug"
 	cfg.TelemetryService = telemetry.NewService(telemetry.NewConfig("svc", "1.0"))
 
 	exec := CommandExecutorFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
@@ -210,7 +210,7 @@ func TestCreateToolHandler_InvalidArguments_Verbose_LogsFallback_TracksTelemetry
 
 func TestCreateResourceHandler_ShortSuccess_Verbose_Telemetry(t *testing.T) {
 	cfg := config.NewConfig()
-	cfg.Verbose = true
+	cfg.LogLevel = "debug"
 	cfg.TelemetryService = telemetry.NewService(telemetry.NewConfig("svc", "1.0"))
 
 	rh := ResourceHandlerFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
@@ -240,7 +240,7 @@ func TestCreateResourceHandler_ShortSuccess_Verbose_Telemetry(t *testing.T) {
 
 func TestCreateResourceHandler_InvalidArguments_Verbose_LogsFallback_TracksTelemetry(t *testing.T) {
 	cfg := config.NewConfig()
-	cfg.Verbose = true
+	cfg.LogLevel = "debug"
 	cfg.TelemetryService = telemetry.NewService(telemetry.NewConfig("svc", "1.0"))
 
 	rh := ResourceHandlerFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
@@ -272,7 +272,7 @@ func TestCreateResourceHandler_InvalidArguments_Verbose_LogsFallback_TracksTelem
 
 func TestCreateToolHandler_Error_Verbose_LogErrorBranch(t *testing.T) {
 	cfg := config.NewConfig()
-	cfg.Verbose = true
+	cfg.LogLevel = "debug"
 
 	exec := CommandExecutorFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
 		return "", errors.New("boom")

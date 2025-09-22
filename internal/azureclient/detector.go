@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 
+	"github.com/Azure/aks-mcp/internal/logger"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 )
 
@@ -66,7 +66,7 @@ func ParseAKSResourceID(resourceID string) (subscriptionID, resourceGroup, clust
 func HandleDetectorAPIResponse(resp *http.Response) ([]byte, error) {
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
-			log.Printf("Warning: failed to close response body: %v", err)
+			logger.Warnf("Warning: failed to close response body: %v", err)
 		}
 	}()
 

@@ -3,13 +3,13 @@ package config
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"regexp"
 	"strings"
 	"time"
 
 	"github.com/Azure/aks-mcp/internal/auth"
+	"github.com/Azure/aks-mcp/internal/logger"
 	"github.com/Azure/aks-mcp/internal/security"
 	"github.com/Azure/aks-mcp/internal/telemetry"
 	"github.com/Azure/aks-mcp/internal/version"
@@ -59,8 +59,8 @@ type ConfigData struct {
 	// Comma-separated list of allowed Kubernetes namespaces
 	AllowNamespaces string
 
-	// Verbose logging
-	Verbose bool
+	// Log level (debug, info, warn, error)
+	LogLevel string
 
 	// OTLP endpoint for OpenTelemetry traces
 	OTLPEndpoint string
@@ -81,6 +81,7 @@ func NewConfig() *ConfigData {
 		AccessLevel:     "readonly",
 		AdditionalTools: make(map[string]bool),
 		AllowNamespaces: "",
+		LogLevel:        "info",
 	}
 }
 
@@ -115,7 +116,7 @@ func (cfg *ConfigData) ParseFlags() {
 		"Comma-separated list of allowed Kubernetes namespaces (empty means all namespaces)")
 
 	// Logging settings
-	flag.BoolVarP(&cfg.Verbose, "verbose", "v", false, "Enable verbose logging")
+	flag.StringVar(&cfg.LogLevel, "log-level", "info", "Log level (debug, info, warn, error)")
 
 	// OTLP settings
 	flag.StringVar(&cfg.OTLPEndpoint, "otlp-endpoint", "", "OTLP endpoint for OpenTelemetry traces (e.g. localhost:4317)")
@@ -180,22 +181,22 @@ func (cfg *ConfigData) parseOAuthConfig(additionalRedirectURIs, allowedCORSOrigi
 		if tenantID := os.Getenv("AZURE_TENANT_ID"); tenantID != "" {
 			cfg.OAuthConfig.TenantID = tenantID
 			tenantIDSource = "environment variable AZURE_TENANT_ID"
-			log.Printf("OAuth Config: Using tenant ID from environment variable AZURE_TENANT_ID")
+			logger.Debugf("OAuth Config: Using tenant ID from environment variable AZURE_TENANT_ID")
 		}
 	} else {
 		tenantIDSource = "command line flag --oauth-tenant-id"
-		log.Printf("OAuth Config: Using tenant ID from command line flag --oauth-tenant-id")
+		logger.Debugf("OAuth Config: Using tenant ID from command line flag --oauth-tenant-id")
 	}
 
 	if cfg.OAuthConfig.ClientID == "" {
 		if clientID := os.Getenv("AZURE_CLIENT_ID"); clientID != "" {
 			cfg.OAuthConfig.ClientID = clientID
 			clientIDSource = "environment variable AZURE_CLIENT_ID"
-			log.Printf("OAuth Config: Using client ID from environment variable AZURE_CLIENT_ID")
+			logger.Debugf("OAuth Config: Using client ID from environment variable AZURE_CLIENT_ID")
 		}
 	} else {
 		clientIDSource = "command line flag --oauth-client-id"
-		log.Printf("OAuth Config: Using client ID from command line flag --oauth-client-id")
+		logger.Debugf("OAuth Config: Using client ID from command line flag --oauth-client-id")
 	}
 
 	// Validate GUID formats for tenant ID and client ID
@@ -232,7 +233,7 @@ func (cfg *ConfigData) parseOAuthConfig(additionalRedirectURIs, allowedCORSOrigi
 
 	// Parse allowed CORS origins for OAuth endpoints
 	if allowedCORSOrigins != "" {
-		log.Printf("OAuth Config: Setting allowed CORS origins from command line flag --oauth-cors-origins")
+		logger.Debugf("OAuth Config: Setting allowed CORS origins from command line flag --oauth-cors-origins")
 		origins := strings.Split(allowedCORSOrigins, ",")
 		for _, origin := range origins {
 			trimmedOrigin := strings.TrimSpace(origin)
@@ -241,7 +242,7 @@ func (cfg *ConfigData) parseOAuthConfig(additionalRedirectURIs, allowedCORSOrigi
 			}
 		}
 	} else {
-		log.Printf("OAuth Config: No CORS origins configured - cross-origin requests will be blocked for security")
+		logger.Debugf("OAuth Config: No CORS origins configured - cross-origin requests will be blocked for security")
 	}
 
 	return nil
@@ -270,7 +271,7 @@ func (cfg *ConfigData) InitializeTelemetry(ctx context.Context, serviceName, ser
 	// Initialize telemetry service
 	cfg.TelemetryService = telemetry.NewService(telemetryConfig)
 	if err := cfg.TelemetryService.Initialize(ctx); err != nil {
-		log.Printf("Failed to initialize telemetry: %v", err)
+		logger.Errorf("Failed to initialize telemetry: %v", err)
 		// Continue without telemetry - this is not a fatal error
 	}
 

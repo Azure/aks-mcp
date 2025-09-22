@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"math/big"
 	"net/http"
 	"net/url"
@@ -17,6 +16,7 @@ import (
 
 	"github.com/Azure/aks-mcp/internal/auth"
 	internalConfig "github.com/Azure/aks-mcp/internal/config"
+	"github.com/Azure/aks-mcp/internal/logger"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -109,71 +109,71 @@ func (p *AzureOAuthProvider) GetProtectedResourceMetadata(serverURL string) (*Pr
 // GetAuthorizationServerMetadata returns OAuth 2.0 Authorization Server Metadata (RFC 8414)
 func (p *AzureOAuthProvider) GetAuthorizationServerMetadata(serverURL string) (*AzureADMetadata, error) {
 	metadataURL := fmt.Sprintf("https://login.microsoftonline.com/%s/v2.0/.well-known/openid-configuration", p.config.TenantID)
-	log.Printf("OAuth DEBUG: Fetching Azure AD metadata from: %s", metadataURL)
+	logger.Debugf("OAuth DEBUG: Fetching Azure AD metadata from: %s", metadataURL)
 
 	resp, err := p.httpClient.Get(metadataURL)
 	if err != nil {
-		log.Printf("OAuth ERROR: Failed to fetch metadata from %s: %v", metadataURL, err)
+		logger.Errorf("OAuth ERROR: Failed to fetch metadata from %s: %v", metadataURL, err)
 		return nil, fmt.Errorf("failed to fetch metadata from %s: %w", metadataURL, err)
 	}
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
-			log.Printf("Failed to close response body: %v", err)
+			logger.Errorf("Failed to close response body: %v", err)
 		}
 	}()
 
 	if resp.StatusCode == http.StatusNotFound {
-		log.Printf("OAuth ERROR: Tenant ID '%s' not found (HTTP 404)", p.config.TenantID)
+		logger.Errorf("OAuth ERROR: Tenant ID '%s' not found (HTTP 404)", p.config.TenantID)
 		return nil, fmt.Errorf("tenant ID '%s' not found (HTTP 404). Please verify your Azure AD tenant ID is correct", p.config.TenantID)
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		log.Printf("OAuth ERROR: Metadata endpoint returned status %d: %s", resp.StatusCode, string(body))
+		logger.Errorf("OAuth ERROR: Metadata endpoint returned status %d: %s", resp.StatusCode, string(body))
 		return nil, fmt.Errorf("metadata endpoint returned status %d: %s", resp.StatusCode, string(body))
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Printf("OAuth ERROR: Failed to read metadata response: %v", err)
+		logger.Errorf("OAuth ERROR: Failed to read metadata response: %v", err)
 		return nil, fmt.Errorf("failed to read metadata response: %w", err)
 	}
 
 	var metadata AzureADMetadata
 	if err := json.Unmarshal(body, &metadata); err != nil {
-		log.Printf("OAuth ERROR: Failed to parse metadata JSON: %v", err)
+		logger.Errorf("OAuth ERROR: Failed to parse metadata JSON: %v", err)
 		return nil, fmt.Errorf("failed to parse metadata: %w", err)
 	}
 
-	log.Printf("OAuth DEBUG: Successfully parsed Azure AD metadata, original grant_types_supported: %v", metadata.GrantTypesSupported)
+	logger.Debugf("OAuth DEBUG: Successfully parsed Azure AD metadata, original grant_types_supported: %v", metadata.GrantTypesSupported)
 
 	// Ensure grant_types_supported is populated for MCP Inspector compatibility
 	if len(metadata.GrantTypesSupported) == 0 {
-		log.Printf("OAuth DEBUG: Setting default grant_types_supported (was empty/nil)")
+		logger.Debugf("OAuth DEBUG: Setting default grant_types_supported (was empty/nil)")
 		metadata.GrantTypesSupported = []string{"authorization_code", "refresh_token"}
 	}
 
 	// Ensure response_types_supported is populated for MCP Inspector compatibility
 	if len(metadata.ResponseTypesSupported) == 0 {
-		log.Printf("OAuth DEBUG: Setting default response_types_supported (was empty/nil)")
+		logger.Debugf("OAuth DEBUG: Setting default response_types_supported (was empty/nil)")
 		metadata.ResponseTypesSupported = []string{"code"}
 	}
 
 	// Ensure subject_types_supported is populated for MCP Inspector compatibility
 	if len(metadata.SubjectTypesSupported) == 0 {
-		log.Printf("OAuth DEBUG: Setting default subject_types_supported (was empty/nil)")
+		logger.Debugf("OAuth DEBUG: Setting default subject_types_supported (was empty/nil)")
 		metadata.SubjectTypesSupported = []string{"public"}
 	}
 
 	// Ensure token_endpoint_auth_methods_supported is populated for MCP Inspector compatibility
 	if len(metadata.TokenEndpointAuthMethodsSupported) == 0 {
-		log.Printf("OAuth DEBUG: Setting default token_endpoint_auth_methods_supported (was empty/nil)")
+		logger.Debugf("OAuth DEBUG: Setting default token_endpoint_auth_methods_supported (was empty/nil)")
 		metadata.TokenEndpointAuthMethodsSupported = []string{"none"}
 	}
 
 	// Add S256 code challenge method support (Azure AD supports this but may not advertise it)
 	// MCP specification requires S256 support, so we always ensure it's present
-	log.Printf("OAuth DEBUG: Enforcing S256 code challenge method support (MCP requirement)")
+	logger.Debugf("OAuth DEBUG: Enforcing S256 code challenge method support (MCP requirement)")
 	metadata.CodeChallengeMethodsSupported = []string{"S256"}
 
 	// Azure AD v2.0 has limited support for RFC 8707 Resource Indicators
@@ -197,7 +197,7 @@ func (p *AzureOAuthProvider) GetAuthorizationServerMetadata(serverURL string) (*
 		metadata.RegistrationEndpoint = registrationURL
 	}
 
-	log.Printf("OAuth DEBUG: Final metadata prepared - grant_types_supported: %v, response_types_supported: %v, code_challenge_methods_supported: %v",
+	logger.Debugf("OAuth DEBUG: Final metadata prepared - grant_types_supported: %v, response_types_supported: %v, code_challenge_methods_supported: %v",
 		metadata.GrantTypesSupported, metadata.ResponseTypesSupported, metadata.CodeChallengeMethodsSupported)
 
 	return &metadata, nil
@@ -217,7 +217,7 @@ func (p *AzureOAuthProvider) ValidateToken(ctx context.Context, tokenString stri
 	// ValidateJWT should ALWAYS be true in production environments
 	// This bypass creates a significant security vulnerability if enabled in production
 	if !p.config.TokenValidation.ValidateJWT {
-		log.Printf("WARNING: JWT validation is DISABLED - this should ONLY be used in development/testing")
+		logger.Warnf("WARNING: JWT validation is DISABLED - this should ONLY be used in development/testing")
 		return &auth.TokenInfo{
 			AccessToken: tokenString,
 			TokenType:   "Bearer",
@@ -400,7 +400,7 @@ func (p *AzureOAuthProvider) getKeyFunc(token *jwt.Token) (interface{}, error) {
 	// Get the public key for this key ID using the appropriate issuer
 	key, err := p.getPublicKey(kid, issuer)
 	if err != nil {
-		log.Printf("PUBLIC KEY RETRIEVAL FAILED: %s\n", err)
+		logger.Errorf("PUBLIC KEY RETRIEVAL FAILED: %s", err)
 		return nil, fmt.Errorf("failed to get public key: %w", err)
 	}
 
@@ -432,7 +432,7 @@ func (p *AzureOAuthProvider) getPublicKey(kid string, issuer string) (*rsa.Publi
 	}
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
-			log.Printf("Failed to close response body: %v", err)
+			logger.Errorf("Failed to close response body: %v", err)
 		}
 	}()
 
@@ -458,7 +458,7 @@ func (p *AzureOAuthProvider) getPublicKey(kid string, issuer string) (*rsa.Publi
 		return nil, fmt.Errorf("failed to parse JWKS: %w", err)
 	}
 
-	log.Printf("JWKS Contains %d keys, searching for kid=%s\n", len(jwks.Keys), kid)
+	logger.Debugf("JWKS Contains %d keys, searching for kid=%s", len(jwks.Keys), kid)
 
 	// Parse keys and find the target key
 	var targetKey *rsa.PublicKey
@@ -470,7 +470,7 @@ func (p *AzureOAuthProvider) getPublicKey(kid string, issuer string) (*rsa.Publi
 		if key.Kty == "RSA" && key.Kid == kid {
 			pubKey, err := parseRSAPublicKey(key.N, key.E)
 			if err != nil {
-				log.Printf("JWKS Failed to parse RSA key %s: %v\n", key.Kid, err)
+				logger.Errorf("JWKS Failed to parse RSA key %s: %v", key.Kid, err)
 				continue
 			}
 			targetKey = pubKey

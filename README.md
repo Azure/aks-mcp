@@ -641,7 +641,7 @@ Usage of ./aks-mcp:
       --port int                  Port to listen for the server (only used with transport sse or streamable-http) (default 8000)
       --timeout int               Timeout for command execution in seconds, default is 600s (default 600)
       --transport string          Transport mechanism to use (stdio, sse or streamable-http) (default "stdio")
-  -v, --verbose                   Enable verbose logging
+      --log-level string          Log level (debug, info, warn, error) (default "info")
 ```
 
 **Environment variables:**

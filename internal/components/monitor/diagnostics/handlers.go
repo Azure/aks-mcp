@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 
 	"github.com/Azure/aks-mcp/internal/azcli"
 	"github.com/Azure/aks-mcp/internal/azureclient"
 	"github.com/Azure/aks-mcp/internal/components/common"
 	"github.com/Azure/aks-mcp/internal/config"
+	"github.com/Azure/aks-mcp/internal/logger"
 	"github.com/Azure/aks-mcp/internal/tools"
 )
 
@@ -107,7 +107,7 @@ func HandleControlPlaneLogs(params map[string]interface{}, azClient *azureclient
 		workspaceGUID, kqlQuery, timespan)
 
 	// Log the query command for debugging
-	log.Printf("Executing KQL query command: %s", cmd)
+	logger.Debugf("Executing KQL query command: %s", cmd)
 
 	cmdParams := map[string]interface{}{
 		"command": cmd,

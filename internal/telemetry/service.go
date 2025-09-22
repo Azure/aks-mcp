@@ -3,9 +3,9 @@ package telemetry
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
+	"github.com/Azure/aks-mcp/internal/logger"
 	"github.com/microsoft/ApplicationInsights-Go/appinsights"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -74,7 +74,7 @@ func (s *Service) initializeTracing(ctx context.Context) error {
 		otlptracegrpc.WithInsecure(),
 	)
 	if err != nil {
-		log.Printf("Failed to create OTLP gRPC exporter: %v", err)
+		logger.Errorf("Failed to create OTLP gRPC exporter: %v", err)
 	} else {
 		exporters = append(exporters, otlpExporter)
 	}

@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 
 	"github.com/Azure/aks-mcp/internal/auth"
+	"github.com/Azure/aks-mcp/internal/logger"
 )
 
 // contextKey is a custom type for context keys to avoid collisions
@@ -43,7 +43,7 @@ func (m *AuthMiddleware) setCORSHeaders(w http.ResponseWriter, r *http.Request) 
 		w.Header().Set("Access-Control-Max-Age", "86400") // 24 hours
 		w.Header().Set("Access-Control-Allow-Credentials", "false")
 	} else if requestOrigin != "" {
-		log.Printf("CORS ERROR: Origin %s is not in the allowed list - cross-origin requests will be blocked for security", requestOrigin)
+		logger.Errorf("CORS ERROR: Origin %s is not in the allowed list - cross-origin requests will be blocked for security", requestOrigin)
 	}
 }
 
@@ -61,7 +61,7 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 
 		// Skip authentication for specific endpoints
 		if m.shouldSkipAuth(r) {
-			log.Printf("Skipping auth for path: %s\n", r.URL.Path)
+			logger.Debugf("Skipping auth for path: %s", r.URL.Path)
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -70,7 +70,7 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		authResult := m.authenticateRequest(r)
 
 		if !authResult.Authenticated {
-			log.Printf("Authentication FAILED - handling error\n")
+			logger.Errorf("Authentication FAILED - handling error")
 			m.handleAuthError(w, r, authResult)
 			return
 		}
@@ -116,8 +116,8 @@ func (m *AuthMiddleware) authenticateRequest(r *http.Request) *auth.AuthResult {
 	authHeader := r.Header.Get("Authorization")
 
 	if authHeader == "" {
-		log.Printf("OAuth DEBUG - Missing authorization header for %s %s\n", r.Method, r.URL.Path)
-		log.Printf("OAuth DEBUG - Request headers: %+v\n", r.Header)
+		logger.Debugf("OAuth DEBUG - Missing authorization header for %s %s", r.Method, r.URL.Path)
+		logger.Debugf("OAuth DEBUG - Request headers: %+v", r.Header)
 		return &auth.AuthResult{
 			Authenticated: false,
 			Error:         "missing authorization header",
@@ -128,7 +128,7 @@ func (m *AuthMiddleware) authenticateRequest(r *http.Request) *auth.AuthResult {
 	// Check for Bearer token format
 	const bearerPrefix = "Bearer "
 	if !strings.HasPrefix(authHeader, bearerPrefix) {
-		log.Printf("FAILED - Invalid authorization header format (missing Bearer prefix)\n")
+		logger.Errorf("FAILED - Invalid authorization header format (missing Bearer prefix)")
 		return &auth.AuthResult{
 			Authenticated: false,
 			Error:         "invalid authorization header format",
@@ -138,7 +138,7 @@ func (m *AuthMiddleware) authenticateRequest(r *http.Request) *auth.AuthResult {
 
 	token := strings.TrimPrefix(authHeader, bearerPrefix)
 	if token == "" {
-		log.Printf("FAILED - Empty bearer token\n")
+		logger.Errorf("FAILED - Empty bearer token")
 		return &auth.AuthResult{
 			Authenticated: false,
 			Error:         "empty bearer token",
@@ -149,7 +149,7 @@ func (m *AuthMiddleware) authenticateRequest(r *http.Request) *auth.AuthResult {
 	// Basic JWT structure validation
 	tokenParts := strings.Split(token, ".")
 	if len(tokenParts) != 3 {
-		log.Printf("FAILED - JWT structure validation (has %d parts, expected 3)\n", len(tokenParts))
+		logger.Errorf("FAILED - JWT structure validation (has %d parts, expected 3)", len(tokenParts))
 		return &auth.AuthResult{
 			Authenticated: false,
 			Error:         "invalid JWT structure",
@@ -160,7 +160,7 @@ func (m *AuthMiddleware) authenticateRequest(r *http.Request) *auth.AuthResult {
 	// Validate the token
 	tokenInfo, err := m.provider.ValidateToken(r.Context(), token)
 	if err != nil {
-		log.Printf("FAILED - Provider token validation failed: %v\n", err)
+		logger.Errorf("FAILED - Provider token validation failed: %v", err)
 		return &auth.AuthResult{
 			Authenticated: false,
 			Error:         fmt.Sprintf("token validation failed: %v", err),
@@ -170,7 +170,7 @@ func (m *AuthMiddleware) authenticateRequest(r *http.Request) *auth.AuthResult {
 
 	// Validate required scopes - strict enforcement for security
 	if !m.validateScopes(tokenInfo.Scope) {
-		log.Printf("SCOPE ERROR: Token scopes %v don't match required scopes %v", tokenInfo.Scope, m.provider.config.RequiredScopes)
+		logger.Errorf("SCOPE ERROR: Token scopes %v don't match required scopes %v", tokenInfo.Scope, m.provider.config.RequiredScopes)
 		return &auth.AuthResult{
 			Authenticated: false,
 			Error:         "insufficient scope",
@@ -278,9 +278,9 @@ func (m *AuthMiddleware) handleAuthError(w http.ResponseWriter, r *http.Request,
 	}
 
 	if err := json.NewEncoder(w).Encode(errorResponse); err != nil {
-		log.Printf("MIDDLEWARE ERROR: Failed to encode error response: %v\n", err)
+		logger.Errorf("MIDDLEWARE ERROR: Failed to encode error response: %v", err)
 	} else {
-		log.Printf("MIDDLEWARE ERROR: Error response sent\n")
+		logger.Errorf("MIDDLEWARE ERROR: Error response sent")
 	}
 }
 

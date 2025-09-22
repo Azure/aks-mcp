@@ -250,7 +250,7 @@ func handleLifecycleAction(mgr GadgetManager, deployed bool, action string, acti
 		fmt.Fprintf(os.Stderr, "Failed to get latest version: %v\n", err)
 	}
 
-	hc, err := newHelmClient(cfg.Verbose)
+	hc, err := newHelmClient(cfg.LogLevel == "debug")
 	if err != nil {
 		return "", fmt.Errorf("creating helm client: %w", err)
 	}
