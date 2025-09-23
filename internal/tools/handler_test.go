@@ -295,3 +295,30 @@ func TestCreateToolHandler_Error_Verbose_LogErrorBranch(t *testing.T) {
 		t.Fatalf("expected error result, got: %+v", res)
 	}
 }
+
+func TestGetOperationValuePrefersOperation(t *testing.T) {
+	args := map[string]any{
+		"operation": "metrics",
+		"action":    "run",
+	}
+
+	if got := getOperationValue(args); got != "metrics" {
+		t.Fatalf("expected operation to win, got %q", got)
+	}
+}
+
+func TestGetOperationValueFallsBackToAction(t *testing.T) {
+	args := map[string]any{
+		"action": "deploy",
+	}
+
+	if got := getOperationValue(args); got != "deploy" {
+		t.Fatalf("expected action fallback, got %q", got)
+	}
+}
+
+func TestGetOperationValueHandlesMissingKeys(t *testing.T) {
+	if got := getOperationValue(map[string]any{}); got != "" {
+		t.Fatalf("expected empty string, got %q", got)
+	}
+}
