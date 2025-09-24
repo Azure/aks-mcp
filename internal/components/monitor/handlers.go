@@ -329,6 +329,8 @@ func handleMetricsOperation(params map[string]interface{}, cfg *config.ConfigDat
 		args = append(args, fmt.Sprintf("%v", value))
 	}
 
+	args = ensureOutputArg(args)
+
 	// Map query type to command
 	baseCommand, err := MapMetricsQueryTypeToCommand(queryType)
 	if err != nil {
@@ -386,4 +388,23 @@ func handleLogsOperation(params map[string]interface{}, azClient *azureclient.Az
 
 	// Use existing control plane logs handler
 	return diagnostics.GetControlPlaneLogsHandler(azClient, cfg).Handle(mergedParams, cfg)
+}
+
+// ensureOutputArg appends --output json when no explicit output flag is present
+func ensureOutputArg(args []string) []string {
+	for _, arg := range args {
+		lower := strings.ToLower(arg)
+		switch {
+		case lower == "--output":
+			return args
+		case strings.HasPrefix(lower, "--output="):
+			return args
+		case lower == "-o":
+			return args
+		case strings.HasPrefix(lower, "-o") && len(lower) > 2:
+			return args
+		}
+	}
+
+	return append(args, "--output", "json")
 }

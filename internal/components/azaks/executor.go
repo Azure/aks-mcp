@@ -7,6 +7,7 @@ import (
 	"github.com/Azure/aks-mcp/internal/command"
 	"github.com/Azure/aks-mcp/internal/config"
 	"github.com/Azure/aks-mcp/internal/security"
+	"github.com/google/shlex"
 )
 
 // AksOperationsExecutor handles execution of AKS operations
@@ -29,6 +30,12 @@ func (e *AksOperationsExecutor) Execute(params map[string]interface{}, cfg *conf
 	args, ok := params["args"].(string)
 	if !ok {
 		args = ""
+	}
+
+	// Ensure az CLI returns JSON unless caller already specified an output format
+	args, err := ensureOutputFormatArgs(args)
+	if err != nil {
+		return "", err
 	}
 
 	// Validate access for this operation
@@ -90,4 +97,32 @@ func (e *AksOperationsExecutor) ExecuteSpecificCommand(operation string, params 
 	newParams["operation"] = operation
 
 	return e.Execute(newParams, cfg)
+}
+
+// ensureOutputFormatArgs adds --output json when no explicit output format is provided
+func ensureOutputFormatArgs(args string) (string, error) {
+	if strings.TrimSpace(args) == "" {
+		return "--output json", nil
+	}
+
+	parsedArgs, err := shlex.Split(args)
+	if err != nil {
+		return "", fmt.Errorf("parsing args: %w", err)
+	}
+
+	for _, token := range parsedArgs {
+		lowerToken := strings.ToLower(token)
+		switch {
+		case lowerToken == "--output":
+			return args, nil
+		case strings.HasPrefix(lowerToken, "--output="):
+			return args, nil
+		case lowerToken == "-o":
+			return args, nil
+		case strings.HasPrefix(lowerToken, "-o") && len(lowerToken) > 2:
+			return args, nil
+		}
+	}
+
+	return args + " --output json", nil
 }

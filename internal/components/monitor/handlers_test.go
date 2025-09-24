@@ -4,6 +4,54 @@ import (
 	"testing"
 )
 
+func TestEnsureOutputArg(t *testing.T) {
+	tests := []struct {
+		name string
+		in   []string
+		out  []string
+	}{
+		{
+			name: "appends when missing",
+			in:   []string{"--name", "test"},
+			out:  []string{"--name", "test", "--output", "json"},
+		},
+		{
+			name: "no change with long flag",
+			in:   []string{"--name", "test", "--output", "table"},
+			out:  []string{"--name", "test", "--output", "table"},
+		},
+		{
+			name: "no change with equals",
+			in:   []string{"--output=json", "--name", "test"},
+			out:  []string{"--output=json", "--name", "test"},
+		},
+		{
+			name: "no change with short flag",
+			in:   []string{"-o", "table", "--name", "test"},
+			out:  []string{"-o", "table", "--name", "test"},
+		},
+		{
+			name: "no change with combined short flag",
+			in:   []string{"-otable", "--name", "test"},
+			out:  []string{"-otable", "--name", "test"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := ensureOutputArg(tc.in)
+			if len(result) != len(tc.out) {
+				t.Fatalf("length mismatch: got %d, want %d", len(result), len(tc.out))
+			}
+			for i := range tc.out {
+				if result[i] != tc.out[i] {
+					t.Fatalf("index %d mismatch: got %q, want %q", i, result[i], tc.out[i])
+				}
+			}
+		})
+	}
+}
+
 func TestHandleAppInsightsQuery_ValidParameters(t *testing.T) {
 	params := map[string]interface{}{
 		"subscription_id":   "test-subscription",
