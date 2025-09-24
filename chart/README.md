@@ -61,6 +61,16 @@ helm install my-aks-mcp . --namespace aks-mcp --create-namespace
 | `oauth.redirectURIs` | Custom redirect URIs | `[]` |
 | `oauth.corsOrigins` | Custom CORS origins | `[]` |
 
+### Ingress Configuration
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `ingress.enabled` | Enable ingress for the application | `false` |
+| `ingress.ingressClassName` | Ingress class name | `""` |
+| `ingress.annotations` | Annotations for the ingress resource | `{}` |
+| `ingress.hosts` | List of hosts for the ingress | `[]` |
+| `ingress.tls` | TLS configuration for the ingress | `[]` |
+
 ### Additional Configuration
 
 | Parameter | Description | Default |
@@ -123,6 +133,32 @@ helm install my-aks-mcp . \
   --set config.additionalTools="{helm,cilium,hubble}" \
   --set config.allowNamespaces="{kube-system,default}" \
   --set azure.existingSecret=azure-credentials
+```
+
+### Deployment with Ingress Support
+
+#### Basic Ingress Deployment
+```bash
+helm install my-aks-mcp . \
+  --set ingress.enabled=true \
+  --set ingress.hosts[0].host=aks-mcp.example.com \
+  --set ingress.hosts[0].paths[0].path=/ \
+  --set ingress.hosts[0].paths[0].pathType=Prefix \
+  --set azure.existingSecret=azure-credentials
+```
+
+#### Azure App Routing with OAuth
+```bash
+# Enable Azure App Routing on your AKS cluster first
+az aks approuting enable \
+    --resource-group your-resource-group \
+    --name your-cluster-name
+
+# Deploy with Azure App Routing configuration
+helm install my-aks-mcp . \
+  -f values-mcp-inspector-azure-approuting.yaml \
+  --namespace aks-mcp \
+  --create-namespace
 ```
 
 ## Development and Testing
