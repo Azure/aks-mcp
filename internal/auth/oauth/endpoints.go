@@ -439,9 +439,19 @@ func (em *EndpointManager) protectedResourceMetadataHandler() http.HandlerFunc {
 			host = r.URL.Host
 		}
 
-		// Build the resource URL
-		resourceURL := fmt.Sprintf("%s://%s", scheme, host)
-		logger.Debugf("OAuth DEBUG: Building protected resource metadata for URL: %s", resourceURL)
+		// Build the resource URL with correct MCP endpoint path based on transport
+		var mcpPath string
+		switch em.cfg.Transport {
+		case "streamable-http":
+			mcpPath = "/mcp"
+		case "sse":
+			mcpPath = "/sse"
+		default:
+			mcpPath = ""
+		}
+
+		resourceURL := fmt.Sprintf("%s://%s%s", scheme, host, mcpPath)
+		logger.Debugf("OAuth DEBUG: Building protected resource metadata for URL: %s (transport: %s)", resourceURL, em.cfg.Transport)
 
 		provider := em.provider
 
