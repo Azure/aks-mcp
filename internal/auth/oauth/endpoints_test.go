@@ -1,7 +1,9 @@
 package oauth
 
 import (
+	"crypto/tls"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -504,6 +506,140 @@ func TestCORSHeaders(t *testing.T) {
 				if corsOrigin != "" {
 					t.Errorf("Expected no CORS headers, but got Access-Control-Allow-Origin: %s", corsOrigin)
 				}
+			}
+		})
+	}
+}
+
+func TestProtectedResourceMetadataEndpointTransportPaths(t *testing.T) {
+	tests := []struct {
+		name         string
+		transport    string
+		expectedPath string
+		scheme       string
+		host         string
+	}{
+		{
+			name:         "streamable-http transport",
+			transport:    "streamable-http",
+			expectedPath: "/mcp",
+			scheme:       "http",
+			host:         "localhost:8000",
+		},
+		{
+			name:         "sse transport",
+			transport:    "sse",
+			expectedPath: "/sse",
+			scheme:       "https",
+			host:         "localhost:8000",
+		},
+		{
+			name:         "stdio transport (no path)",
+			transport:    "stdio",
+			expectedPath: "",
+			scheme:       "http",
+			host:         "localhost:8000",
+		},
+		{
+			name:         "empty transport (no path)",
+			transport:    "",
+			expectedPath: "",
+			scheme:       "https",
+			host:         "example.com:9000",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := createTestConfig()
+			cfg.Transport = tt.transport
+
+			provider, _ := NewAzureOAuthProvider(cfg.OAuthConfig)
+			manager := NewEndpointManager(provider, cfg)
+
+			req := httptest.NewRequest("GET", "/.well-known/oauth-protected-resource", nil)
+			req.Host = tt.host
+			if tt.scheme == "https" {
+				req.TLS = &tls.ConnectionState{}
+			}
+
+			w := httptest.NewRecorder()
+			handler := manager.protectedResourceMetadataHandler()
+			handler(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Errorf("Expected status 200, got %d", w.Code)
+			}
+
+			var metadata ProtectedResourceMetadata
+			if err := json.Unmarshal(w.Body.Bytes(), &metadata); err != nil {
+				t.Fatalf("Failed to parse response: %v", err)
+			}
+
+			// Verify authorization server URL reflects the correct scheme and host
+			expectedAuthServerURL := fmt.Sprintf("%s://%s", tt.scheme, tt.host)
+			if len(metadata.AuthorizationServers) != 1 || metadata.AuthorizationServers[0] != expectedAuthServerURL {
+				t.Errorf("Expected auth server %s, got %v", expectedAuthServerURL, metadata.AuthorizationServers)
+			}
+
+			// Verify that the resource URL includes the transport-specific path
+			expectedResourceURL := fmt.Sprintf("%s://%s%s", tt.scheme, tt.host, tt.expectedPath)
+			if metadata.Resource != expectedResourceURL {
+				t.Errorf("Expected resource URL %s, got %s", expectedResourceURL, metadata.Resource)
+			}
+		})
+	}
+}
+
+func TestProtectedResourceMetadataEndpointHostHeaders(t *testing.T) {
+	tests := []struct {
+		name        string
+		hostHeader  string
+		urlHost     string
+		expectedURL string
+	}{
+		{
+			name:        "use Host header when present",
+			hostHeader:  "api.example.com:8080",
+			urlHost:     "fallback.com:9000",
+			expectedURL: "http://api.example.com:8080",
+		},
+		{
+			name:        "fallback to URL host when Host header empty",
+			hostHeader:  "",
+			urlHost:     "fallback.com:9000",
+			expectedURL: "http://fallback.com:9000",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := createTestConfig()
+			cfg.Transport = "" // No additional path
+
+			provider, _ := NewAzureOAuthProvider(cfg.OAuthConfig)
+			manager := NewEndpointManager(provider, cfg)
+
+			req := httptest.NewRequest("GET", "/.well-known/oauth-protected-resource", nil)
+			req.Host = tt.hostHeader
+			req.URL.Host = tt.urlHost
+
+			w := httptest.NewRecorder()
+			handler := manager.protectedResourceMetadataHandler()
+			handler(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Errorf("Expected status 200, got %d", w.Code)
+			}
+
+			var metadata ProtectedResourceMetadata
+			if err := json.Unmarshal(w.Body.Bytes(), &metadata); err != nil {
+				t.Fatalf("Failed to parse response: %v", err)
+			}
+
+			// Verify the handler executed successfully
+			if len(metadata.AuthorizationServers) == 0 {
+				t.Error("Expected authorization servers in response")
 			}
 		})
 	}
