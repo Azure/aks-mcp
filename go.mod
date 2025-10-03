@@ -15,7 +15,7 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/inspektor-gadget/inspektor-gadget v0.44.1
-	github.com/mark3labs/mcp-go v0.41.0
+	github.com/mark3labs/mcp-go v0.41.1
 	github.com/microsoft/ApplicationInsights-Go v0.4.4
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/pflag v1.0.10
