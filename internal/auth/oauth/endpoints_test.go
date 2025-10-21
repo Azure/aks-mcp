@@ -53,7 +53,6 @@ func TestEndpointManager_RegisterEndpoints(t *testing.T) {
 		{"POST", "/oauth/register", http.StatusBadRequest},                                 // Missing required data
 		{"POST", "/oauth/introspect", http.StatusBadRequest},                               // Missing token param
 		{"GET", "/oauth/callback", http.StatusBadRequest},                                  // Missing required params
-		{"GET", "/health", http.StatusOK},
 	}
 
 	for _, tc := range testCases {
@@ -189,41 +188,6 @@ func TestTokenIntrospectionEndpointMissingToken(t *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("Expected status 400 for missing token, got %d", w.Code)
-	}
-}
-
-func TestHealthEndpoint(t *testing.T) {
-	cfg := createTestConfig()
-
-	provider, _ := NewAzureOAuthProvider(cfg.OAuthConfig)
-	manager := NewEndpointManager(provider, cfg)
-
-	req := httptest.NewRequest("GET", "/health", nil)
-	w := httptest.NewRecorder()
-
-	handler := manager.healthHandler()
-	handler(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", w.Code)
-	}
-
-	var response map[string]interface{}
-	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
-		t.Fatalf("Failed to parse response: %v", err)
-	}
-
-	if response["status"] != "healthy" {
-		t.Errorf("Expected status healthy, got %v", response["status"])
-	}
-
-	oauth, ok := response["oauth"].(map[string]interface{})
-	if !ok {
-		t.Error("Expected oauth object in response")
-	}
-
-	if oauth["enabled"] != true {
-		t.Errorf("Expected oauth enabled true, got %v", oauth["enabled"])
 	}
 }
 
@@ -488,13 +452,13 @@ func TestCORSHeaders(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest("GET", "/health", nil)
+			req := httptest.NewRequest("GET", "/.well-known/oauth-protected-resource", nil)
 			if tt.origin != "" {
 				req.Header.Set("Origin", tt.origin)
 			}
 			w := httptest.NewRecorder()
 
-			handler := manager.healthHandler()
+			handler := manager.protectedResourceMetadataHandler()
 			handler(w, req)
 
 			corsOrigin := w.Header().Get("Access-Control-Allow-Origin")

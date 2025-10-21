@@ -178,10 +178,38 @@ func (s *Service) registerPrompts() {
 	prompts.RegisterHealthPrompts(s.mcpServer, s.cfg)
 }
 
+// healthHandler provides a simple health check endpoint
+func (s *Service) healthHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		response := map[string]interface{}{
+			"status":    "healthy",
+			"version":   version.GetVersion(),
+			"transport": s.cfg.Transport,
+			"oauth": map[string]interface{}{
+				"enabled": s.cfg.OAuthConfig.Enabled,
+			},
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+			return
+		}
+	}
+}
+
 // createCustomHTTPServerWithHelp404 creates a custom HTTP server that provides
 // helpful 404 responses for the MCP server
 func (s *Service) createCustomHTTPServerWithHelp404(addr string) *http.Server {
 	mux := http.NewServeMux()
+
+	// Register health check endpoint (always available)
+	mux.HandleFunc("/health", s.healthHandler())
 
 	// Register OAuth endpoints if OAuth is enabled
 	if s.cfg.OAuthConfig.Enabled {
@@ -194,7 +222,7 @@ func (s *Service) createCustomHTTPServerWithHelp404(addr string) *http.Server {
 
 	// Handle all other paths with a helpful 404 response
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/mcp" {
+		if r.URL.Path != "/mcp" && r.URL.Path != "/health" {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusNotFound)
 
@@ -206,6 +234,7 @@ func (s *Service) createCustomHTTPServerWithHelp404(addr string) *http.Server {
 					"requests":   "POST /mcp - Send MCP requests (requires Mcp-Session-Id header)",
 					"listen":     "GET /mcp - Listen for notifications (requires Mcp-Session-Id header)",
 					"terminate":  "DELETE /mcp - Terminate session (requires Mcp-Session-Id header)",
+					"health":     "GET /health - Health check",
 				},
 			}
 
@@ -216,7 +245,6 @@ func (s *Service) createCustomHTTPServerWithHelp404(addr string) *http.Server {
 					"auth-server-metadata": "GET /.well-known/oauth-authorization-server - Authorization server metadata",
 					"client-registration":  "POST /oauth/register - Dynamic client registration",
 					"token-introspection":  "POST /oauth/introspect - Token introspection",
-					"health":               "GET /health - Health check",
 				}
 				for k, v := range oauthEndpoints {
 					response["endpoints"].(map[string]string)[k] = v
@@ -240,6 +268,9 @@ func (s *Service) createCustomHTTPServerWithHelp404(addr string) *http.Server {
 // helpful 404 responses for non-MCP endpoints
 func (s *Service) createCustomSSEServerWithHelp404(sseServer *server.SSEServer, addr string) *http.Server {
 	mux := http.NewServeMux()
+
+	// Register health check endpoint (always available)
+	mux.HandleFunc("/health", s.healthHandler())
 
 	// Register OAuth endpoints if OAuth is enabled
 	if s.cfg.OAuthConfig.Enabled {
@@ -266,7 +297,7 @@ func (s *Service) createCustomSSEServerWithHelp404(sseServer *server.SSEServer, 
 
 	// Handle all other paths with a helpful 404 response
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/sse" && r.URL.Path != "/message" {
+		if r.URL.Path != "/sse" && r.URL.Path != "/message" && r.URL.Path != "/health" {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusNotFound)
 
@@ -276,6 +307,7 @@ func (s *Service) createCustomSSEServerWithHelp404(sseServer *server.SSEServer, 
 				"endpoints": map[string]string{
 					"sse":     "GET /sse - Establish SSE connection for real-time notifications",
 					"message": "POST /message - Send MCP JSON-RPC messages",
+					"health":  "GET /health - Health check",
 				},
 			}
 
@@ -292,7 +324,6 @@ func (s *Service) createCustomSSEServerWithHelp404(sseServer *server.SSEServer, 
 					"auth-server-metadata": "GET /.well-known/oauth-authorization-server - Authorization server metadata",
 					"client-registration":  "POST /oauth/register - Dynamic client registration",
 					"token-introspection":  "POST /oauth/introspect - Token introspection",
-					"health":               "GET /health - Health check",
 				}
 				for k, v := range oauthEndpoints {
 					response["endpoints"].(map[string]string)[k] = v
