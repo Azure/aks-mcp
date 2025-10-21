@@ -119,9 +119,6 @@ func (em *EndpointManager) RegisterEndpoints(mux *http.ServeMux) {
 
 	// OAuth 2.0 token endpoint for Authorization Code exchange
 	mux.HandleFunc("/oauth2/v2.0/token", em.tokenHandler())
-
-	// Health check endpoint (unauthenticated)
-	mux.HandleFunc("/health", em.healthHandler())
 }
 
 // authServerMetadataProxyHandler proxies authorization server metadata from Azure AD
@@ -365,38 +362,6 @@ func (em *EndpointManager) tokenIntrospectionHandler() http.HandlerFunc {
 			"aud":       tokenInfo.Audience,
 			"iss":       tokenInfo.Issuer,
 			"exp":       tokenInfo.ExpiresAt.Unix(),
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(response); err != nil {
-			http.Error(w, "Failed to encode response", http.StatusInternalServerError)
-			return
-		}
-	}
-}
-
-// healthHandler provides a simple health check endpoint
-func (em *EndpointManager) healthHandler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		// Set CORS headers for all requests
-		em.setCORSHeaders(w, r)
-
-		// Handle preflight OPTIONS request
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-
-		if r.Method != http.MethodGet {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		response := map[string]interface{}{
-			"status": "healthy",
-			"oauth": map[string]interface{}{
-				"enabled": em.cfg.OAuthConfig.Enabled,
-			},
 		}
 
 		w.Header().Set("Content-Type", "application/json")

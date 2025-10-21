@@ -436,7 +436,7 @@ func TestCreateCustomHTTPServerWithHelp404(t *testing.T) {
 		{"/", "GET", http.StatusNotFound, "application/json", "root path should return helpful 404"},
 		{"/invalid", "GET", http.StatusNotFound, "application/json", "invalid path should return helpful 404"},
 		{"/api", "POST", http.StatusNotFound, "application/json", "non-MCP path should return helpful 404"},
-		{"/health", "GET", http.StatusNotFound, "application/json", "health path should return helpful 404"},
+		{"/health", "GET", http.StatusOK, "application/json", "health path should return health status"},
 	}
 
 	for _, tc := range testCases {
@@ -466,30 +466,50 @@ func TestCreateCustomHTTPServerWithHelp404(t *testing.T) {
 			}
 
 			// Check required fields
-			if response["error"] != "Not Found" {
-				t.Errorf("Expected error 'Not Found', got %v", response["error"])
-			}
+			if tc.path == "/health" {
+				// For health endpoint, check health response format
+				if response["status"] != "healthy" {
+					t.Errorf("Expected status 'healthy', got %v", response["status"])
+				}
+				if response["version"] == nil {
+					t.Error("Expected version field in health response")
+				}
+				if response["transport"] == nil {
+					t.Error("Expected transport field in health response")
+				}
+				oauth, ok := response["oauth"].(map[string]interface{})
+				if !ok {
+					t.Error("Expected oauth field to be a map")
+				} else if oauth["enabled"] == nil {
+					t.Error("Expected oauth.enabled field")
+				}
+			} else {
+				// For 404 responses, check error format
+				if response["error"] != "Not Found" {
+					t.Errorf("Expected error 'Not Found', got %v", response["error"])
+				}
 
-			message, ok := response["message"].(string)
-			if !ok {
-				t.Fatal("Message field should be a string")
-			}
-			if !strings.Contains(message, "MCP") {
-				t.Error("Message should mention MCP")
-			}
-			if !strings.Contains(message, "/mcp") {
-				t.Error("Message should mention /mcp endpoint")
-			}
+				message, ok := response["message"].(string)
+				if !ok {
+					t.Fatal("Message field should be a string")
+				}
+				if !strings.Contains(message, "MCP") {
+					t.Error("Message should mention MCP")
+				}
+				if !strings.Contains(message, "/mcp") {
+					t.Error("Message should mention /mcp endpoint")
+				}
 
-			endpoints, ok := response["endpoints"].(map[string]interface{})
-			if !ok {
-				t.Fatal("Endpoints field should be a map")
-			}
+				endpoints, ok := response["endpoints"].(map[string]interface{})
+				if !ok {
+					t.Fatal("Endpoints field should be a map")
+				}
 
-			expectedEndpoints := []string{"initialize", "requests", "listen", "terminate"}
-			for _, endpoint := range expectedEndpoints {
-				if _, exists := endpoints[endpoint]; !exists {
-					t.Errorf("Expected endpoint %s not found in response", endpoint)
+				expectedEndpoints := []string{"initialize", "requests", "listen", "terminate", "health"}
+				for _, endpoint := range expectedEndpoints {
+					if _, exists := endpoints[endpoint]; !exists {
+						t.Errorf("Expected endpoint %s not found in response", endpoint)
+					}
 				}
 			}
 		})
@@ -535,7 +555,7 @@ func TestCreateCustomSSEServerWithHelp404(t *testing.T) {
 		{"/", "GET", http.StatusNotFound, "application/json", "root path should return helpful 404"},
 		{"/invalid", "GET", http.StatusNotFound, "application/json", "invalid path should return helpful 404"},
 		{"/api", "POST", http.StatusNotFound, "application/json", "non-SSE path should return helpful 404"},
-		{"/health", "GET", http.StatusNotFound, "application/json", "health path should return helpful 404"},
+		{"/health", "GET", http.StatusOK, "application/json", "health path should return health status"},
 	}
 
 	for _, tc := range testCases {
@@ -565,48 +585,68 @@ func TestCreateCustomSSEServerWithHelp404(t *testing.T) {
 			}
 
 			// Check required fields
-			if response["error"] != "Not Found" {
-				t.Errorf("Expected error 'Not Found', got %v", response["error"])
-			}
-
-			message, ok := response["message"].(string)
-			if !ok {
-				t.Fatal("Message field should be a string")
-			}
-			if !strings.Contains(message, "MCP") {
-				t.Error("Message should mention MCP")
-			}
-			if !strings.Contains(message, "SSE") {
-				t.Error("Message should mention SSE transport")
-			}
-
-			endpoints, ok := response["endpoints"].(map[string]interface{})
-			if !ok {
-				t.Fatal("Endpoints field should be a map")
-			}
-
-			expectedEndpoints := []string{"sse", "message"}
-			for _, endpoint := range expectedEndpoints {
-				if _, exists := endpoints[endpoint]; !exists {
-					t.Errorf("Expected endpoint %s not found in response", endpoint)
+			if tc.path == "/health" {
+				// For health endpoint, check health response format
+				if response["status"] != "healthy" {
+					t.Errorf("Expected status 'healthy', got %v", response["status"])
 				}
-			}
+				if response["version"] == nil {
+					t.Error("Expected version field in health response")
+				}
+				if response["transport"] == nil {
+					t.Error("Expected transport field in health response")
+				}
+				oauth, ok := response["oauth"].(map[string]interface{})
+				if !ok {
+					t.Error("Expected oauth field to be a map")
+				} else if oauth["enabled"] == nil {
+					t.Error("Expected oauth.enabled field")
+				}
+			} else {
+				// For 404 responses, check error format
+				if response["error"] != "Not Found" {
+					t.Errorf("Expected error 'Not Found', got %v", response["error"])
+				}
 
-			// Verify SSE-specific endpoint descriptions
-			sseEndpoint, ok := endpoints["sse"].(string)
-			if !ok {
-				t.Fatal("SSE endpoint description should be a string")
-			}
-			if !strings.Contains(sseEndpoint, "GET /sse") {
-				t.Error("SSE endpoint should mention GET /sse")
-			}
+				message, ok := response["message"].(string)
+				if !ok {
+					t.Fatal("Message field should be a string")
+				}
+				if !strings.Contains(message, "MCP") {
+					t.Error("Message should mention MCP")
+				}
+				if !strings.Contains(message, "SSE") {
+					t.Error("Message should mention SSE transport")
+				}
 
-			messageEndpoint, ok := endpoints["message"].(string)
-			if !ok {
-				t.Fatal("Message endpoint description should be a string")
-			}
-			if !strings.Contains(messageEndpoint, "POST /message") {
-				t.Error("Message endpoint should mention POST /message")
+				endpoints, ok := response["endpoints"].(map[string]interface{})
+				if !ok {
+					t.Fatal("Endpoints field should be a map")
+				}
+
+				expectedEndpoints := []string{"sse", "message"}
+				for _, endpoint := range expectedEndpoints {
+					if _, exists := endpoints[endpoint]; !exists {
+						t.Errorf("Expected endpoint %s not found in response", endpoint)
+					}
+				}
+
+				// Verify SSE-specific endpoint descriptions
+				sseEndpoint, ok := endpoints["sse"].(string)
+				if !ok {
+					t.Fatal("SSE endpoint description should be a string")
+				}
+				if !strings.Contains(sseEndpoint, "GET /sse") {
+					t.Error("SSE endpoint should mention GET /sse")
+				}
+
+				messageEndpoint, ok := endpoints["message"].(string)
+				if !ok {
+					t.Fatal("Message endpoint description should be a string")
+				}
+				if !strings.Contains(messageEndpoint, "POST /message") {
+					t.Error("Message endpoint should mention POST /message")
+				}
 			}
 		})
 	}
