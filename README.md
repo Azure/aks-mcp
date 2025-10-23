@@ -285,6 +285,7 @@ eBPF.
 - `observe_system_calls`: Monitor system calls
 - `top_file`: Top files by I/O operations
 - `top_tcp`: Top TCP connections by traffic
+- `tcpdump`: Capture network packets
 
 </details>
 

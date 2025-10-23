@@ -14,6 +14,7 @@ require (
 	github.com/Azure/mcp-kubernetes v0.0.9
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
+	github.com/gopacket/gopacket v1.4.0
 	github.com/inspektor-gadget/inspektor-gadget v0.45.0
 	github.com/mark3labs/mcp-go v0.41.1
 	github.com/microsoft/ApplicationInsights-Go v0.4.4
