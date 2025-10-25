@@ -27,6 +27,7 @@ In terms of the type of data collected, it includes:
 - **observe_system_calls**: Provides comprehensive system-level interaction data for debugging and performance analysis.
 - **top_file**: Displays files with the highest read/write operations to pinpoint frequently accessed files and performance bottlenecks.
 - **top_tcp**: Shows TCP connections sorted by traffic volume to identify high-traffic connections and network issues.
+- **tcpdump**: Captures network traffic to troubleshoot network connectivity issues and identify potential security issues.
 
 All the gadgets can be run for a specific pod or namespace. Also, if the user runs the MCP server with `--allow-namespaces=default,kube-system`, the data will be
 limited to the specified namespaces otherwise it will be collected for all namespaces.  The gadgets also have use-case-specific parameters that can be passed to customize the data collection.
@@ -63,6 +64,10 @@ Can you give me the top 3 pods with highest traffic in the AKS cluster?
 
 ```
 Can you observe system calls for the pod my-pod in the default namespace for few seconds? I want to understand why it migth be slow.
+```
+
+```
+Can you capture network traffic for the pod my-pod in the default namespace for 15 seconds? I want to debug connectivity issues.
 ```
 
 ## Prerequisites

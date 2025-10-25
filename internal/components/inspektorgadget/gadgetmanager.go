@@ -10,10 +10,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gopacket/gopacket"
+	"github.com/gopacket/gopacket/layers"
 	"github.com/inspektor-gadget/inspektor-gadget/pkg/datasource"
 	igjson "github.com/inspektor-gadget/inspektor-gadget/pkg/datasource/formatters/json"
 	"github.com/inspektor-gadget/inspektor-gadget/pkg/environment"
 	gadgetcontext "github.com/inspektor-gadget/inspektor-gadget/pkg/gadget-context"
+	"github.com/inspektor-gadget/inspektor-gadget/pkg/gadget-service/api"
 	"github.com/inspektor-gadget/inspektor-gadget/pkg/operators"
 	"github.com/inspektor-gadget/inspektor-gadget/pkg/operators/simple"
 	grpcruntime "github.com/inspektor-gadget/inspektor-gadget/pkg/runtime/grpc"
@@ -115,20 +118,46 @@ func (g *manager) outputDataOperator(cb func(data []byte)) operators.DataOperato
 	return simple.New("outputDataOperator",
 		simple.OnInit(func(gadgetCtx operators.GadgetContext) error {
 			for _, d := range gadgetCtx.GetDataSources() {
-				jsonFormatter, _ := igjson.New(d,
-					// TODO: Maybe we should use specific fields or remove unwanted fields
-					igjson.WithShowAll(true),
-				)
-
 				// skip data sources that have the annotation "cli.default-output-mode"
 				// set to "none"
 				if m, ok := d.Annotations()["cli.default-output-mode"]; ok && m == "none" {
 					continue
 				}
 
-				err := d.Subscribe(func(source datasource.DataSource, data datasource.Data) error {
+				// handle adding a raw string field for certain content types
+				restField := d.Annotations()["ebpf.rest.name"]
+				var restAcc datasource.FieldAccessor
+				var restStrAcc datasource.FieldAccessor
+				var err error
+				if restField != "" {
+					restAcc = d.GetField(restField)
+					ct, ok := restAcc.Annotations()["content-type"]
+					if ok && ct == "application/x-raw-packet" {
+						restStrAcc, err = d.AddField(restField+"_string", api.Kind_String)
+						if err != nil {
+							return fmt.Errorf("adding raw string field accessor: %w", err)
+						}
+					}
+				}
+
+				jsonFormatter, err := igjson.New(d,
+					// TODO: Maybe we should use specific fields or remove unwanted fields
+					igjson.WithShowAll(true),
+				)
+				if err != nil {
+					return fmt.Errorf("creating JSON formatter: %w", err)
+				}
+
+				err = d.Subscribe(func(source datasource.DataSource, data datasource.Data) error {
 					g.formatterMu.Lock()
 					defer g.formatterMu.Unlock()
+					if restAcc != nil && restStrAcc != nil {
+						pktStr := gopacket.NewPacket(restAcc.Get(data), layers.LinkTypeEthernet, gopacket.Default).String()
+						err = restStrAcc.Set(data, []byte(pktStr))
+						if err != nil {
+							return fmt.Errorf("setting raw string field: %w", err)
+						}
+					}
 					jsonData := jsonFormatter.Marshal(data)
 					cb(jsonData)
 					return nil

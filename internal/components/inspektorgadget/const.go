@@ -38,6 +38,7 @@ const (
 	paramFetchInterval    = "operator.oci.ebpf.map-fetch-interval"
 	paramFilter           = "operator.filter.filter"
 	paramTraceloopSyscall = "operator.oci.wasm.syscall-filters"
+	paramPacketFilter     = "operator.oci.ebpf.pf"
 )
 
 // Inspektor Gadget Helm chart constants
@@ -58,4 +59,5 @@ const (
 	observeSystemCalls      = "observe_system_calls"
 	topFile                 = "top_file"
 	topTCP                  = "top_tcp"
+	tcpdump                 = "tcpdump"
 )

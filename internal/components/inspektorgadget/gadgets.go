@@ -267,6 +267,44 @@ var gadgets = []Gadget{
 			}
 		},
 	},
+	{
+		Name:        tcpdump,
+		Image:       "ghcr.io/inspektor-gadget/gadget/tcpdump",
+		Description: "Captures network traffic in the cluster",
+		Params: map[string]interface{}{
+			"pcap-filter": map[string]interface{}{
+				"type": "string",
+				"description": `Parses tcpdump/BPF-style filter expressions for network packet filtering.
+				Syntax:
+				expression = [not] [direction] [protocol] type [id] | expression and expression | expression or expression | ( expression )
+                Qualifiers:
+				  direction = src | dst | src or dst | src and dst
+				  protocol = ether | fddi | tr | wlan | ip | ip6 | arp | rarp | decnet | tcp | udp | icmp | igmp | atalk | aarp | vlan | ppptalk | pptp | sctp | mpls
+				  type = host | net | port | portrange | less | greater | gateway | proto (protocol)
+				  id = address | number
+				Examples:
+				  host 192.168.1.1
+				  src port 80
+				  tcp dst port 443
+				  not src host 10.0.0.1
+				  (src port 22) and (dst host 192.168.1.1)
+				  ip6 and not tcp
+				  proto icmp
+				  ether host aa:bb:cc:dd:ee:ff
+				  src or dst port 80 or 443
+				`,
+			},
+		},
+		ParamsFunc: func(filterParams map[string]interface{}, gadgetParams map[string]string) {
+			tcpdumpParams, ok := getGadgetParam(filterParams, tcpdump)
+			if !ok {
+				return
+			}
+			if filter, ok := tcpdumpParams["pcap-filter"].(string); ok && filter != "" {
+				gadgetParams[paramPacketFilter] = filter
+			}
+		},
+	},
 }
 
 func getGadgetNames() []string {
