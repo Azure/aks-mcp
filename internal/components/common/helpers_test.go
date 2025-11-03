@@ -103,10 +103,16 @@ func TestExtractAKSParameters(t *testing.T) {
 
 func TestGetDefaultSubscriptionID_FromEnv(t *testing.T) {
 	originalEnv := os.Getenv("AZURE_SUBSCRIPTION_ID")
-	defer os.Setenv("AZURE_SUBSCRIPTION_ID", originalEnv)
+	defer func() {
+		if err := os.Setenv("AZURE_SUBSCRIPTION_ID", originalEnv); err != nil {
+			t.Logf("Failed to restore AZURE_SUBSCRIPTION_ID: %v", err)
+		}
+	}()
 
 	expectedSubID := "test-subscription-id-123"
-	os.Setenv("AZURE_SUBSCRIPTION_ID", expectedSubID)
+	if err := os.Setenv("AZURE_SUBSCRIPTION_ID", expectedSubID); err != nil {
+		t.Fatalf("Failed to set AZURE_SUBSCRIPTION_ID: %v", err)
+	}
 
 	cfg := &config.ConfigData{
 		Timeout: 30000,
