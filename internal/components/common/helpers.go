@@ -4,8 +4,12 @@ package common
 import (
 	"context"
 	"fmt"
+	"os"
+	"strings"
 
+	"github.com/Azure/aks-mcp/internal/azcli"
 	"github.com/Azure/aks-mcp/internal/azureclient"
+	"github.com/Azure/aks-mcp/internal/config"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2"
 )
 
@@ -33,4 +37,28 @@ func ExtractAKSParameters(params map[string]interface{}) (subscriptionID, resour
 func GetClusterDetails(ctx context.Context, client *azureclient.AzureClient, subscriptionID, resourceGroup, clusterName string) (*armcontainerservice.ManagedCluster, error) {
 	// Get the cluster from Azure client (which now handles caching internally)
 	return client.GetAKSCluster(ctx, subscriptionID, resourceGroup, clusterName)
+}
+
+// GetDefaultSubscriptionID attempts to get the subscription ID from environment variable or Azure CLI
+func GetDefaultSubscriptionID(cfg *config.ConfigData) (string, error) {
+	if subID := os.Getenv("AZURE_SUBSCRIPTION_ID"); subID != "" {
+		return subID, nil
+	}
+
+	executor := azcli.NewExecutor()
+	cmdParams := map[string]interface{}{
+		"command": "az account show --query id -o tsv",
+	}
+
+	out, err := executor.Execute(cmdParams, cfg)
+	if err != nil {
+		return "", fmt.Errorf("failed to get default subscription ID from Azure CLI: %w. Please set AZURE_SUBSCRIPTION_ID environment variable or provide subscription_id parameter", err)
+	}
+
+	subID := strings.TrimSpace(out)
+	if subID == "" {
+		return "", fmt.Errorf("no default subscription found. Please set AZURE_SUBSCRIPTION_ID environment variable or provide subscription_id parameter")
+	}
+
+	return subID, nil
 }

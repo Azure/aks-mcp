@@ -1,7 +1,10 @@
 package common
 
 import (
+	"os"
 	"testing"
+
+	"github.com/Azure/aks-mcp/internal/config"
 )
 
 // TestExtractAKSParameters tests the parameter extraction function
@@ -96,4 +99,35 @@ func TestExtractAKSParameters(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetDefaultSubscriptionID_FromEnv(t *testing.T) {
+	originalEnv := os.Getenv("AZURE_SUBSCRIPTION_ID")
+	defer func() {
+		if err := os.Setenv("AZURE_SUBSCRIPTION_ID", originalEnv); err != nil {
+			t.Logf("Failed to restore AZURE_SUBSCRIPTION_ID: %v", err)
+		}
+	}()
+
+	expectedSubID := "test-subscription-id-123"
+	if err := os.Setenv("AZURE_SUBSCRIPTION_ID", expectedSubID); err != nil {
+		t.Fatalf("Failed to set AZURE_SUBSCRIPTION_ID: %v", err)
+	}
+
+	cfg := &config.ConfigData{
+		Timeout: 30000,
+	}
+
+	subID, err := GetDefaultSubscriptionID(cfg)
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	if subID != expectedSubID {
+		t.Errorf("Expected subscription ID %s, got %s", expectedSubID, subID)
+	}
+}
+
+func TestGetDefaultSubscriptionID_NoEnv(t *testing.T) {
+	t.Skip("Skipping test that requires Azure CLI authentication")
 }

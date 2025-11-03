@@ -8,6 +8,7 @@ import (
 
 	"github.com/Azure/aks-mcp/internal/azcli"
 	"github.com/Azure/aks-mcp/internal/azureclient"
+	"github.com/Azure/aks-mcp/internal/components/common"
 	"github.com/Azure/aks-mcp/internal/components/monitor/diagnostics"
 	"github.com/Azure/aks-mcp/internal/config"
 	"github.com/Azure/aks-mcp/internal/tools"
@@ -43,7 +44,11 @@ func HandleResourceHealthQuery(params map[string]interface{}, cfg *config.Config
 	// Extract and validate parameters
 	subscriptionID, ok := params["subscription_id"].(string)
 	if !ok || subscriptionID == "" {
-		return "", fmt.Errorf("missing or invalid subscription_id parameter")
+		var err error
+		subscriptionID, err = common.GetDefaultSubscriptionID(cfg)
+		if err != nil {
+			return "", err
+		}
 	}
 
 	resourceGroup, ok := params["resource_group"].(string)
@@ -159,7 +164,11 @@ func HandleAppInsightsQuery(params map[string]interface{}, cfg *config.ConfigDat
 	// Extract and validate parameters
 	subscriptionID, ok := params["subscription_id"].(string)
 	if !ok || subscriptionID == "" {
-		return "", fmt.Errorf("missing or invalid subscription_id parameter")
+		var err error
+		subscriptionID, err = common.GetDefaultSubscriptionID(cfg)
+		if err != nil {
+			return "", err
+		}
 	}
 
 	resourceGroup, ok := params["resource_group"].(string)
