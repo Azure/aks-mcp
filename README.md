@@ -376,7 +376,7 @@ If you see "spawn ENOENT" errors, verify your VS Code environment:
 > **💡 Benefits**: The AKS extension handles binary downloads, updates, and configuration automatically, ensuring you always have the latest version with optimal settings.
 
 
-### Deply in-cluster as a remoite MCP server
+### Deploy in-cluster as a remoite MCP server
 <details>
 <summary>See details here:</summary>
 1. Helm chart with OAuth based Access -  [helm chart](https://github.com/Azure/aks-mcp/tree/main/chart
