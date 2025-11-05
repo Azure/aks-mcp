@@ -299,9 +299,10 @@ eBPF.
    az login
    ```
 
-### VS Code with GitHub Copilot (Recommended)
+### VS Code with GitHub Copilot(Recommended)
 
-#### 🚀 One-Click Installation with the AKS Extension
+<details>
+<summary> One-Click Installation with the AKS Extension </summary>
 
 The easiest way to get started with AKS-MCP is through the **Azure Kubernetes Service Extension for VS Code**.
 
@@ -364,14 +365,26 @@ The MCP configuration differs depending on whether VS Code is running on Windows
 }
 ```
 
+
 **🔧 Troubleshooting ENOENT Errors**
 
 If you see "spawn ENOENT" errors, verify your VS Code environment:
 - **Windows host**: Check if the WSL binary path is correct and accessible via `wsl -- ls /path/to/aks-mcp`
 - **Remote-WSL**: Do NOT use `"command": "wsl"` - use direct paths or bash wrapper as shown above
-
+</details>
 
 > **💡 Benefits**: The AKS extension handles binary downloads, updates, and configuration automatically, ensuring you always have the latest version with optimal settings.
+
+
+### Deply in-cluster as a remoite MCP server
+<details>
+<summary>See details here:</summary>
+1. Helm chart with OAuth based Access -  [helm chart](https://github.com/Azure/aks-mcp/tree/main/chart
+
+2. Azure Managed Identity base RBAC - [AKS Engg. BLog](https://blog.aks.azure.com/2025/10/22/deploy-mcp-server-aks-workload-identity)
+   
+</details>
+
 
 ### Alternative Installation Methods
 
