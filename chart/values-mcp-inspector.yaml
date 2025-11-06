@@ -17,7 +17,7 @@ app:
 
 # OAuth configuration for MCP Inspector
 oauth:
-  enabled: true
+  enabled: false
   tenantId: ""  # Replace with your actual tenant ID
   clientId: ""  # Replace with your actual client ID
   redirectURIs:
