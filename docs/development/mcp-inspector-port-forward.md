@@ -101,7 +101,7 @@ The `values-mcp-inspector.yaml` configuration includes:
 
 ```yaml
 oauth:
-  enabled: true
+  enabled: false
   tenantId: "" ## YOUR TENEANT ID
   clientId: "" ## YOUR CLIENT ID
   redirectURIs:

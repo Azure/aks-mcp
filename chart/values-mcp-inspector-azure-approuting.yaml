@@ -16,7 +16,7 @@ app:
 
 # OAuth configuration for MCP Inspector via Azure App Routing
 oauth:
-  enabled: true
+  enabled: false
   tenantId: "YOUR_TENANT_ID"  # Replace with your actual tenant ID
   clientId: "YOUR_CLIENT_ID"  # Replace with your actual client ID
   redirectURIs:
