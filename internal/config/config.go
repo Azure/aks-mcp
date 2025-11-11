@@ -67,6 +67,11 @@ type ConfigData struct {
 
 	// Telemetry service
 	TelemetryService *telemetry.Service
+
+	// UseLegacyTools controls whether to use legacy tools (az_aks_operations, az_compute_operations)
+	// or the new azure-api-mcp tool (call_az)
+	// Default is false (use azure-api-mcp)
+	UseLegacyTools bool
 }
 
 // NewConfig creates and returns a new configuration instance
@@ -82,6 +87,7 @@ func NewConfig() *ConfigData {
 		AdditionalTools: make(map[string]bool),
 		AllowNamespaces: "",
 		LogLevel:        "info",
+		UseLegacyTools:  os.Getenv("USE_LEGACY_TOOLS") == "true",
 	}
 }
 
