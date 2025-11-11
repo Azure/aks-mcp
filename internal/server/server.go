@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/Azure/aks-mcp/internal/auth/oauth"
@@ -11,6 +12,7 @@ import (
 	"github.com/Azure/aks-mcp/internal/azureclient"
 	"github.com/Azure/aks-mcp/internal/components/advisor"
 	"github.com/Azure/aks-mcp/internal/components/azaks"
+	"github.com/Azure/aks-mcp/internal/components/azapi"
 	"github.com/Azure/aks-mcp/internal/components/compute"
 	"github.com/Azure/aks-mcp/internal/components/detectors"
 	"github.com/Azure/aks-mcp/internal/components/fleet"
@@ -23,6 +25,7 @@ import (
 	"github.com/Azure/aks-mcp/internal/prompts"
 	"github.com/Azure/aks-mcp/internal/tools"
 	"github.com/Azure/aks-mcp/internal/version"
+	azapimcp "github.com/Azure/azure-api-mcp/pkg/azcli"
 	"github.com/Azure/mcp-kubernetes/pkg/cilium"
 	"github.com/Azure/mcp-kubernetes/pkg/helm"
 	"github.com/Azure/mcp-kubernetes/pkg/hubble"
@@ -415,8 +418,16 @@ func (s *Service) Run() error {
 func (s *Service) registerAzureComponents() {
 	logger.Infof("Registering Azure Components...")
 
-	// AKS Operations Component
-	s.registerAksOpsComponent()
+	// Conditional registration based on UseLegacyTools flag
+	if s.cfg.UseLegacyTools {
+		logger.Infof("Using legacy Azure CLI tools (az_aks_operations, az_compute_operations)")
+		// AKS Operations Component (legacy)
+		s.registerAksOpsComponent()
+	} else {
+		logger.Infof("Using azure-api-mcp tool (call_az)")
+		// Azure API MCP Component (new)
+		s.registerAzureApiComponent()
+	}
 
 	// Monitoring Component
 	s.registerMonitoringComponent()
@@ -553,10 +564,12 @@ func (s *Service) registerComputeComponent() {
 	vmssInfoTool := compute.RegisterAKSVMSSInfoTool()
 	s.mcpServer.AddTool(vmssInfoTool, tools.CreateResourceHandler(compute.GetAKSVMSSInfoHandler(s.azClient, s.cfg), s.cfg))
 
-	// Register unified compute operations tool
-	logger.Debugf("Registering compute tool: az_compute_operations")
-	computeOperationsTool := compute.RegisterAzComputeOperations(s.cfg)
-	s.mcpServer.AddTool(computeOperationsTool, tools.CreateToolHandler(compute.NewComputeOperationsExecutor(), s.cfg))
+	// Register unified compute operations tool (only if using legacy tools)
+	if s.cfg.UseLegacyTools {
+		logger.Debugf("Registering compute tool: az_compute_operations")
+		computeOperationsTool := compute.RegisterAzComputeOperations(s.cfg)
+		s.mcpServer.AddTool(computeOperationsTool, tools.CreateToolHandler(compute.NewComputeOperationsExecutor(), s.cfg))
+	}
 }
 
 // registerDetectorComponent registers detector-related Azure resource tools
@@ -607,4 +620,40 @@ func (s *Service) registerHubbleComponent() {
 		hubbleExecutor := k8s.WrapK8sExecutor(hubble.NewExecutor())
 		s.mcpServer.AddTool(hubbleTool, tools.CreateToolHandler(hubbleExecutor, s.cfg))
 	}
+}
+
+// registerAzureApiComponent registers the azure-api-mcp call_az tool
+func (s *Service) registerAzureApiComponent() {
+	logger.Debugf("Registering azure-api-mcp tool: call_az")
+
+	// Determine read-only mode based on access level
+	readOnlyMode := s.cfg.AccessLevel == "readonly"
+
+	// Get default subscription from environment variable
+	defaultSubscription := os.Getenv("AZURE_SUBSCRIPTION_ID")
+
+	// Create azure-api-mcp client
+	clientConfig := azapimcp.ClientConfig{
+		ReadOnlyMode:         readOnlyMode,
+		EnableSecurityPolicy: false,
+		Timeout:              time.Duration(s.cfg.Timeout) * time.Second,
+		WorkingDir:           "",
+		SecurityPolicyFile:   "",
+		ReadOnlyPatternsFile: "",
+	}
+
+	azClient, err := azapimcp.NewClient(clientConfig)
+	if err != nil {
+		logger.Errorf("Failed to create azure-api-mcp client: %v", err)
+		os.Exit(1)
+	}
+
+	// Register the tool using azure-api-mcp's registry
+	callAzTool := azapimcp.RegisterCallAzTool(readOnlyMode, defaultSubscription)
+
+	// Create handler using our wrapper
+	handler := azapi.AzApiHandler(azClient, s.cfg)
+
+	// Register with MCP server
+	s.mcpServer.AddTool(callAzTool, handler)
 }
