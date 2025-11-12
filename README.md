@@ -266,8 +266,8 @@ eBPF.
 
 **Available Actions:**
 
-- `deploy`: Deploy Inspektor Gadget to cluster (requires `readwrite`/`admin` access)
-- `undeploy`: Remove Inspektor Gadget from cluster (requires `readwrite`/`admin` access)
+- `deploy`: Deploy Inspektor Gadget to cluster
+- `undeploy`: Remove Inspektor Gadget from cluster
 - `is_deployed`: Check deployment status
 - `run`: Run one-shot gadgets
 - `start`: Start continuous gadgets

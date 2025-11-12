@@ -154,11 +154,6 @@ func getLifecycleActions() []string {
 	return []string{deployAction, undeployAction, upgradeAction, isDeployedAction}
 }
 
-// getReadonlyLifecycleActions returns all valid readonly lifecycle actions for Inspektor Gadget.
-func getReadonlyLifecycleActions() []string {
-	return []string{isDeployedAction}
-}
-
 // isValidAction checks if the provided action is a valid action for Inspektor Gadget.
 func isValidAction(action string) bool {
 	return action == runAction || action == startAction || action == stopAction ||

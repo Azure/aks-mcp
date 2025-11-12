@@ -73,7 +73,7 @@ Can you capture network traffic for the pod my-pod in the default namespace for 
 ## Prerequisites
 
 - A kubeconfig file that has access to the AKS cluster.
-- The tool requires Inspektor Gadget to be installed in the cluster. If you are running with `--access-level=readwrite` or more, the MCP server will automatically
+- The tool requires Inspektor Gadget to be installed in the cluster. The MCP server will automatically
   install Inspektor Gadget (action `deploy` ) in the cluster otherwise you can follow the steps to install it manually: [Inspektor Gadget Installation](https://learn.microsoft.com/en-us/troubleshoot/azure/azure-kubernetes/logs/capture-system-insights-from-aks#how-to-install-inspektor-gadget-in-an-aks-cluster) or
   use the official Helm chart: [Inspektor Gadget Helm Chart](https://inspektor-gadget.io/docs/latest/reference/install-kubernetes#installation-with-the-helm-chart):
 
@@ -81,5 +81,3 @@ Can you capture network traffic for the pod my-pod in the default namespace for 
 IG_VERSION=$(curl -s https://api.github.com/repos/inspektor-gadget/inspektor-gadget/releases/latest | jq -r '.tag_name' | sed 's/^v//')
 helm install gadget --namespace=gadget --create-namespace oci://ghcr.io/inspektor-gadget/inspektor-gadget/charts/gadget --version=$IG_VERSION
 ```
-
-Once Inspektor Gadget is deployed (or you installed it manually), you only need `readonly` (default) access to use the `inspektor_gadget_observability` tool.
