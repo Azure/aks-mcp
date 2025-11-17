@@ -29,16 +29,23 @@ app:
 
 # Azure authentication configuration
 azure:
-  # Use existing secret for Azure credentials
+  # Use existing secret for Azure credentials (for Service Principal auth)
   existingSecret: ""
-  # Azure tenant ID (can also be set via secret)
+  # Azure tenant ID (required for Workload Identity, can also be set via secret for Service Principal)
   tenantId: ""
-  # Azure client ID (can also be set via secret)
+  # Azure client ID (required for Workload Identity, can also be set via secret for Service Principal)
   clientId: ""
-  # Azure client secret (can also be set via secret)
+  # Azure client secret (only for Service Principal auth, ignored when Workload Identity is enabled)
   clientSecret: ""
   # Azure subscription ID (can also be set via secret)
   subscriptionId: ""
+
+# Azure Workload Identity configuration
+workloadIdentity:
+  # Enable Azure Workload Identity for passwordless authentication
+  # When enabled, requires azure.tenantId and azure.clientId to be set
+  # Federated credential must be created in Azure before installation
+  enabled: false
 
 # OAuth configuration
 oauth:
@@ -108,7 +115,7 @@ securityContext:
   runAsGroup: 1000
   capabilities:
     drop:
-    - ALL
+      - ALL
 
 service:
   type: ClusterIP

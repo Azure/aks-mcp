@@ -26,7 +26,7 @@ For detailed configuration parameters, see [helm-chart.md](./helm-chart.md).
 
 ## Deployment Examples
 
-### Basic Readonly Deployment
+### Basic Readonly Deployment (Service Principal)
 ```bash
 helm install my-aks-mcp . \
   --set app.accessLevel=readonly \
@@ -34,6 +34,19 @@ helm install my-aks-mcp . \
   --set azure.clientId=your-client-id \
   --set azure.clientSecret=your-client-secret
 ```
+
+### Workload Identity Deployment
+For passwordless authentication using Azure Workload Identity, see the detailed guide: [helm-workload-identity.md](../docs/helm-workload-identity.md)
+
+```bash
+helm install my-aks-mcp . \
+  --set workloadIdentity.enabled=true \
+  --set azure.tenantId=your-tenant-id \
+  --set azure.clientId=your-managed-identity-client-id \
+  --set azure.subscriptionId=your-subscription-id
+```
+
+**Note:** Workload Identity requires additional Azure setup (OIDC Issuer, Managed Identity, Federated Credential). See the full guide for step-by-step instructions.
 
 ### Readwrite Deployment with OAuth
 ```bash
