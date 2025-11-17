@@ -376,12 +376,11 @@ If you see "spawn ENOENT" errors, verify your VS Code environment:
 > **💡 Benefits**: The AKS extension handles binary downloads, updates, and configuration automatically, ensuring you always have the latest version with optimal settings.
 
 
-### Deploy in-cluster as a remoite MCP server
+### Deploy the MCP server in-cluster (Remote MCP)
 <details>
-<summary>See details here:</summary>
-1. Helm chart with OAuth based Access -  [helm chart](https://github.com/Azure/aks-mcp/tree/main/chart
-
-2. Azure Managed Identity base RBAC - [AKS Engg. BLog](https://blog.aks.azure.com/2025/10/22/deploy-mcp-server-aks-workload-identity)
+<summary>To deploy the remote MCP server into your AKS cluster, see the instructions below:</summary>
+1. Helm chart installation with OAuth-based access: [Helm Chart](https://github.com/Azure/aks-mcp/tree/main/chart
+2. Helm chart installation with RBAC (Workload Identity): [Blog Post - Deploy AKS MCP server with Workload Identity](https://blog.aks.azure.com/2025/10/22/deploy-mcp-server-aks-workload-identity)
    
 </details>
 
