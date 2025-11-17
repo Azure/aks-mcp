@@ -378,8 +378,11 @@ If you see "spawn ENOENT" errors, verify your VS Code environment:
 
 ### Deploy the MCP server in-cluster (Remote MCP)
 <details>
-<summary>Deploy the remote MCP server to your AKS cluster</summary>
-1. Helm chart installation with OAuth-based access: [Helm Chart](https://github.com/Azure/aks-mcp/tree/main/chart
+<summary> Remote MCP Installation </summary>
+To enable the remote AKS MCP server in your AKS cluster, see the instructions below:
+
+1. Helm chart installation with OAuth-based access: [Helm Chart](https://github.com/Azure/aks-mcp/tree/main/chart)
+
 2. Helm chart installation with RBAC (Workload Identity): [Blog Post - Deploy AKS MCP server with Workload Identity](https://blog.aks.azure.com/2025/10/22/deploy-mcp-server-aks-workload-identity)
    
 </details>
