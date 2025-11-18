@@ -57,7 +57,7 @@ Environment variables used:
 The AKS-MCP server provides consolidated tools for interacting with AKS
 clusters. Some tools will require read-write or admin permissions to run debugging pods on your cluster. To enable read-write or admin permissions for the AKS-MCP server, add the **access level** parameter to your MCP configuration file:
 
-1. Navigate to your **mcp.json** file, or go to MCP: List Servers -> AKS-MCP -> Show Configuration Details in the **Command Palette** (`Ctrl+Shift+P` on Windows/Linux or `Cmd+Shift+P` on macOS).
+1. Navigate to your **mcp.json** file, or go to MCP: List Servers -> AKS-MCP -> Show Configuration Details in the **Command Palette** (For VSCode; `Ctrl+Shift+P` on Windows/Linux or `Cmd+Shift+P` on macOS).
 2. In the "args" section of AKS-MCP, add the following parameters: "--access-level", "readwrite" / "admin"
 
 For example:
@@ -299,7 +299,7 @@ eBPF.
    az login
    ```
 
-### VS Code with GitHub Copilot(Recommended)
+### VS Code with GitHub Copilot (Recommended)
 
 <details>
 <summary> One-Click Installation with the AKS Extension </summary>
@@ -376,12 +376,14 @@ If you see "spawn ENOENT" errors, verify your VS Code environment:
 > **💡 Benefits**: The AKS extension handles binary downloads, updates, and configuration automatically, ensuring you always have the latest version with optimal settings.
 
 
-### Deploy in-cluster as a remoite MCP server
+### Deploy the MCP server in-cluster (Remote MCP)
 <details>
-<summary>See details here:</summary>
-1. Helm chart with OAuth based Access -  [helm chart](https://github.com/Azure/aks-mcp/tree/main/chart
+<summary> Remote MCP Installation </summary>
+To enable the remote AKS MCP server in your AKS cluster, see the instructions below:
 
-2. Azure Managed Identity base RBAC - [AKS Engg. BLog](https://blog.aks.azure.com/2025/10/22/deploy-mcp-server-aks-workload-identity)
+1. Helm chart installation with OAuth-based access: [Helm Chart](https://github.com/Azure/aks-mcp/tree/main/chart)
+
+2. Helm chart installation with RBAC (Workload Identity): [Blog Post - Deploy AKS MCP server with Workload Identity](https://blog.aks.azure.com/2025/10/22/deploy-mcp-server-aks-workload-identity)
    
 </details>
 
