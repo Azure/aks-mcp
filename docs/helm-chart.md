@@ -28,7 +28,7 @@ This document describes the configuration parameters for the AKS-MCP Helm chart.
 | `app.port` | Port to listen on | `8000` |
 | `app.accessLevel` | Access level (readonly, readwrite, admin) | `readonly` |
 | `app.timeout` | Command execution timeout in seconds | `600` |
-| `app.verbose` | Enable verbose logging | `false` |
+| `app.logLevel` | Log level (debug, info, warn, error) | `info` |
 | `app.cache` | Enable cache for better performance | `true` |
 
 ### Azure Authentication
