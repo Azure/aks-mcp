@@ -150,6 +150,8 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            - name: azure-config
+              mountPath: /home/mcp/.azure
             {{- if .Values.workloadIdentity.enabled }}
             - name: azure-identity-token
               mountPath: /var/run/secrets/azure/tokens
@@ -171,6 +173,8 @@ spec:
             {{- toYaml .Values.resources | nindent 12 }}
       volumes:
         - name: tmp
+          emptyDir: {}
+        - name: azure-config
           emptyDir: {}
         {{- if .Values.workloadIdentity.enabled }}
         - name: azure-identity-token
