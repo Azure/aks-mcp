@@ -1,8 +1,9 @@
 package inspektorgadget
 
 import (
-	"github.com/mark3labs/mcp-go/mcp"
 	"strings"
+
+	"github.com/mark3labs/mcp-go/mcp"
 )
 
 // =============================================================================
@@ -17,9 +18,10 @@ func RegisterInspektorGadgetTool() mcp.Tool {
 			"Apart from 'action' param:\n\n"+
 			"It supports 'action_params' (type=object) to specify parameters for the action."+
 			"Available params are: "+
-			"gadget_name, duration, gadget_id, chart_version. "+
+			"gadget_name, duration, gadget_id, chart_version, confirm (only if user explicitly wants to perform the action in 'readonly' mode)."+
 			"Available Gadget names are: "+strings.Join(getGadgetNames(), ", ")+". "+
 			"Example: "+
+			"{'action': 'deploy', 'action_params': {'confirm': true}}\n"+
 			"{'action': 'run', 'action_params': {'gadget_name': 'observe_dns', 'duration': 10}}\n\n"+
 			"It supports 'filter_params' (type=object) to filter the data captured by the gadget. "+
 			"Available params are: "+
@@ -61,6 +63,10 @@ func RegisterInspektorGadgetTool() mcp.Tool {
 				"chart_version": map[string]any{
 					"type":        "string",
 					"description": "The version of the Inspektor Gadget Helm chart to deploy. Only set this if user explicitly wants to deploy a specific version",
+				},
+				"confirm": map[string]any{
+					"type":        "boolean",
+					"description": "Confirmation to deploy/upgrade/undeploy Inspektor Gadget (in gadget namespace) when running server in 'readonly' mode. Only set this if user explicitly wants to perform the action in 'readonly' mode",
 				},
 			}),
 		),

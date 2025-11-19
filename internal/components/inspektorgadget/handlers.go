@@ -229,6 +229,14 @@ func handleLifecycleAction(mgr GadgetManager, deployed bool, action string, acti
 		return "", fmt.Errorf("namespace %s is not allowed by security policy", inspektorGadgetChartNamespace)
 	}
 
+	con, ok := actionParams["confirm"].(bool)
+	if !ok {
+		con = false
+	}
+	if cfg.AccessLevel == "readonly" && action != isDeployedAction && !con {
+		return "", fmt.Errorf("confirmation required to deploy/upgrade/undeploy Inspektor Gadget when running server in 'readonly' mode. Note this will create/modify resources in the %s namespace. Should we proceed?", inspektorGadgetChartNamespace)
+	}
+
 	installedVersion, err := mgr.GetVersion()
 	if err != nil && deployed {
 		return "", fmt.Errorf("getting installed version: %w", err)
