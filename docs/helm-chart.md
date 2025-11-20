@@ -41,6 +41,14 @@ This document describes the configuration parameters for the AKS-MCP Helm chart.
 | `azure.clientSecret` | Azure client secret | `""` |
 | `azure.subscriptionId` | Azure subscription ID | `""` |
 
+### Azure Workload Identity
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `workloadIdentity.enabled` | Enable Azure Workload Identity for passwordless authentication | `false` |
+
+**Note:** When `workloadIdentity.enabled=true`, `azure.tenantId` and `azure.clientId` are required. See [helm-workload-identity.md](./helm-workload-identity.md) for setup instructions.
+
 ### OAuth Configuration
 
 | Parameter | Description | Default |
