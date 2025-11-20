@@ -11,7 +11,7 @@ app:
   port: 8081
   accessLevel: "readonly"
   timeout: 600
-  verbose: false
+  logLevel: "info"
   cache: true
 
 # OAuth configuration for MCP Inspector via Azure App Routing

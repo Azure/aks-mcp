@@ -71,8 +71,9 @@ spec:
             - {{ $corsOrigins | quote }}
             {{- end }}
             {{- end }}
-            {{- if .Values.app.verbose }}
-            - "--verbose"
+            {{- if .Values.app.logLevel }}
+            - "--log-level"
+            - {{ .Values.app.logLevel | quote }}
             {{- end }}
             {{- if .Values.config.additionalTools }}
             - "--additional-tools"

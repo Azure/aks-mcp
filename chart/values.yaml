@@ -22,8 +22,8 @@ app:
   accessLevel: "readonly"
   # Command execution timeout in seconds
   timeout: 600
-  # Enable verbose logging
-  verbose: false
+  # Log level: debug, info, warn, error
+  logLevel: "info"
   # Enable cache for better performance
   cache: true
 
