@@ -237,3 +237,102 @@ func findSubstring(s, substr string) bool {
 	}
 	return false
 }
+
+func TestNewConfig_UseLegacyTools_Default(t *testing.T) {
+	cfg := NewConfig()
+	if cfg.UseLegacyTools {
+		t.Error("Expected UseLegacyTools to be false by default")
+	}
+}
+
+func TestNewConfig_UseLegacyTools_FromEnv(t *testing.T) {
+	tests := []struct {
+		name     string
+		envValue string
+		expected bool
+	}{
+		{
+			name:     "enabled via env",
+			envValue: "true",
+			expected: true,
+		},
+		{
+			name:     "disabled via env",
+			envValue: "false",
+			expected: false,
+		},
+		{
+			name:     "empty env",
+			envValue: "",
+			expected: false,
+		},
+		{
+			name:     "invalid value",
+			envValue: "invalid",
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			oldEnv := getEnvOrEmpty("USE_LEGACY_TOOLS")
+			defer func() {
+				if oldEnv != "" {
+					setEnv(t, "USE_LEGACY_TOOLS", oldEnv)
+				} else {
+					unsetEnv(t, "USE_LEGACY_TOOLS")
+				}
+			}()
+
+			if tt.envValue != "" {
+				setEnv(t, "USE_LEGACY_TOOLS", tt.envValue)
+			} else {
+				unsetEnv(t, "USE_LEGACY_TOOLS")
+			}
+
+			cfg := NewConfig()
+			if cfg.UseLegacyTools != tt.expected {
+				t.Errorf("Expected UseLegacyTools to be %v, got %v", tt.expected, cfg.UseLegacyTools)
+			}
+		})
+	}
+}
+
+func getEnvOrEmpty(key string) string {
+	value, exists := lookupEnv(key)
+	if !exists {
+		return ""
+	}
+	return value
+}
+
+func lookupEnv(key string) (string, bool) {
+	for _, env := range getAllEnv() {
+		pair := splitEnvPair(env)
+		if len(pair) == 2 && pair[0] == key {
+			return pair[1], true
+		}
+	}
+	return "", false
+}
+
+func getAllEnv() []string {
+	return []string{}
+}
+
+func splitEnvPair(s string) []string {
+	for i := 0; i < len(s); i++ {
+		if s[i] == '=' {
+			return []string{s[:i], s[i+1:]}
+		}
+	}
+	return []string{s}
+}
+
+func setEnv(t *testing.T, key, value string) {
+	t.Setenv(key, value)
+}
+
+func unsetEnv(t *testing.T, key string) {
+	t.Setenv(key, "")
+}
