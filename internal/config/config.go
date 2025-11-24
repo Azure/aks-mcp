@@ -68,9 +68,10 @@ type ConfigData struct {
 	// Telemetry service
 	TelemetryService *telemetry.Service
 
-	// UseLegacyTools controls whether to use legacy tools (az_aks_operations, az_compute_operations)
-	// or the new azure-api-mcp tool (call_az)
-	// Default is false (use azure-api-mcp)
+	// UseLegacyTools controls whether to use legacy tools or new unified tools
+	// Azure tools: true = az_aks_operations/az_compute_operations, false = call_az
+	// Kubectl tools: true = specialized tools (kubectl_resources, kubectl_workloads, etc.), false = call_kubectl
+	// Default is false (use new unified tools)
 	// This flag is provided for backward compatibility and may be removed in future versions
 	UseLegacyTools bool
 }
