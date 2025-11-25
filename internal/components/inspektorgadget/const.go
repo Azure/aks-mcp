@@ -30,6 +30,7 @@ const (
 const (
 	paramAllNamespaces    = "operator.KubeManager.all-namespaces"
 	paramNamespace        = "operator.KubeManager.namespace"
+	paramNode             = "operator.KubeManager.node"
 	paramPod              = "operator.KubeManager.podname"
 	paramContainer        = "operator.KubeManager.containername"
 	paramSelector         = "operator.KubeManager.selector"
@@ -57,7 +58,9 @@ const (
 	observeProcessExecution = "observe_process_execution"
 	observeSignal           = "observe_signal"
 	observeSystemCalls      = "observe_system_calls"
+	topBlockIO              = "top_blockio"
 	topFile                 = "top_file"
 	topTCP                  = "top_tcp"
 	tcpdump                 = "tcpdump"
+	profileBlockIO          = "profile_blockio"
 )
