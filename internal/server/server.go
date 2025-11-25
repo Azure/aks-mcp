@@ -470,8 +470,16 @@ func (s *Service) registerKubernetesComponents() {
 func (s *Service) registerKubectlComponent() {
 	logger.Debugf("Registering Core Kubernetes Component (kubectl)")
 
-	// Get kubectl tools filtered by access level
-	kubectlTools := kubectl.RegisterKubectlTools(s.cfg.AccessLevel)
+	// Use UseLegacyTools to control whether to use unified call_kubectl tool or specialized tools
+	useUnifiedTool := !s.cfg.UseLegacyTools
+	if s.cfg.UseLegacyTools {
+		logger.Debugf("Using legacy kubectl specialized tools (kubectl_resources, kubectl_workloads, etc.)")
+	} else {
+		logger.Debugf("Using unified kubectl tool (call_kubectl)")
+	}
+
+	// Get kubectl tools filtered by access level and tool type
+	kubectlTools := kubectl.RegisterKubectlTools(s.cfg.AccessLevel, useUnifiedTool)
 
 	// Create a kubectl executor
 	kubectlExecutor := kubectl.NewKubectlToolExecutor()

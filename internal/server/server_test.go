@@ -136,7 +136,7 @@ func TestService(t *testing.T) {
 			service := NewService(cfg, WithAzCliProcFactory(func(timeout int) azcli.Proc { return &fakeProc{} }))
 
 			// Calculate expected kubectl tools count
-			kubectlTools := kubectl.RegisterKubectlTools(tt.accessLevel)
+			kubectlTools := kubectl.RegisterKubectlTools(tt.accessLevel, false)
 			expectedKubectlCount := len(kubectlTools)
 
 			// Add optional tools count
@@ -234,7 +234,7 @@ func TestComponentToolCounts(t *testing.T) {
 		// Test kubectl tools by access level
 		accessLevels := []string{"readonly", "readwrite", "admin"}
 		for _, level := range accessLevels {
-			kubectlTools := kubectl.RegisterKubectlTools(level)
+			kubectlTools := kubectl.RegisterKubectlTools(level, false)
 			t.Logf("Kubectl tools for %s access: %d", level, len(kubectlTools))
 
 			// Log individual kubectl tools
@@ -332,7 +332,7 @@ func TestExpectedToolsByAccessLevel(t *testing.T) {
 			// Access control is handled by operation validation, not tool registration
 
 			// Kubernetes tools
-			kubectlTools := kubectl.RegisterKubectlTools(level)
+			kubectlTools := kubectl.RegisterKubectlTools(level, false)
 			k8sToolsCount := len(kubectlTools)
 
 			t.Logf("=== Access Level: %s ===", level)
