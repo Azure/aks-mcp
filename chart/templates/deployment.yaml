@@ -91,6 +91,10 @@ spec:
             - {{ .Values.telemetry.otlpEndpoint | quote }}
             {{- end }}
           env:
+            {{- if .Values.azure.subscriptionId }}
+            - name: AZURE_SUBSCRIPTION_ID
+              value: {{ .Values.azure.subscriptionId | quote }}
+            {{- end }}
             # Azure Authentication
             {{- if or .Values.azure.tenantId .Values.azure.existingSecret }}
             - name: AZURE_TENANT_ID

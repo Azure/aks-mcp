@@ -37,7 +37,7 @@ azure:
   clientId: ""
   # Azure client secret (only for Service Principal auth, ignored when Workload Identity is enabled)
   clientSecret: ""
-  # Azure subscription ID (can also be set via secret)
+  # Azure subscription ID to set the current default active subscription
   subscriptionId: ""
 
 # Azure Workload Identity configuration

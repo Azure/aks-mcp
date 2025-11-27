@@ -192,6 +192,7 @@ Now install the AKS-MCP Helm chart with Workload Identity enabled.
 helm install aks-mcp ./chart \
   --set workloadIdentity.enabled=true \
   --set azure.clientId=$IDENTITY_CLIENT_ID \
+  --set azure.subscriptionId=$SUBSCRIPTION_ID
 ```
 
 **Install to a specific namespace:**
@@ -202,6 +203,7 @@ helm install aks-mcp ./chart \
   --create-namespace \
   --set workloadIdentity.enabled=true \
   --set azure.clientId=$IDENTITY_CLIENT_ID \
+  --set azure.subscriptionId=$SUBSCRIPTION_ID
 ```
 
 **Note**: If installing to a non-default namespace, update the federated credential subject in Step 4.
@@ -315,7 +317,7 @@ helm install aks-mcp ./chart \
 |-----------|-------------|---------|
 | `workloadIdentity.enabled` | Enable Azure Workload Identity | `false` |
 | `azure.clientId` | Azure Client ID (required for Workload Identity) | `""` |
-| `azure.subscriptionId` | Azure Subscription ID | `""` |
+| `azure.subscriptionId` | Azure Subscription ID set the current default active subscription| `""` |
 | `app.accessLevel` | Access level: `readonly`, `readwrite`, `admin` | `readonly` |
 | `app.transport` | Transport: `stdio`, `sse`, `streamable-http` | `streamable-http` |
 | `app.port` | Server port | `8000` |
