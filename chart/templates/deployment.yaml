@@ -91,23 +91,11 @@ spec:
             - {{ .Values.telemetry.otlpEndpoint | quote }}
             {{- end }}
           env:
-            # Azure Authentication
-            {{- if .Values.workloadIdentity.enabled }}
-            {{- if .Values.azure.tenantId }}
-            - name: AZURE_TENANT_ID
-              value: {{ .Values.azure.tenantId | quote }}
-            {{- end }}
-            {{- if .Values.azure.clientId }}
-            - name: AZURE_CLIENT_ID
-              value: {{ .Values.azure.clientId | quote }}
-            {{- end }}
-            - name: AZURE_FEDERATED_TOKEN_FILE
-              value: "/var/run/secrets/azure/tokens/azure-identity-token"
             {{- if .Values.azure.subscriptionId }}
             - name: AZURE_SUBSCRIPTION_ID
               value: {{ .Values.azure.subscriptionId | quote }}
             {{- end }}
-            {{- else }}
+            # Azure Authentication
             {{- if or .Values.azure.tenantId .Values.azure.existingSecret }}
             - name: AZURE_TENANT_ID
               valueFrom:
@@ -152,11 +140,6 @@ spec:
               mountPath: /tmp
             - name: azure-config
               mountPath: /home/mcp/.azure
-            {{- if .Values.workloadIdentity.enabled }}
-            - name: azure-identity-token
-              mountPath: /var/run/secrets/azure/tokens
-              readOnly: true
-            {{- end }}
             {{- if .Values.kubeconfig.enabled }}
             - name: kubeconfig
               mountPath: /home/mcp/.kube
@@ -176,15 +159,6 @@ spec:
           emptyDir: {}
         - name: azure-config
           emptyDir: {}
-        {{- if .Values.workloadIdentity.enabled }}
-        - name: azure-identity-token
-          projected:
-            sources:
-            - serviceAccountToken:
-                path: azure-identity-token
-                expirationSeconds: 86400
-                audience: api://AzureADTokenExchange
-        {{- end }}
         {{- if .Values.kubeconfig.enabled }}
         - name: kubeconfig
           secret:
