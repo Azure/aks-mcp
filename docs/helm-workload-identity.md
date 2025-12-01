@@ -188,12 +188,9 @@ az identity federated-credential list \
 Now install the AKS-MCP Helm chart with Workload Identity enabled.
 
 ```bash
-export TENANT_ID=$(az account show --query tenantId --output tsv)
-
 # Install with Workload Identity enabled (readonly mode)
 helm install aks-mcp ./chart \
   --set workloadIdentity.enabled=true \
-  --set azure.tenantId=$TENANT_ID \
   --set azure.clientId=$IDENTITY_CLIENT_ID \
   --set azure.subscriptionId=$SUBSCRIPTION_ID
 ```
@@ -205,7 +202,6 @@ helm install aks-mcp ./chart \
   --namespace aks-mcp \
   --create-namespace \
   --set workloadIdentity.enabled=true \
-  --set azure.tenantId=$TENANT_ID \
   --set azure.clientId=$IDENTITY_CLIENT_ID \
   --set azure.subscriptionId=$SUBSCRIPTION_ID
 ```
@@ -320,9 +316,8 @@ helm install aks-mcp ./chart \
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `workloadIdentity.enabled` | Enable Azure Workload Identity | `false` |
-| `azure.tenantId` | Azure Tenant ID (required for Workload Identity) | `""` |
 | `azure.clientId` | Azure Client ID (required for Workload Identity) | `""` |
-| `azure.subscriptionId` | Azure Subscription ID | `""` |
+| `azure.subscriptionId` | Azure Subscription ID set the current default active subscription| `""` |
 | `app.accessLevel` | Access level: `readonly`, `readwrite`, `admin` | `readonly` |
 | `app.transport` | Transport: `stdio`, `sse`, `streamable-http` | `streamable-http` |
 | `app.port` | Server port | `8000` |

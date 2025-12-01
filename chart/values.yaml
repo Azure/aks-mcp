@@ -31,13 +31,13 @@ app:
 azure:
   # Use existing secret for Azure credentials (for Service Principal auth)
   existingSecret: ""
-  # Azure tenant ID (required for Workload Identity, can also be set via secret for Service Principal)
+  # Azure tenant ID (can be set via secret for Service Principal)
   tenantId: ""
-  # Azure client ID (required for Workload Identity, can also be set via secret for Service Principal)
+  # Azure client ID (can be set via secret for Service Principal)
   clientId: ""
   # Azure client secret (only for Service Principal auth, ignored when Workload Identity is enabled)
   clientSecret: ""
-  # Azure subscription ID (can also be set via secret)
+  # Azure subscription ID to set the current default active subscription
   subscriptionId: ""
 
 # Azure Workload Identity configuration
@@ -115,7 +115,7 @@ securityContext:
   runAsGroup: 1000
   capabilities:
     drop:
-      - ALL
+    - ALL
 
 service:
   type: ClusterIP
