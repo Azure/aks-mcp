@@ -99,17 +99,19 @@ func (s *Service) initializeInfrastructure() error {
 	}
 
 	// Ensure Azure CLI exists and is logged in
+	// Allow service to start even if az CLI is not available or authentication fails
+	// Tools that require az will fail at runtime with appropriate error messages
 	if s.azcliProcFactory != nil {
 		// Use injected factory to create an azcli.Proc
 		proc := s.azcliProcFactory(s.cfg.Timeout)
 		if loginType, err := azcli.EnsureAzCliLoginWithProc(proc, s.cfg); err != nil {
-			return fmt.Errorf("azure cli authentication failed: %w", err)
+			logger.Warnf("Azure CLI authentication failed: %v - Azure CLI tools will fail at runtime", err)
 		} else {
 			logger.Infof("Azure CLI initialized successfully (%s)", loginType)
 		}
 	} else {
 		if loginType, err := azcli.EnsureAzCliLogin(s.cfg); err != nil {
-			return fmt.Errorf("azure cli authentication failed: %w", err)
+			logger.Warnf("Azure CLI authentication failed: %v - Azure CLI tools will fail at runtime", err)
 		} else {
 			logger.Infof("Azure CLI initialized successfully (%s)", loginType)
 		}

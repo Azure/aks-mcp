@@ -3,6 +3,8 @@ package config
 import (
 	"fmt"
 	"os/exec"
+
+	"github.com/Azure/aks-mcp/internal/logger"
 )
 
 // Validator handles all validation logic for AKS MCP
@@ -31,10 +33,10 @@ func (v *Validator) isCliInstalled(cliName string) bool {
 func (v *Validator) validateCli() bool {
 	valid := true
 
-	// az is always required
+	// az is optional now - service can start without it (tools will fail at runtime)
+	// This allows debugging clusters that don't require az commands
 	if !v.isCliInstalled("az") {
-		v.errors = append(v.errors, "az is not installed or not found in PATH")
-		valid = false
+		logger.Warnf("az is not installed or not found in PATH - Azure CLI tools will fail at runtime")
 	}
 
 	// kubectl is always required (core Kubernetes functionality)
