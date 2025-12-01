@@ -55,7 +55,9 @@ Environment variables used:
 ## Available Tools
 
 The AKS-MCP server provides consolidated tools for interacting with AKS
-clusters. Some tools will require read-write or admin permissions to run debugging pods on your cluster. To enable read-write or admin permissions for the AKS-MCP server, add the **access level** parameter to your MCP configuration file:
+clusters. By default, the server uses **unified tools** (`call_az` for Azure operations and `call_kubectl` for Kubernetes operations) which provide a more flexible interface. For backward compatibility, you can enable **legacy specialized tools** by setting the environment variable `USE_LEGACY_TOOLS=true`.
+
+Some tools will require read-write or admin permissions to run debugging pods on your cluster. To enable read-write or admin permissions for the AKS-MCP server, add the **access level** parameter to your MCP configuration file:
 
 1. Navigate to your **mcp.json** file, or go to MCP: List Servers -> AKS-MCP -> Show Configuration Details in the **Command Palette** (For VSCode; `Ctrl+Shift+P` on Windows/Linux or `Cmd+Shift+P` on macOS).
 2. In the "args" section of AKS-MCP, add the following parameters: "--access-level", "readwrite" / "admin"
@@ -74,9 +76,35 @@ These tools have been designed to provide comprehensive functionality
 through unified interfaces:
 
 <details>
-<summary>AKS Cluster Management</summary>
+<summary>Azure CLI Operations (Unified Tool)</summary>
 
-**Tool:** `az_aks_operations`
+**Tool:** `call_az` *(default, available when `USE_LEGACY_TOOLS` is not set or set to `false`)*
+
+Unified tool for executing Azure CLI commands directly. This tool provides a flexible interface to run any Azure CLI command.
+
+**Parameters:**
+- `cli_command`: The complete Azure CLI command to execute (e.g., `az aks list --resource-group myRG`, `az vm list --subscription <sub-id>`)
+- `timeout`: Optional timeout in seconds (default: 120)
+
+**Example Usage:**
+```json
+{
+  "cli_command": "az aks list --resource-group myResourceGroup --output json"
+}
+```
+
+**Access Control:**
+- **readonly**: Only read operations are allowed
+- **readwrite/admin**: Both read and write operations are allowed
+
+**Important:** Commands must be simple Azure CLI invocations without shell features like pipes (|), redirects (>, <), command substitution, or semicolons (;).
+
+</details>
+
+<details>
+<summary>AKS Cluster Management (Legacy Tool)</summary>
+
+**Tool:** `az_aks_operations` *(available when `USE_LEGACY_TOOLS=true`)*
 
 Unified tool for managing Azure Kubernetes Service (AKS) clusters and related operations.
 
@@ -230,12 +258,34 @@ Retrieve and manage Azure Advisor recommendations for AKS clusters.
 </details>
 
 <details>
-<summary>Kubernetes Tools</summary>
+<summary>Kubernetes Operations</summary>
 
 *Note: kubectl commands are available with all access levels. Additional tools
 require explicit enablement via `--additional-tools`*
 
-**kubectl Tools (Unified Interface):**
+### Unified kubectl Tool (Default)
+
+**Tool:** `call_kubectl` *(default, available when `USE_LEGACY_TOOLS` is not set or set to `false`)*
+
+Unified tool for executing kubectl commands directly. This tool provides a flexible interface to run any `kubectl` command with full argument support.
+
+**Parameters:**
+- `args`: The kubectl command arguments (e.g., `get pods`, `describe node mynode`, `apply -f deployment.yaml`)
+
+**Example Usage:**
+```json
+{
+  "args": "get pods -n kube-system -o wide"
+}
+```
+
+**Access Control:** Operations are restricted based on the configured access level:
+- **readonly**: Only read operations (get, describe, logs, etc.) are allowed
+- **readwrite/admin**: All operations including mutating commands (create, delete, apply, etc.)
+
+### Legacy kubectl Tools (Specialized)
+
+**Available when `USE_LEGACY_TOOLS=true`:**
 
 - **Read-Only** (all access levels):
   - `kubectl_resources`: View resources (get, describe) - filtered to read-only operations in readonly mode
@@ -249,7 +299,7 @@ require explicit enablement via `--additional-tools`*
   - `kubectl_metadata`: Metadata management (label, annotate, set)
   - `kubectl_config`: Full configuration management (diff, auth, certificate, config)
 
-**Additional Tools (Optional):**
+### Additional Tools (Optional)
 
 - `helm`: Helm package manager (requires `--additional-tools helm`)
 - `cilium`: Cilium CLI for eBPF networking (requires `--additional-tools cilium`)
@@ -661,6 +711,9 @@ Usage of ./aks-mcp:
 ```
 
 **Environment variables:**
+- `USE_LEGACY_TOOLS`: Set to `true` to use legacy specialized tools instead of unified tools (default: `false`)
+  - `false` (default): Uses `call_az` for Azure operations and `call_kubectl` for Kubernetes operations
+  - `true`: Uses legacy tools like `az_aks_operations`, `az_compute_operations`, and specialized kubectl tools
 - Standard Azure authentication environment variables are supported (`AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_SUBSCRIPTION_ID`)
 
 ## Development
