@@ -640,6 +640,20 @@ func (s *Service) registerAzureApiComponent() {
 	// Get default subscription from environment variable
 	defaultSubscription := os.Getenv("AZURE_SUBSCRIPTION_ID")
 
+	// Create AuthConfig for azure-api-mcp
+	authConfig := azapimcp.AuthConfig{
+		SkipSetup:           false,
+		AuthMethod:          "",
+		TenantID:            os.Getenv("AZURE_TENANT_ID"),
+		ClientID:            os.Getenv("AZURE_CLIENT_ID"),
+		FederatedTokenFile:  os.Getenv("AZURE_FEDERATED_TOKEN_FILE"),
+		ClientSecret:        os.Getenv("AZURE_CLIENT_SECRET"),
+		DefaultSubscription: defaultSubscription,
+	}
+
+	// Create AuthSetup for re-authentication on auth errors
+	authSetup := azapimcp.NewDefaultAuthSetup(authConfig)
+
 	// Create azure-api-mcp client
 	clientConfig := azapimcp.ClientConfig{
 		ReadOnlyMode:         readOnlyMode,
@@ -648,6 +662,7 @@ func (s *Service) registerAzureApiComponent() {
 		WorkingDir:           "",
 		SecurityPolicyFile:   "",
 		ReadOnlyPatternsFile: "",
+		AuthSetup:            authSetup,
 	}
 
 	azClient, err := azapimcp.NewClient(clientConfig)
