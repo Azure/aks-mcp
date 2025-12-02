@@ -1,0 +1,25 @@
+id: "04_related_k8s_events"
+title: "Check Kubernetes Events"
+description: "Test if AI can retrieve and interpret Kubernetes events related to a pod"
+tags:
+  - kubernetes
+  - easy
+  - events
+user_prompt: "What kubernetes events are related to the nginx pod in app-04?"
+expected_output:
+  - "Container is failing or crashing"
+  - "CrashLoopBackOff or restart events"
+  - "BackOff events"
+expected_tool_usage:
+  - tool_name: "call_kubectl"
+    min_calls: 1
+    required_args_patterns:
+      - "events"
+      - "app-04"
+before_test: |
+  kubectl create namespace app-04 || true
+  kubectl apply -f ./manifest.yaml
+  sleep 30
+after_test: |
+  kubectl delete namespace app-04 --ignore-not-found=true
+timeout: 5m

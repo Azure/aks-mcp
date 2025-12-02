@@ -44,6 +44,11 @@ type TestResult struct {
 	EndTime       time.Time
 	ExecutionTime time.Duration
 	
+	// Performance metrics
+	TotalToolCallTime   time.Duration
+	AvgToolCallDuration time.Duration
+	LLMIterations       int
+	
 	// Agent output
 	FinalAnswer string
 	ToolCalls   []ToolCallRecord
@@ -115,6 +120,11 @@ type BenchmarkSummary struct {
 	AvgOutputQualityScore  float64
 	
 	TotalExecutionTime     time.Duration
+	AvgTestDuration        time.Duration
+	AvgToolCallDuration    time.Duration
+	AvgToolCallsPerTest    float64
+	AvgLLMIterations       float64
+	
 	TestResults            []*TestResult
 	
 	Timestamp              time.Time

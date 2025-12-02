@@ -1,0 +1,32 @@
+id: "02_service_endpoint_check"
+title: "Service Endpoint Validation and Pod Discovery"
+description: "Test the agent's ability to validate service configuration and discover backing pods"
+tags:
+  - kubernetes
+  - medium
+  - service
+  - endpoints
+  - networking
+  - pod
+user_prompt: "Check if the backend-service in namespace test-svc is properly configured and list the pods that are endpoints for this service."
+expected_output:
+  - "backend-service"
+  - "backend-1"
+  - "backend-2"
+  - "80"
+  - "endpoint"
+expected_tool_usage:
+  - tool_name: "call_kubectl"
+    min_calls: 2
+    required_args_patterns:
+      - "test-svc"
+      - "backend-service|endpoint|pod"
+before_test: |
+  kubectl create namespace test-svc || true
+  kubectl run backend-1 -n test-svc --image=nginx:latest --labels=app=backend || true
+  kubectl run backend-2 -n test-svc --image=nginx:latest --labels=app=backend || true
+  kubectl expose pod backend-1 -n test-svc --name=backend-service --port=80 --selector=app=backend || true
+  sleep 10
+after_test: |
+  kubectl delete namespace test-svc --ignore-not-found=true
+timeout: 2m

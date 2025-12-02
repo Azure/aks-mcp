@@ -2,14 +2,13 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/Azure/aks-mcp/bench/pkg/agent"
 	"github.com/Azure/aks-mcp/bench/pkg/loader"
+	"github.com/Azure/aks-mcp/bench/pkg/reporter"
 	"github.com/Azure/aks-mcp/bench/pkg/runner"
 )
 
@@ -17,20 +16,26 @@ const version = "0.1.0"
 
 func main() {
 	var (
-		testPath   string
-		mcpBinary  string
-		accessLevel string
-		outputPath string
-		tagsStr    string
-		showVersion bool
+		testPath      string
+		mcpBinary     string
+		accessLevel   string
+		outputPath    string
+		markdownPath  string
+		perfPath      string
+		tagsStr       string
+		showVersion   bool
+		parallel      int
 	)
 
 	flag.StringVar(&testPath, "test", "", "Path to test case file or directory (required)")
 	flag.StringVar(&mcpBinary, "mcp-binary", "../aks-mcp", "Path to aks-mcp binary")
 	flag.StringVar(&accessLevel, "access-level", "readonly", "Access level for MCP server (readonly/readwrite/admin)")
 	flag.StringVar(&outputPath, "output", "results/latest.json", "Output path for results JSON")
+	flag.StringVar(&markdownPath, "markdown", "results/latest.md", "Output path for markdown report")
+	flag.StringVar(&perfPath, "perf", "results/performance.md", "Output path for performance analysis report")
 	flag.StringVar(&tagsStr, "tags", "", "Comma-separated list of tags to filter tests")
 	flag.BoolVar(&showVersion, "version", false, "Show version")
+	flag.IntVar(&parallel, "parallel", 1, "Number of tests to run in parallel (default: 1 for sequential)")
 	
 	flag.Parse()
 
@@ -75,6 +80,8 @@ func main() {
 	testRunner := runner.NewRunner(runner.RunnerConfig{
 		MCPBinary: mcpBinary,
 		MCPArgs:   mcpArgs,
+		LLMClient: llmClient,
+		Parallel:  parallel,
 	})
 
 	agentConfig := agent.AgentConfig{
@@ -97,13 +104,45 @@ func main() {
 	fmt.Printf("Failed:        %d\n", summary.FailedTests)
 	fmt.Printf("Errors:        %d\n", summary.ErrorTests)
 	fmt.Printf("Success Rate:  %.1f%%\n", summary.SuccessRate*100)
+	if summary.AvgToolSelectionScore > 0 {
+		fmt.Printf("Avg Tool Selection: %.1f%%\n", summary.AvgToolSelectionScore*100)
+	}
+	if summary.AvgParameterAccuracy > 0 {
+		fmt.Printf("Avg Param Accuracy: %.1f%%\n", summary.AvgParameterAccuracy*100)
+	}
+	if summary.AvgOutputQualityScore > 0 {
+		fmt.Printf("Avg Output Quality: %.2f\n", summary.AvgOutputQualityScore)
+	}
 	fmt.Printf("Total Time:    %s\n", summary.TotalExecutionTime)
+	fmt.Printf("Avg Test Time: %s\n", summary.AvgTestDuration)
+	fmt.Printf("Avg Tool Call Time: %s\n", summary.AvgToolCallDuration)
+	fmt.Printf("Avg Tool Calls/Test: %.1f\n", summary.AvgToolCallsPerTest)
+	fmt.Printf("Avg LLM Iterations: %.1f\n", summary.AvgLLMIterations)
 
 	if outputPath != "" {
-		if err := saveResults(summary, outputPath); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to save results: %v\n", err)
+		jsonReporter := reporter.NewJSONReporter()
+		if err := jsonReporter.Generate(summary, outputPath); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to save JSON results: %v\n", err)
 		} else {
-			fmt.Printf("\nResults saved to: %s\n", outputPath)
+			fmt.Printf("\nJSON results saved to: %s\n", outputPath)
+		}
+	}
+
+	if markdownPath != "" {
+		markdownReporter := reporter.NewMarkdownReporter()
+		if err := markdownReporter.Generate(summary, markdownPath); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to save markdown report: %v\n", err)
+		} else {
+			fmt.Printf("Markdown report saved to: %s\n", markdownPath)
+		}
+	}
+
+	if perfPath != "" {
+		perfReporter := reporter.NewPerformanceReporter()
+		if err := perfReporter.Generate(summary, perfPath); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to save performance report: %v\n", err)
+		} else {
+			fmt.Printf("Performance report saved to: %s\n", perfPath)
 		}
 	}
 
@@ -112,20 +151,3 @@ func main() {
 	}
 }
 
-func saveResults(summary *loader.BenchmarkSummary, path string) error {
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("failed to create output directory: %w", err)
-	}
-
-	data, err := json.MarshalIndent(summary, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal results: %w", err)
-	}
-
-	if err := os.WriteFile(path, data, 0644); err != nil {
-		return fmt.Errorf("failed to write results: %w", err)
-	}
-
-	return nil
-}

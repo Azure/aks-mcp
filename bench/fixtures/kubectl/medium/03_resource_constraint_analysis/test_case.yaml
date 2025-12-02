@@ -1,0 +1,31 @@
+id: "03_resource_constraint_analysis"
+title: "Analyze Resource Constraints and Node Capacity"
+description: "Test the agent's ability to analyze pod resource requests against node capacity"
+tags:
+  - kubernetes
+  - medium
+  - resources
+  - node
+  - pod
+  - capacity
+user_prompt: "I have a pod called high-mem-pod in test-resources namespace that won't schedule. Can you check the resource requirements and compare them with available node capacity to explain why?"
+expected_output:
+  - "Pending"
+  - "memory"
+  - "Insufficient"
+  - "resource"
+  - "100Gi"
+expected_tool_usage:
+  - tool_name: "call_kubectl"
+    min_calls: 2
+    required_args_patterns:
+      - "test-resources"
+      - "high-mem-pod|node"
+before_test: |
+  kubectl create namespace test-resources || true
+  kubectl run high-mem-pod -n test-resources --image=nginx:latest \
+    --requests=memory=100Gi --dry-run=client -o yaml | kubectl apply -f - || true
+  sleep 5
+after_test: |
+  kubectl delete namespace test-resources --ignore-not-found=true
+timeout: 2m

@@ -1,0 +1,54 @@
+id: "05_image_version"
+title: "Check Pod Image Version"
+description: "Test if AI can retrieve the image version of a specific pod"
+tags:
+  - kubernetes
+  - easy
+  - query
+user_prompt: "what is the image version of pod sea-turtle in namespace app-05?"
+expected_output:
+  - "nginx:1.23.4"
+  - "1.23.4"
+expected_tool_usage:
+  - tool_name: "call_kubectl"
+    min_calls: 1
+    required_args_patterns:
+      - "sea-turtle"
+      - "app-05"
+before_test: |
+  kubectl create namespace app-05 || true
+  cat <<'EOF' | kubectl apply -f -
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: sea-turtle
+    namespace: app-05
+    labels:
+      app: analytics-engine
+  spec:
+    containers:
+    - name: web
+      image: nginx:1.23.4
+      ports:
+      - containerPort: 80
+      resources:
+        requests:
+          memory: "64Mi"
+          cpu: "50m"
+        limits:
+          memory: "128Mi"
+          cpu: "100m"
+      readinessProbe:
+        httpGet:
+          path: /
+          port: 80
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        timeoutSeconds: 5
+        failureThreshold: 12
+  EOF
+
+  kubectl wait --for=condition=Ready pod/sea-turtle -n app-05 --timeout=300s
+after_test: |
+  kubectl delete namespace app-05 --ignore-not-found=true
+timeout: 5m

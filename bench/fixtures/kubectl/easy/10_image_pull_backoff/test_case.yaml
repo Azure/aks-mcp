@@ -1,0 +1,25 @@
+id: "10_image_pull_backoff"
+title: "Diagnose ImagePullBackOff"
+description: "Test if AI can diagnose a pod that cannot pull its Docker image"
+tags:
+  - kubernetes
+  - easy
+  - imagepull
+user_prompt: "What is the issue with customer-relations-webapp in namespace app-10?"
+expected_output:
+  - "The Docker image yourcompany/crw:latest cannot be pulled"
+  - "ImagePullBackOff"
+  - "image pull"
+expected_tool_usage:
+  - tool_name: "call_kubectl"
+    min_calls: 1
+    required_args_patterns:
+      - "describe.*pod.*customer-relations"
+      - "app-10"
+before_test: |
+  kubectl create namespace app-10 || true
+  kubectl apply -f ./manifest.yaml
+  sleep 30
+after_test: |
+  kubectl delete namespace app-10 --ignore-not-found=true
+timeout: 5m

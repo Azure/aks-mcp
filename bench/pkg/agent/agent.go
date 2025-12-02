@@ -28,6 +28,7 @@ type AgentResult struct {
 	Answer        string
 	ToolCalls     []loader.ToolCallRecord
 	TotalDuration time.Duration
+	LLMIterations int
 }
 
 const systemPrompt = `You are an expert Kubernetes troubleshooting assistant.
@@ -39,11 +40,29 @@ Your task is to help users diagnose and solve Kubernetes problems by:
 4. Analyzing tool results
 5. Providing clear, accurate answers
 
+Strategic Approach:
+- Be aware that many Kubernetes resources are created by controllers with generated names
+  * Deployments create pods with names like "deployment-name-xxxxx-xxxxx"
+  * If querying by a simple name returns empty results, list resources first to discover actual names
+  * Example: If "nginx pod" events return empty, try listing pods first to find "nginx-xxxxx-xxxxx"
+  
+- Use iterative discovery when needed:
+  * If a query returns no results or empty output, investigate why
+  * Consider listing resources to discover actual names
+  * Use label selectors or get commands to find resources
+  
+- Gather comprehensive information:
+  * Use multiple tool calls to build a complete picture
+  * Describe resources to see their status, events, and configuration
+  * Check logs when containers are failing
+  * Look at events to understand state transitions
+
 When using tools:
 - Use call_kubectl to inspect Kubernetes resources
 - Always specify the correct namespace when needed
-- Use appropriate commands (get, describe, logs, etc.)
-- Gather sufficient information before concluding
+- Use appropriate commands (get, describe, logs, events, etc.)
+- Start with listing commands (get) before diving into details (describe)
+- When results are empty or unexpected, iterate with different queries
 
 Provide concise, accurate answers that directly address the user's question.`
 
@@ -90,33 +109,70 @@ func (a *Agent) Run(ctx context.Context, prompt string) (*AgentResult, error) {
 				Answer:        response.Content,
 				ToolCalls:     a.toolCalls,
 				TotalDuration: time.Since(startTime),
+				LLMIterations: i + 1,
 			}, nil
 		}
 
+		// Ensure content is never empty for Azure OpenAI API compatibility
+		assistantContent := response.Content
+		if assistantContent == "" {
+			assistantContent = " "
+		}
 		a.messages = append(a.messages, Message{
 			Role:      "assistant",
-			Content:   response.Content,
+			Content:   assistantContent,
 			ToolCalls: response.ToolCalls,
 		})
 
+		type toolCallResult struct {
+			toolCall   ToolCall
+			result     *loader.ToolCallRecord
+			err        error
+		}
+
+		results := make(chan toolCallResult, len(response.ToolCalls))
+
 		for _, tc := range response.ToolCalls {
-			toolResult, err := a.executeToolCall(ctx, tc)
-			if err != nil {
+			go func(tc ToolCall) {
+				toolResult, err := a.executeToolCall(ctx, tc)
+				results <- toolCallResult{
+					toolCall: tc,
+					result:   toolResult,
+					err:      err,
+				}
+			}(tc)
+		}
+
+		toolResultsMap := make(map[string]toolCallResult)
+		for range response.ToolCalls {
+			res := <-results
+			toolResultsMap[res.toolCall.ID] = res
+		}
+		close(results)
+
+		for _, tc := range response.ToolCalls {
+			res := toolResultsMap[tc.ID]
+			
+			if res.err != nil {
 				a.messages = append(a.messages, Message{
 					Role:       "tool",
 					ToolCallID: tc.ID,
-					Content:    fmt.Sprintf("Error: %s", err.Error()),
+					Content:    fmt.Sprintf("Error: %s", res.err.Error()),
 				})
 				continue
 			}
 
+			toolContent := res.result.Result
+			if toolContent == "" {
+				toolContent = "(no output)"
+			}
 			a.messages = append(a.messages, Message{
 				Role:       "tool",
 				ToolCallID: tc.ID,
-				Content:    toolResult.Result,
+				Content:    toolContent,
 			})
 
-			a.toolCalls = append(a.toolCalls, *toolResult)
+			a.toolCalls = append(a.toolCalls, *res.result)
 		}
 	}
 

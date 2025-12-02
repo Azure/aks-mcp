@@ -1,0 +1,33 @@
+id: "01_multi_namespace_analysis"
+title: "Analyze Pod Issues Across Multiple Namespaces"
+description: "Test the agent's ability to investigate pod problems across different namespaces and correlate issues"
+tags:
+  - kubernetes
+  - medium
+  - pod
+  - namespace
+  - troubleshooting
+  - multi-resource
+user_prompt: "I have pods failing in test-app-1 and test-app-2 namespaces. Can you identify if they have similar issues and what might be causing the failures?"
+expected_output:
+  - "ImagePullBackOff"
+  - "ErrImagePull"
+  - "nonexistent"
+  - "both namespaces"
+  - "test-app-1"
+  - "test-app-2"
+expected_tool_usage:
+  - tool_name: "call_kubectl"
+    min_calls: 2
+    required_args_patterns:
+      - "test-app-1|test-app-2"
+before_test: |
+  kubectl create namespace test-app-1 || true
+  kubectl create namespace test-app-2 || true
+  kubectl run failing-pod-1 -n test-app-1 --image=nonexistent:latest --restart=Never || true
+  kubectl run failing-pod-2 -n test-app-2 --image=nonexistent:latest --restart=Never || true
+  sleep 5
+after_test: |
+  kubectl delete namespace test-app-1 --ignore-not-found=true
+  kubectl delete namespace test-app-2 --ignore-not-found=true
+timeout: 2m

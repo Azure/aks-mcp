@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: customer-relations-webapp
+  namespace: app-10
+  labels:
+    app.kubernetes.io/name: customer-relations
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: customer-relations
+  template:
+    metadata:
+      labels:
+        app: customer-relations
+    spec:
+      containers:
+        - name: crw-main-container
+          image: yourcompany/crw:latest
+          imagePullPolicy: Always
+          resources:
+            requests:
+              memory: "16Mi"
+              cpu: "10m"
+            limits:
+              memory: "32Mi"
+              cpu: "50m"

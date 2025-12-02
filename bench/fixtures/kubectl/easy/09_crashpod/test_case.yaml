@@ -1,0 +1,72 @@
+id: "09_crashpod"
+title: "Diagnose CrashLoopBackOff due to missing environment variable"
+description: "Test if AI can diagnose a pod that is crashing due to missing environment variable"
+tags:
+  - kubernetes
+  - easy
+  - crashloop
+user_prompt: "What is the issue with payment-processing-worker in namespace app-09?"
+expected_output:
+  - "The DEPLOY_ENV environment variable is undefined or missing"
+  - "CrashLoopBackOff"
+  - "missing environment variable"
+expected_tool_usage:
+  - tool_name: "call_kubectl"
+    min_calls: 1
+    required_args_patterns:
+      - "describe.*pod.*payment-processing-worker"
+      - "app-09"
+before_test: |
+  kubectl create namespace app-09 || true
+  cat <<'EOF' | kubectl apply -f -
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: payment-processing-worker
+    namespace: app-09
+  spec:
+    replicas: 1
+    selector:
+      matchLabels:
+        app: payment-processing-worker
+    template:
+      metadata:
+        labels:
+          app: payment-processing-worker
+      spec:
+        containers:
+        - name: payment-processing-container
+          image: busybox:1.36
+          command: ["/bin/sh"]
+          args: ["-c", "if [ -z \"${DEPLOY_ENV}\" ]; then echo 'Environment variable DEPLOY_ENV is undefined'; exit 1; else while true; do echo hello; sleep 10;done; fi"]
+          resources:
+            requests:
+              memory: "16Mi"
+              cpu: "10m"
+            limits:
+              memory: "32Mi"
+              cpu: "50m"
+  EOF
+  
+  POD_EXISTS=false
+  for i in {1..60}; do
+    if kubectl get pod -l app=payment-processing-worker -n app-09 2>/dev/null | grep -q payment-processing-worker; then
+      echo "Pod exists!"
+      POD_EXISTS=true
+      break
+    else
+      echo "Waiting for pod to exist (attempt $i/60)..."
+      sleep 5
+    fi
+  done
+  
+  if [ "$POD_EXISTS" = false ]; then
+    echo "Pod failed to appear"
+    kubectl get pods -n app-09
+    exit 1
+  fi
+  
+  sleep 30
+after_test: |
+  kubectl delete namespace app-09 --ignore-not-found=true
+timeout: 5m
