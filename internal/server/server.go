@@ -99,17 +99,19 @@ func (s *Service) initializeInfrastructure() error {
 	}
 
 	// Ensure Azure CLI exists and is logged in
+	// Allow service to start even if az CLI is not available or authentication fails
+	// Tools that require az will fail at runtime with appropriate error messages
 	if s.azcliProcFactory != nil {
 		// Use injected factory to create an azcli.Proc
 		proc := s.azcliProcFactory(s.cfg.Timeout)
 		if loginType, err := azcli.EnsureAzCliLoginWithProc(proc, s.cfg); err != nil {
-			return fmt.Errorf("azure cli authentication failed: %w", err)
+			logger.Warnf("Azure CLI authentication failed: %v - Azure CLI tools will fail at runtime", err)
 		} else {
 			logger.Infof("Azure CLI initialized successfully (%s)", loginType)
 		}
 	} else {
 		if loginType, err := azcli.EnsureAzCliLogin(s.cfg); err != nil {
-			return fmt.Errorf("azure cli authentication failed: %w", err)
+			logger.Warnf("Azure CLI authentication failed: %v - Azure CLI tools will fail at runtime", err)
 		} else {
 			logger.Infof("Azure CLI initialized successfully (%s)", loginType)
 		}
@@ -640,6 +642,20 @@ func (s *Service) registerAzureApiComponent() {
 	// Get default subscription from environment variable
 	defaultSubscription := os.Getenv("AZURE_SUBSCRIPTION_ID")
 
+	// Create AuthConfig for azure-api-mcp
+	authConfig := azapimcp.AuthConfig{
+		SkipSetup:           false,
+		AuthMethod:          "",
+		TenantID:            os.Getenv("AZURE_TENANT_ID"),
+		ClientID:            os.Getenv("AZURE_CLIENT_ID"),
+		FederatedTokenFile:  os.Getenv("AZURE_FEDERATED_TOKEN_FILE"),
+		ClientSecret:        os.Getenv("AZURE_CLIENT_SECRET"),
+		DefaultSubscription: defaultSubscription,
+	}
+
+	// Create AuthSetup for re-authentication on auth errors
+	authSetup := azapimcp.NewDefaultAuthSetup(authConfig)
+
 	// Create azure-api-mcp client
 	clientConfig := azapimcp.ClientConfig{
 		ReadOnlyMode:         readOnlyMode,
@@ -648,6 +664,7 @@ func (s *Service) registerAzureApiComponent() {
 		WorkingDir:           "",
 		SecurityPolicyFile:   "",
 		ReadOnlyPatternsFile: "",
+		AuthSetup:            authSetup,
 	}
 
 	azClient, err := azapimcp.NewClient(clientConfig)
