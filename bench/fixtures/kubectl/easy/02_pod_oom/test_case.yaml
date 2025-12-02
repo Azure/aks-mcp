@@ -1,0 +1,34 @@
+id: "02_pod_oom"
+title: "Diagnose OOM killed pod"
+description: "Test if AI can diagnose a pod that was OOMKilled"
+
+user_prompt: 'What is wrong with pod "giant-narwhal" in namespace "app-02"?'
+
+expected_output:
+  - The pod was killed due to out of memory
+  - OOMKilled
+  - memory limit exceeded
+
+expected_tool_usage:
+  - tool_name: "call_kubectl"
+    min_calls: 1
+    required_args_patterns:
+      - "describe.*pod.*giant-narwhal"
+      - "app-02"
+
+before_test: |
+  kubectl create namespace app-02 || true
+  kubectl apply -f ./manifest.yaml
+  echo "Waiting for OOM to occur..."
+  sleep 60
+
+after_test: |
+  kubectl delete namespace app-02 --ignore-not-found=true
+
+tags:
+  - kubernetes
+  - easy
+  - oom
+  - pod-issues
+
+timeout: 300s
