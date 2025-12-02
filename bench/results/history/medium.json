@@ -1,0 +1,1171 @@
+{
+  "TotalTests": 12,
+  "PassedTests": 9,
+  "FailedTests": 3,
+  "ErrorTests": 0,
+  "SkippedTests": 0,
+  "SuccessRate": 0.75,
+  "AvgToolSelectionScore": 1,
+  "AvgParameterAccuracy": 0.9375,
+  "AvgOutputQualityScore": 0.7333333333333334,
+  "TotalExecutionTime": 421278332787,
+  "AvgTestDuration": 35106527732,
+  "AvgToolCallDuration": 1264901122,
+  "AvgToolCallsPerTest": 2.9166666666666665,
+  "AvgLLMIterations": 3.6666666666666665,
+  "TestResults": [
+    {
+      "TestCase": {
+        "ID": "01_multi_namespace_analysis",
+        "Title": "Analyze Pod Issues Across Multiple Namespaces",
+        "Description": "Test the agent's ability to investigate pod problems across different namespaces and correlate issues",
+        "Tags": [
+          "kubernetes",
+          "medium",
+          "pod",
+          "namespace",
+          "troubleshooting",
+          "multi-resource"
+        ],
+        "UserPrompt": "I have pods failing in test-app-1 and test-app-2 namespaces. Can you identify if they have similar issues and what might be causing the failures?",
+        "ExpectedOutput": [
+          "ImagePullBackOff",
+          "ErrImagePull",
+          "nonexistent",
+          "both namespaces",
+          "test-app-1",
+          "test-app-2"
+        ],
+        "ExpectedToolUsage": [
+          {
+            "ToolName": "call_kubectl",
+            "MinCalls": 2,
+            "RequiredArgsPatterns": [
+              "test-app-1|test-app-2"
+            ]
+          }
+        ],
+        "BeforeTest": "kubectl create namespace test-app-1 || true\nkubectl create namespace test-app-2 || true\nkubectl run failing-pod-1 -n test-app-1 --image=nonexistent:latest --restart=Never || true\nkubectl run failing-pod-2 -n test-app-2 --image=nonexistent:latest --restart=Never || true\nsleep 5\n",
+        "AfterTest": "kubectl delete namespace test-app-1 --ignore-not-found=true\nkubectl delete namespace test-app-2 --ignore-not-found=true\n",
+        "Timeout": 120000000000,
+        "FilePath": "fixtures/kubectl/medium/01_multi_namespace_analysis"
+      },
+      "StartTime": "2025-12-02T21:25:52.385960973+08:00",
+      "EndTime": "2025-12-02T21:26:13.098350105+08:00",
+      "ExecutionTime": 20712389134,
+      "TotalToolCallTime": 4613242509,
+      "AvgToolCallDuration": 1153310627,
+      "LLMIterations": 3,
+      "FinalAnswer": "Both pods in the namespaces `test-app-1` and `test-app-2` are facing similar issues with the following observations:\n\n1. **Reason for Failure**: Both pods are in the `ImagePullBackOff` state. This is occurring because the container image they are referencing (`nonexistent:latest`) does not exist or is unavailable.\n2. **Detailed Description**:\n   - `failing-pod-1` (in `test-app-1`) and `failing-pod-2` (in `test-app-2`) are trying to pull the Docker image `nonexistent:latest` from the Docker registry.\n   - The registry responds with an error: `pull access denied, repository does not exist or may require authorization`.\n\n### Suggested Actions:\n1. **Verify the Image Name**:\n   - Ensure the image name `nonexistent:latest` is correct.\n   - If it's intended to reference a different image, update the pod's configuration (or Deployment/StatefulSet if applicable) with the correct image details.\n\n2. **Check Registry Access**:\n   - If the image exists in a private repository, make sure the appropriate image pull secrets are configured in the namespace and referenced by the pod.\n\n3. **Test Accessibility**:\n   - Try manually pulling the image (`docker pull nonexistent:latest`) to confirm whether the issue is with the registry or Kubernetes configuration.\n\n4. **Update Configuration**:\n   - Modify the deployment configuration to use a valid and accessible image.\n\nThis issue is consistent across the two namespaces and is exclusively related to the unavailability of the image specified. Let me know if you need further assistance in resolving this.",
+      "ToolCalls": [
+        {
+          "ToolName": "call_kubectl",
+          "Arguments": {
+            "args": "get pods -n test-app-1"
+          },
+          "Result": "NAME            READY   STATUS             RESTARTS   AGE\nfailing-pod-1   0/1     ImagePullBackOff   0          3m33s\n",
+          "Error": "",
+          "Timestamp": "2025-12-02T21:26:04.244372469+08:00",
+          "ExecutionTime": 967276742
+        },
+        {
+          "ToolName": "call_kubectl",
+          "Arguments": {
+            "args": "get pods -n test-app-2"
+          },
+          "Result": "NAME            READY   STATUS             RESTARTS   AGE\nfailing-pod-2   0/1     ImagePullBackOff   0          3m30s\n",
+          "Error": "",
+          "Timestamp": "2025-12-02T21:26:04.24435162+08:00",
+          "ExecutionTime": 966694216
+        },
+        {
+          "ToolName": "call_kubectl",
+          "Arguments": {
+            "args": "describe pod failing-pod-1 -n test-app-1"
+          },
+          "Result": "Name:             failing-pod-1\nNamespace:        test-app-1\nPriority:         0\nService Account:  default\nNode:             aks-nodepool1-31093287-vmss000001/10.224.0.5\nStart Time:       Tue, 02 Dec 2025 21:22:33 +0800\nLabels:           run=failing-pod-1\nAnnotations:      \u003cnone\u003e\nStatus:           Pending\nIP:               10.244.0.236\nIPs:\n  IP:  10.244.0.236\nContainers:\n  failing-pod-1:\n    Container ID:   \n    Image:          nonexistent:latest\n    Image ID:       \n    Port:           \u003cnone\u003e\n    Host Port:      \u003cnone\u003e\n    State:          Waiting\n      Reason:       ImagePullBackOff\n    Ready:          False\n    Restart Count:  0\n    Environment:    \u003cnone\u003e\n    Mounts:\n      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-dqhdx (ro)\nConditions:\n  Type                        Status\n  PodReadyToStartContainers   True \n  Initialized                 True \n  Ready                       False \n  ContainersReady             False \n  PodScheduled                True \nVolumes:\n  kube-api-access-dqhdx:\n    Type:                    Projected (a volume that contains injected data from multiple sources)\n    TokenExpirationSeconds:  3607\n    ConfigMapName:           kube-root-ca.crt\n    ConfigMapOptional:       \u003cnil\u003e\n    DownwardAPI:             true\nQoS Class:                   BestEffort\nNode-Selectors:              \u003cnone\u003e\nTolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s\n                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s\nEvents:\n  Type     Reason     Age                  From               Message\n  ----     ------     ----                 ----               -------\n  Normal   Scheduled  3m34s                default-scheduler  Successfully assigned test-app-1/failing-pod-1 to aks-nodepool1-31093287-vmss000001\n  Normal   Pulling    31s (x5 over 3m34s)  kubelet            Pulling image \"nonexistent:latest\"\n  Warning  Failed     31s (x5 over 3m34s)  kubelet            Failed to pull image \"nonexistent:latest\": failed to pull and unpack image \"docker.io/library/nonexistent:latest\": failed to resolve reference \"docker.io/library/nonexistent:latest\": pull access denied, repository does not exist or may require authorization: server message: insufficient_scope: authorization failed\n  Warning  Failed     31s (x5 over 3m34s)  kubelet            Error: ErrImagePull\n  Normal   BackOff    4s (x13 over 3m34s)  kubelet            Back-off pulling image \"nonexistent:latest\"\n  Warning  Failed     4s (x13 over 3m34s)  kubelet            Error: ImagePullBackOff\n",
+          "Error": "",
+          "Timestamp": "2025-12-02T21:26:06.676949099+08:00",
+          "ExecutionTime": 1340430126
+        },
+        {
+          "ToolName": "call_kubectl",
+          "Arguments": {
+            "args": "describe pod failing-pod-2 -n test-app-2"
+          },
+          "Result": "Name:             failing-pod-2\nNamespace:        test-app-2\nPriority:         0\nService Account:  default\nNode:             aks-nodepool1-31093287-vmss000001/10.224.0.5\nStart Time:       Tue, 02 Dec 2025 21:22:36 +0800\nLabels:           run=failing-pod-2\nAnnotations:      \u003cnone\u003e\nStatus:           Pending\nIP:               10.244.0.177\nIPs:\n  IP:  10.244.0.177\nContainers:\n  failing-pod-2:\n    Container ID:   \n    Image:          nonexistent:latest\n    Image ID:       \n    Port:           \u003cnone\u003e\n    Host Port:      \u003cnone\u003e\n    State:          Waiting\n      Reason:       ImagePullBackOff\n    Ready:          False\n    Restart Count:  0\n    Environment:    \u003cnone\u003e\n    Mounts:\n      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-qjns7 (ro)\nConditions:\n  Type                        Status\n  PodReadyToStartContainers   True \n  Initialized                 True \n  Ready                       False \n  ContainersReady             False \n  PodScheduled                True \nVolumes:\n  kube-api-access-qjns7:\n    Type:                    Projected (a volume that contains injected data from multiple sources)\n    TokenExpirationSeconds:  3607\n    ConfigMapName:           kube-root-ca.crt\n    ConfigMapOptional:       \u003cnil\u003e\n    DownwardAPI:             true\nQoS Class:                   BestEffort\nNode-Selectors:              \u003cnone\u003e\nTolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s\n                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s\nEvents:\n  Type     Reason     Age                  From               Message\n  ----     ------     ----                 ----               -------\n  Normal   Scheduled  3m31s                default-scheduler  Successfully assigned test-app-2/failing-pod-2 to aks-nodepool1-31093287-vmss000001\n  Normal   Pulling    33s (x5 over 3m31s)  kubelet            Pulling image \"nonexistent:latest\"\n  Warning  Failed     33s (x5 over 3m31s)  kubelet            Failed to pull image \"nonexistent:latest\": failed to pull and unpack image \"docker.io/library/nonexistent:latest\": failed to resolve reference \"docker.io/library/nonexistent:latest\": pull access denied, repository does not exist or may require authorization: server message: insufficient_scope: authorization failed\n  Warning  Failed     33s (x5 over 3m31s)  kubelet            Error: ErrImagePull\n  Normal   BackOff    7s (x13 over 3m31s)  kubelet            Back-off pulling image \"nonexistent:latest\"\n  Warning  Failed     7s (x13 over 3m31s)  kubelet            Error: ImagePullBackOff\n",
+          "Error": "",
+          "Timestamp": "2025-12-02T21:26:06.676932737+08:00",
+          "ExecutionTime": 1338841425
+        }
+      ],
+      "ToolSelectionCorrect": false,
+      "ToolSelectionScore": 1,
+      "ParameterAccuracy": 1,
+      "OutputQualityScore": 1,
+      "Status": "pass",
+      "ErrorMessage": "",
+      "ValidationResults": [
+        {
+          "ExpectedTool": "call_kubectl",
+          "ToolCalled": true,
+          "CallCount": 4,
+          "MinCalls": 2,
+          "ArgsValid": true,
+          "MatchedPatterns": [
+            "test-app-1|test-app-2"
+          ],
+          "MissingPatterns": [],
+          "Score": 1
+        }
+      ],
+      "JudgingResult": {
+        "Score": 1,
+        "Reasoning": "The answer includes all the expected key points: 'ImagePullBackOff', 'ErrImagePull', 'nonexistent', and mentions that the issue occurs in both namespaces ('test-app-1' and 'test-app-2'). It also provides a clear description of the problem and actionable steps to resolve it. Thus, it is a perfect answer."
+      }
+    },
+    {
+      "TestCase": {
+        "ID": "02_service_endpoint_check",
+        "Title": "Service Endpoint Validation and Pod Discovery",
+        "Description": "Test the agent's ability to validate service configuration and discover backing pods",
+        "Tags": [
+          "kubernetes",
+          "medium",
+          "service",
+          "endpoints",
+          "networking",
+          "pod"
+        ],
+        "UserPrompt": "Check if the backend-service in namespace test-svc is properly configured and list the pods that are endpoints for this service.",
+        "ExpectedOutput": [
+          "backend-service",
+          "backend-1",
+          "backend-2",
+          "80",
+          "endpoint"
+        ],
+        "ExpectedToolUsage": [
+          {
+            "ToolName": "call_kubectl",
+            "MinCalls": 2,
+            "RequiredArgsPatterns": [
+              "test-svc",
+              "backend-service|endpoint|pod"
+            ]
+          }
+        ],
+        "BeforeTest": "kubectl create namespace test-svc || true\nkubectl run backend-1 -n test-svc --image=nginx:latest --labels=app=backend || true\nkubectl run backend-2 -n test-svc --image=nginx:latest --labels=app=backend || true\nkubectl expose pod backend-1 -n test-svc --name=backend-service --port=80 --selector=app=backend || true\nsleep 10\n",
+        "AfterTest": "kubectl delete namespace test-svc --ignore-not-found=true\n",
+        "Timeout": 120000000000,
+        "FilePath": "fixtures/kubectl/medium/02_service_endpoint_check"
+      },
+      "StartTime": "2025-12-02T21:26:39.965955667+08:00",
+      "EndTime": "2025-12-02T21:27:07.028200433+08:00",
+      "ExecutionTime": 25066800786,
+      "TotalToolCallTime": 3607656083,
+      "AvgToolCallDuration": 1202552027,
+      "LLMIterations": 4,
+      "FinalAnswer": "The `backend-service` in the namespace `test-svc` is correctly configured as a `ClusterIP` service with the following details:\n\n- **Port Mapping:** Exposes port `80/TCP` and routes it to the target port `80/TCP`.\n- **Selector:** Selects pods with the label `app=backend`.\n- **Endpoints:** The service is correctly connected to two backend pods using the following IPs:\n  - `10.244.0.252:80`\n  - `10.244.0.122:80`\n\n### List of Pods linked as endpoints for this service:\n1. **Pod Name:** `backend-1`\n   - **IP:** `10.244.0.252`\n   - **Node:** `aks-nodepool1-31093287-vmss000001`\n   - **Status:** Running\n\n2. **Pod Name:** `backend-2`\n   - **IP:** `10.244.0.122`\n   - **Node:** `aks-nodepool1-31093287-vmss000001`\n   - **Status:** Running\n\nEverything appears to be properly connected and functioning. Let me know if you need more assistance!",
+      "ToolCalls": [
+        {
+          "ToolName": "call_kubectl",
+          "Arguments": {
+            "args": "get svc backend-service -n test-svc"
+          },
+          "Result": "NAME              TYPE        CLUSTER-IP    EXTERNAL-IP   PORT(S)   AGE\nbackend-service   ClusterIP   10.0.93.133   \u003cnone\u003e        80/TCP    13s\n",
+          "Error": "",
+          "Timestamp": "2025-12-02T21:26:57.547738421+08:00",
+          "ExecutionTime": 988983065
+        },
+        {
+          "ToolName": "call_kubectl",
+          "Arguments": {
+            "args": "describe svc backend-service -n test-svc"
+          },
+          "Result": "Name:                     backend-service\nNamespace:                test-svc\nLabels:                   app=backend\nAnnotations:              \u003cnone\u003e\nSelector:                 app=backend\nType:                     ClusterIP\nIP Family Policy:         SingleStack\nIP Families:              IPv4\nIP:                       10.0.93.133\nIPs:                      10.0.93.133\nPort:                     \u003cunset\u003e  80/TCP\nTargetPort:               80/TCP\nEndpoints:                10.244.0.252:80,10.244.0.122:80\nSession Affinity:         None\nInternal Traffic Policy:  Cluster\nEvents:                   \u003cnone\u003e\n",
+          "Error": "",
+          "Timestamp": "2025-12-02T21:26:59.83810585+08:00",
+          "ExecutionTime": 1636008981
+        },
+        {
+          "ToolName": "call_kubectl",
+          "Arguments": {
+            "args": "get pods -n test-svc -o wide --selector=app=backend"
+          },
+          "Result": "NAME        READY   STATUS    RESTARTS   AGE   IP             NODE                                NOMINATED NODE   READINESS GATES\nbackend-1   1/1     Running   0          21s   10.244.0.252   aks-nodepool1-31093287-vmss000001   \u003cnone\u003e           \u003cnone\u003e\nbackend-2   1/1     Running   0          20s   10.244.0.122   aks-nodepool1-31093287-vmss000001   \u003cnone\u003e           \u003cnone\u003e\n",
+          "Error": "",
+          "Timestamp": "2025-12-02T21:27:02.924565671+08:00",
+          "ExecutionTime": 982664037
+        }
+      ],
+      "ToolSelectionCorrect": false,
+      "ToolSelectionScore": 1,
+      "ParameterAccuracy": 1,
+      "OutputQualityScore": 1,
+      "Status": "pass",
+      "ErrorMessage": "",
+      "ValidationResults": [
+        {
+          "ExpectedTool": "call_kubectl",
+          "ToolCalled": true,
+          "CallCount": 3,
+          "MinCalls": 2,
+          "ArgsValid": true,
+          "MatchedPatterns": [
+            "test-svc",
+            "backend-service|endpoint|pod"
+          ],
+          "MissingPatterns": [],
+          "Score": 1
+        }
+      ],
+      "JudgingResult": {
+        "Score": 1,
+        "Reasoning": "The answer is perfect as it includes all expected points: backend-service, pods backend-1 and backend-2, the port 80, and endpoints. Additionally, it provides detailed information about the service configuration, IP addresses, node details, and confirms everything functions correctly."
+      }
+    },
+    {
+      "TestCase": {
+        "ID": "03_resource_constraint_analysis",
+        "Title": "Analyze Resource Constraints and Node Capacity",
+        "Description": "Test the agent's ability to analyze pod resource requests against node capacity",
+        "Tags": [
+          "kubernetes",
+          "medium",
+          "resources",
+          "node",
+          "pod",
+          "capacity"
+        ],
+        "UserPrompt": "I have a pod called high-mem-pod in test-resources namespace that won't schedule. Can you check the resource requirements and compare them with available node capacity to explain why?",
+        "ExpectedOutput": [
+          "Pending",
+          "memory",
+          "Insufficient",
+          "resource",
+          "100Gi"
+        ],
+        "ExpectedToolUsage": [
+          {
+            "ToolName": "call_kubectl",
+            "MinCalls": 2,
+            "RequiredArgsPatterns": [
+              "test-resources",
+              "high-mem-pod|node"
+            ]
+          }
+        ],
+        "BeforeTest": "kubectl create namespace test-resources || true\ncat \u003c\u003cEOF | kubectl apply -f -\napiVersion: v1\nkind: Pod\nmetadata:\n  name: high-mem-pod\n  namespace: test-resources\nspec:\n  containers:\n  - name: nginx\n    image: nginx:latest\n    resources:\n      requests:\n        memory: \"100Gi\"\nEOF\nsleep 5\n",
+        "AfterTest": "kubectl delete namespace test-resources --ignore-not-found=true\n",
+        "Timeout": 120000000000,
+        "FilePath": "fixtures/kubectl/medium/03_resource_constraint_analysis"
+      },
+      "StartTime": "2025-12-02T21:27:22.525273391+08:00",
+      "EndTime": "2025-12-02T21:27:49.673697905+08:00",
+      "ExecutionTime": 25342440822,
+      "TotalToolCallTime": 6086523434,
+      "AvgToolCallDuration": 1521630858,
+      "LLMIterations": 5,
+      "FinalAnswer": "The node `aks-nodepool1-31093287-vmss000000` has the following memory details:\n\n- Total memory capacity: **16,374,732 Ki (~15.6Gi)**\n- Allocatable memory: **12,078,028 Ki (~11.5Gi)**\n\nThe pod `high-mem-pod` requires **100Gi of memory**, which far exceeds the allocatable memory on this node (as well as likely on any node in your cluster).\n\nAdditionally, the cluster seems to have only two nodes (given the `get nodes` result), none of which can satisfy this memory request.\n\n### Recommendation:\n1. **Reduce the memory request:**\n   - The current memory request of 100Gi is extremely high. Review if this value is realistic for your workload.\n   - Adjust the pod's resource requests to fit within the cluster's capabilities.\n\n2. **Scale the cluster:**\n   - If the memory requirements are valid, you will need to add higher memory nodes to the cluster or increase the size of the existing node pool.\n\n3. **Use Node Selectors or Taints:** \n   - For extremely high memory requirements, consider dedicated nodes with higher memory capacity, and use taints/tolerations or node selectors to schedule such pods specifically on these nodes.\n\nWould you like assistance with scaling the node pool or modifying the pod's memory request?",
+      "ToolCalls": [
+        {
+          "ToolName": "call_kubectl",
+          "Arguments": {
+            "args": "get pod high-mem-pod -n test-resources"
+          },
+          "Result": "NAME           READY   STATUS    RESTARTS   AGE\nhigh-mem-pod   0/1     Pending   0          7s\n",
+          "Error": "",
+          "Timestamp": "2025-12-02T21:27:33.613616519+08:00",
+          "ExecutionTime": 968792026
+        },
+        {
+          "ToolName": "call_kubectl",
+          "Arguments": {
+            "args": "describe pod high-mem-pod -n test-resources"
+          },
+          "Result": "Name:             high-mem-pod\nNamespace:        test-resources\nPriority:         0\nService Account:  default\nNode:             \u003cnone\u003e\nLabels:           \u003cnone\u003e\nAnnotations:      \u003cnone\u003e\nStatus:           Pending\nIP:               \nIPs:              \u003cnone\u003e\nContainers:\n  nginx:\n    Image:      nginx:latest\n    Port:       \u003cnone\u003e\n    Host Port:  \u003cnone\u003e\n    Requests:\n      memory:     100Gi\n    Environment:  \u003cnone\u003e\n    Mounts:\n      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-fz9tt (ro)\nConditions:\n  Type           Status\n  PodScheduled   False \nVolumes:\n  kube-api-access-fz9tt:\n    Type:                    Projected (a volume that contains injected data from multiple sources)\n    TokenExpirationSeconds:  3607\n    ConfigMapName:           kube-root-ca.crt\n    ConfigMapOptional:       \u003cnil\u003e\n    DownwardAPI:             true\nQoS Class:                   Burstable\nNode-Selectors:              \u003cnone\u003e\nTolerations:                 node.kubernetes.io/memory-pressure:NoSchedule op=Exists\n                             node.kubernetes.io/not-ready:NoExecute op=Exists for 300s\n                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s\nEvents:\n  Type     Reason            Age   From               Message\n  ----     ------            ----  ----               -------\n  Warning  FailedScheduling  10s   default-scheduler  0/2 nodes are available: 2 Insufficient memory. preemption: 0/2 nodes are available: 2 No preemption victims found for incoming pod.\n",
+          "Error": "",
+          "Timestamp": "2025-12-02T21:27:35.944094922+08:00",
+          "ExecutionTime": 1367191722
+        },
+        {
+          "ToolName": "call_kubectl",
+          "Arguments": {
+            "args": "get nodes"
+          },
+          "Result": "NAME                                STATUS   ROLES    AGE   VERSION\naks-nodepool1-31093287-vmss000000   Ready    \u003cnone\u003e   11d   v1.32.7\naks-nodepool1-31093287-vmss000001   Ready    \u003cnone\u003e   11d   v1.32.7\n",
+          "Error": "",
+          "Timestamp": "2025-12-02T21:27:40.437377988+08:00",
+          "ExecutionTime": 1234968476
+        },
+        {
+          "ToolName": "call_kubectl",
+          "Arguments": {
+            "args": "describe node aks-nodepool1-31093287-vmss000000"
+          },
+          "Result": "Name:               aks-nodepool1-31093287-vmss000000\nRoles:              \u003cnone\u003e\nLabels:             agentpool=nodepool1\n                    beta.kubernetes.io/arch=amd64\n                    beta.kubernetes.io/instance-type=Standard_D4ads_v6\n                    beta.kubernetes.io/os=linux\n                    failure-domain.beta.kubernetes.io/region=eastus2\n                    failure-domain.beta.kubernetes.io/zone=0\n                    kubernetes.azure.com/agentpool=nodepool1\n                    kubernetes.azure.com/azure-cni-overlay=true\n                    kubernetes.azure.com/cluster=MC_guwe-rg-oidc-demo-1_aks-oidc-demo_eastus2\n                    kubernetes.azure.com/consolidated-additional-properties=cc31646a-c6af-11f0-8ed7-c62652b617ea\n                    kubernetes.azure.com/kubelet-identity-client-id=bdffcccf-e87d-4a6e-bc5a-66f3bbfc133f\n                    kubernetes.azure.com/kubelet-serving-ca=cluster\n                    kubernetes.azure.com/localdns-state=disabled\n                    kubernetes.azure.com/mode=system\n                    kubernetes.azure.com/network-name=aks-vnet-24656583\n                    kubernetes.azure.com/network-policy=none\n                    kubernetes.azure.com/network-resourcegroup=guwe-rg-oidc-demo-1\n                    kubernetes.azure.com/network-stateless-cni=false\n                    kubernetes.azure.com/network-subnet=aks-subnet\n                    kubernetes.azure.com/network-subscription=6276724d-3cab-4a80-92af-97baf900ba3f\n                    kubernetes.azure.com/node-image-version=AKSUbuntu-2204gen2containerd-202511.07.0\n                    kubernetes.azure.com/nodenetwork-vnetguid=678dddf9-225c-43f6-923f-74f3e349df56\n                    kubernetes.azure.com/nodepool-type=VirtualMachineScaleSets\n                    kubernetes.azure.com/os-sku=Ubuntu\n                    kubernetes.azure.com/os-sku-effective=Ubuntu2204\n                    kubernetes.azure.com/os-sku-requested=Ubuntu\n                    kubernetes.azure.com/podnetwork-type=overlay\n                    kubernetes.azure.com/role=agent\n                    kubernetes.azure.com/sku-cpu=4\n                    kubernetes.azure.com/sku-memory=16384\n                    kubernetes.io/arch=amd64\n                    kubernetes.io/hostname=aks-nodepool1-31093287-vmss000000\n                    kubernetes.io/os=linux\n                    node.kubernetes.io/instance-type=Standard_D4ads_v6\n                    topology.disk.csi.azure.com/zone=\n                    topology.kubernetes.io/region=eastus2\n                    topology.kubernetes.io/zone=0\nAnnotations:        alpha.kubernetes.io/provided-node-ip: 10.224.0.4\n                    csi.volume.kubernetes.io/nodeid:\n                      {\"disk.csi.azure.com\":\"aks-nodepool1-31093287-vmss000000\",\"file.csi.azure.com\":\"aks-nodepool1-31093287-vmss000000\"}\n                    node.alpha.kubernetes.io/ttl: 0\n                    volumes.kubernetes.io/controller-managed-attach-detach: true\nCreationTimestamp:  Fri, 21 Nov 2025 16:08:30 +0800\nTaints:             \u003cnone\u003e\nUnschedulable:      false\nLease:\n  HolderIdentity:  aks-nodepool1-31093287-vmss000000\n  AcquireTime:     \u003cunset\u003e\n  RenewTime:       Tue, 02 Dec 2025 21:27:45 +0800\nConditions:\n  Type                          Status  LastHeartbeatTime                 LastTransitionTime                Reason                          Message\n  ----                          ------  -----------------                 ------------------                ------                          -------\n  FrequentKubeletRestart        False   Tue, 02 Dec 2025 21:22:58 +0800   Sat, 22 Nov 2025 12:58:54 +0800   NoFrequentKubeletRestart        kubelet is functioning properly\n  FrequentDockerRestart         False   Tue, 02 Dec 2025 21:22:58 +0800   Sat, 22 Nov 2025 12:58:54 +0800   NoFrequentDockerRestart         docker is functioning properly\n  FrequentContainerdRestart     False   Tue, 02 Dec 2025 21:22:58 +0800   Sat, 22 Nov 2025 12:58:54 +0800   NoFrequentContainerdRestart     containerd is functioning properly\n  KernelDeadlock                False   Tue, 02 Dec 2025 21:22:58 +0800   Sat, 22 Nov 2025 12:58:54 +0800   KernelHasNoDeadlock             kernel has no deadlock\n  KubeletProblem                False   Tue, 02 Dec 2025 21:22:58 +0800   Sat, 22 Nov 2025 12:58:54 +0800   KubeletIsUp                     kubelet service is up\n  FilesystemCorruptionProblem   False   Tue, 02 Dec 2025 21:22:58 +0800   Sat, 22 Nov 2025 12:58:54 +0800   FilesystemIsOK                  Filesystem is healthy\n  ReadonlyFilesystem            False   Tue, 02 Dec 2025 21:22:58 +0800   Sat, 22 Nov 2025 12:58:54 +0800   FilesystemIsNotReadOnly         Filesystem is not read-only\n  FrequentUnregisterNetDevice   False   Tue, 02 Dec 2025 21:22:58 +0800   Sat, 22 Nov 2025 12:58:54 +0800   NoFrequentUnregisterNetDevice   node is functioning properly\n  VMEventScheduled              False   Tue, 02 Dec 2025 21:22:58 +0800   Sat, 22 Nov 2025 12:58:54 +0800   NoVMEventScheduled              VM has no scheduled event\n  ContainerRuntimeProblem       False   Tue, 02 Dec 2025 21:22:58 +0800   Sat, 22 Nov 2025 12:58:54 +0800   ContainerRuntimeIsUp            container runtime service is up\n  MemoryPressure                False   Tue, 02 Dec 2025 21:23:37 +0800   Fri, 21 Nov 2025 16:08:30 +0800   KubeletHasSufficientMemory      kubelet has sufficient memory available\n  DiskPressure                  False   Tue, 02 Dec 2025 21:23:37 +0800   Fri, 21 Nov 2025 16:08:30 +0800   KubeletHasNoDiskPressure        kubelet has no disk pressure\n  PIDPressure                   False   Tue, 02 Dec 2025 21:23:37 +0800   Fri, 21 Nov 2025 16:08:30 +0800   KubeletHasSufficientPID         kubelet has sufficient PID available\n  Ready                         True    Tue, 02 Dec 2025 21:23:37 +0800   Fri, 21 Nov 2025 16:08:55 +0800   KubeletReady                    kubelet is posting ready status\nAddresses:\n  InternalIP:  10.224.0.4\n  Hostname:    aks-nodepool1-31093287-vmss000000\nCapacity:\n  cpu:                4\n  ephemeral-storage:  223381680Ki\n  hugepages-1Gi:      0\n  hugepages-2Mi:      0\n  memory:             16374732Ki\n  pods:               250\nAllocatable:\n  cpu:                3860m\n  ephemeral-storage:  205868555948\n  hugepages-1Gi:      0\n  hugepages-2Mi:      0\n  memory:             12078028Ki\n  pods:               250\nSystem Info:\n  Machine ID:                 0b05721e93e54684ad17fec57ba9ce47\n  System UUID:                233c41b3-2a51-4573-8f36-e79d57311bce\n  Boot ID:                    b2bd2502-82de-4fb1-b10b-f0d286154ee9\n  Kernel Version:             5.15.0-1098-azure\n  OS Image:                   Ubuntu 22.04.5 LTS\n  Operating System:           linux\n  Architecture:               amd64\n  Container Runtime Version:  containerd://1.7.28-1\n  Kubelet Version:            v1.32.7\n  Kube-Proxy Version:         v1.32.7\nProviderID:                   azure:///subscriptions/6276724d-3cab-4a80-92af-97baf900ba3f/resourceGroups/mc_guwe-rg-oidc-demo-1_aks-oidc-demo_eastus2/providers/Microsoft.Compute/virtualMachineScaleSets/aks-nodepool1-31093287-vmss/virtualMachines/0\nNon-terminated Pods:          (28 in total)\n  Namespace                   Name                                                    CPU Requests  CPU Limits   Memory Requests  Memory Limits  Age\n  ---------                   ----                                                    ------------  ----------   ---------------  -------------  ---\n  aks-mcp-inspector           aks-mcp-inspector-755c84f5f6-g5fl8                      100m (2%)     500m (12%)   128Mi (1%)       512Mi (4%)     11d\n  default                     aks-mcp-7496c87dc7-rrr7n                                100m (2%)     500m (12%)   128Mi (1%)       512Mi (4%)     11d\n  default                     azure-api-mcp-b4645b99c-tdfrt                           100m (2%)     500m (12%)   128Mi (1%)       512Mi (4%)     11d\n  default                     azure-mcp-azure-api-mcp-646d55bf7c-lnllk                100m (2%)     500m (12%)   128Mi (1%)       512Mi (4%)     11d\n  default                     azure-mcp-azure-api-mcp-646d55bf7c-w4krm                100m (2%)     500m (12%)   128Mi (1%)       512Mi (4%)     11d\n  default                     kubectl-test-pod-5f8ddb5d54-mkwkb                       50m (1%)      100m (2%)    64Mi (0%)        128Mi (1%)     11d\n  default                     workload-identity-demo-846c69c99b-pjvcf                 100m (2%)     200m (5%)    128Mi (1%)       256Mi (2%)     11d\n  gatekeeper-system           gatekeeper-audit-55768b56d7-h6lh8                       100m (2%)     2 (51%)      256Mi (2%)       3Gi (26%)      11d\n  gatekeeper-system           gatekeeper-controller-f465c8d88-4tsh7                   100m (2%)     2 (51%)      256Mi (2%)       2Gi (17%)      11d\n  gatekeeper-system           gatekeeper-controller-f465c8d88-7kxcs                   100m (2%)     2 (51%)      256Mi (2%)       2Gi (17%)      11d\n  kube-system                 ama-logs-nnqws                                          170m (4%)     1600m (41%)  600Mi (5%)       2148Mi (18%)   11d\n  kube-system                 ama-logs-rs-769ff77bb8-pqc59                            250m (6%)     1500m (38%)  350Mi (2%)       2036Mi (17%)   11d\n  kube-system                 azure-cns-9rrx6                                         40m (1%)      40m (1%)     250Mi (2%)       250Mi (2%)     11d\n  kube-system                 azure-ip-masq-agent-pgkww                               50m (1%)      500m (12%)   36Mi (0%)        250Mi (2%)     11d\n  kube-system                 azure-policy-6c7ccfd44d-2bmbk                           30m (0%)      100m (2%)    50Mi (0%)        200Mi (1%)     11d\n  kube-system                 azure-policy-webhook-c7c56688d-g9srd                    30m (0%)      100m (2%)    50Mi (0%)        200Mi (1%)     11d\n  kube-system                 azure-wi-webhook-controller-manager-656f4c446d-5f922    100m (2%)     200m (5%)    20Mi (0%)        300Mi (2%)     11d\n  kube-system                 cloud-node-manager-5hp5h                                50m (1%)      0 (0%)       50Mi (0%)        512Mi (4%)     11d\n  kube-system                 coredns-6865d647c6-cx56q                                100m (2%)     3 (77%)      70Mi (0%)        500Mi (4%)     11d\n  kube-system                 coredns-6865d647c6-rbscn                                100m (2%)     3 (77%)      70Mi (0%)        500Mi (4%)     11d\n  kube-system                 coredns-autoscaler-67d9d668db-crlgm                     20m (0%)      200m (5%)    10Mi (0%)        500Mi (4%)     11d\n  kube-system                 csi-azuredisk-node-7gd7m                                30m (0%)      0 (0%)       60Mi (0%)        5800Mi (49%)   11d\n  kube-system                 csi-azurefile-node-mrjgf                                30m (0%)      0 (0%)       60Mi (0%)        600Mi (5%)     11d\n  kube-system                 konnectivity-agent-autoscaler-6ff7779788-lfrs7          20m (0%)      350m (9%)    10Mi (0%)        512M (4%)      11d\n  kube-system                 konnectivity-agent-dd98dd6d5-mhnbb                      20m (0%)      1 (25%)      20Mi (0%)        1Gi (8%)       11d\n  kube-system                 konnectivity-agent-dd98dd6d5-vkfbq                      20m (0%)      1 (25%)      20Mi (0%)        1Gi (8%)       11d\n  kube-system                 kube-proxy-2r4tp                                        100m (2%)     0 (0%)       0 (0%)           0 (0%)         11d\n  kube-system                 metrics-server-66b7768944-h9wt4                         156m (4%)     251m (6%)    138Mi (1%)       408Mi (3%)     11d\nAllocated resources:\n  (Total limits may be over 100 percent, i.e., overcommitted.)\n  Resource           Requests      Limits\n  --------           --------      ------\n  cpu                2266m (58%)   21641m (560%)\n  memory             3464Mi (29%)  27496736Ki (227%)\n  ephemeral-storage  0 (0%)        0 (0%)\n  hugepages-1Gi      0 (0%)        0 (0%)\n  hugepages-2Mi      0 (0%)        0 (0%)\nEvents:              \u003cnone\u003e\n",
+          "Error": "",
+          "Timestamp": "2025-12-02T21:27:43.021874784+08:00",
+          "ExecutionTime": 2515571210
+        }
+      ],
+      "ToolSelectionCorrect": false,
+      "ToolSelectionScore": 1,
+      "ParameterAccuracy": 1,
+      "OutputQualityScore": 1,
+      "Status": "pass",
+      "ErrorMessage": "",
+      "ValidationResults": [
+        {
+          "ExpectedTool": "call_kubectl",
+          "ToolCalled": true,
+          "CallCount": 4,
+          "MinCalls": 2,
+          "ArgsValid": true,
+          "MatchedPatterns": [
+            "test-resources",
+            "high-mem-pod|node"
+          ],
+          "MissingPatterns": [],
+          "Score": 1
+        }
+      ],
+      "JudgingResult": {
+        "Score": 1,
+        "Reasoning": "The answer is comprehensive and addresses all expected points, including the pod being `Pending`, memory-related issues, `Insufficient` resources, and the fact that the pod requests `100Gi` of memory. It provides detailed evaluation of node capacities and offers actionable recommendations to resolve the issue."
+      }
+    },
+    {
+      "TestCase": {
+        "ID": "04_port_forward_command",
+        "Title": "Generate Port Forward Command for Grafana Pod",
+        "Description": "Test agent's ability to find pod name and generate correct kubectl port-forward command",
+        "Tags": [
+          "kubernetes",
+          "medium"
+        ],
+        "UserPrompt": "port forward to grafana pod in app-03",
+        "ExpectedOutput": [
+          "grafana-7f8b9c6d5-x2m4n",
+          "port.*3000",
+          "kubectl port-forward.*grafana-7f8b9c6d5-x2m4n.*3000"
+        ],
+        "ExpectedToolUsage": [
+          {
+            "ToolName": "call_kubectl",
+            "MinCalls": 1,
+            "RequiredArgsPatterns": [
+              "app-03",
+              "grafana"
+            ]
+          }
+        ],
+        "BeforeTest": "kubectl create namespace app-03\ncat \u003c\u003cEOF | kubectl apply -f -\napiVersion: v1\nkind: Pod\nmetadata:\n  name: grafana-7f8b9c6d5-x2m4n\n  namespace: app-03\n  labels:\n    app: grafana\nspec:\n  containers:\n  - name: grafana\n    image: busybox:1.35\n    command: ['sh', '-c', 'while true; do echo \"HTTP/1.1 200 OK\\n\\nOK\" | nc -l -p 3000; done']\n    ports:\n    - containerPort: 3000\n      name: http\n    resources:\n      requests:\n        memory: \"16Mi\"\n        cpu: \"5m\"\n      limits:\n        memory: \"32Mi\"\n        cpu: \"10m\"\n    readinessProbe:\n      tcpSocket:\n        port: 3000\n      initialDelaySeconds: 2\n      periodSeconds: 5\nEOF\nkubectl wait --for=condition=Ready pod/grafana-7f8b9c6d5-x2m4n -n app-03 --timeout=300s\n",
+        "AfterTest": "kubectl delete namespace app-03",
+        "Timeout": 120000000000,
+        "FilePath": "fixtures/kubectl/medium/04_port_forward_command"
+      },
+      "StartTime": "2025-12-02T21:27:59.780582417+08:00",
+      "EndTime": "2025-12-02T21:28:17.715830328+08:00",
+      "ExecutionTime": 17935247900,
+      "TotalToolCallTime": 1028304058,
+      "AvgToolCallDuration": 1028304058,
+      "LLMIterations": 2,
+      "FinalAnswer": "The Grafana pod in the `app-03` namespace is `grafana-7f8b9c6d5-x2m4n`. To port forward to this pod, you can use the following command:\n\n```bash\nkubectl port-forward grafana-7f8b9c6d5-x2m4n 3000:3000 -n app-03\n```\n\nThis will forward traffic from your local port 3000 to the Grafana service running in the pod. Replace `3000` with a different local port if it's already in use.",
+      "ToolCalls": [
+        {
+          "ToolName": "call_kubectl",
+          "Arguments": {
+            "args": "get pods -n app-03"
+          },
+          "Result": "NAME                      READY   STATUS    RESTARTS   AGE\ngrafana-7f8b9c6d5-x2m4n   1/1     Running   0          14s\n",
+          "Error": "",
+          "Timestamp": "2025-12-02T21:28:14.466243064+08:00",
+          "ExecutionTime": 1028304058
+        }
+      ],
+      "ToolSelectionCorrect": false,
+      "ToolSelectionScore": 1,
+      "ParameterAccuracy": 0.75,
+      "OutputQualityScore": 0,
+      "Status": "fail",
+      "ErrorMessage": "",
+      "ValidationResults": [
+        {
+          "ExpectedTool": "call_kubectl",
+          "ToolCalled": true,
+          "CallCount": 1,
+          "MinCalls": 1,
+          "ArgsValid": false,
+          "MatchedPatterns": [
+            "app-03"
+          ],
+          "MissingPatterns": [
+            "grafana"
+          ],
+          "Score": 0.75
+        }
+      ],
+      "JudgingResult": null
+    },
+    {
+      "TestCase": {
+        "ID": "05_service_discovery_issue",
+        "Title": "Diagnose Service Selector Mismatch",
+        "Description": "Test agent's ability to identify service selector misconfiguration causing no endpoints",
+        "Tags": [
+          "kubernetes",
+          "medium"
+        ],
+        "UserPrompt": "Why can't the frontend pod connect to the backend service in namespace-76?",
+        "ExpectedOutput": [
+          "service selector.*version.*v2",
+          "pods.*version.*v1",
+          "no endpoints",
+          "selector.*mismatch"
+        ],
+        "ExpectedToolUsage": [
+          {
+            "ToolName": "call_kubectl",
+            "MinCalls": 2,
+            "RequiredArgsPatterns": [
+              "namespace-76",
+              "backend|service|endpoint"
+            ]
+          }
+        ],
+        "BeforeTest": "kubectl apply -f ./manifest.yaml\nsleep 30\n",
+        "AfterTest": "kubectl delete -f ./manifest.yaml",
+        "Timeout": 120000000000,
+        "FilePath": "fixtures/kubectl/medium/05_service_discovery_issue"
+      },
+      "StartTime": "2025-12-02T21:28:49.681412798+08:00",
+      "EndTime": "2025-12-02T21:29:42.466782628+08:00",
+      "ExecutionTime": 48999759413,
+      "TotalToolCallTime": 5005764895,
+      "AvgToolCallDuration": 1251441223,
+      "LLMIterations": 5,
+      "FinalAnswer": "The issue is with the service selector of the `backend-service` in the `namespace-76` namespace.\n\nThe backend pod (`backend-5c64d8db94-fg2dr`) has the following labels:\n- `app=backend`\n- `pod-template-hash=5c64d8db94`\n- `version=v1`\n\nHowever, the service selector matches `app=backend` and `version=v2`. This means the service is expecting pods labeled as `version=v2`, but the backend pod is labeled as `version=v1`.\n\n### Solution:\n- Update the `backend-service` selector to match the existing backend pod label (`version=v1`):\n  ```bash\n  kubectl edit svc backend-service -n namespace-76\n  ```\n  And modify the selector to:\n  ```yaml\n  selector:\n    app: backend\n    version: v1\n  ```\n\n- Alternatively, you can update the pod's label to `version=v2` if the service's selector is correct.\n\nAfter fixing the mismatch, the frontend pod should be able to connect to the backend service successfully.",
+      "ToolCalls": [
+        {
+          "ToolName": "call_kubectl",
+          "Arguments": {
+            "args": "get services -n namespace-76"
+          },
+          "Result": "NAME              TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)   AGE\nbackend-service   ClusterIP   10.0.250.246   \u003cnone\u003e        80/TCP    35s\n",
+          "Error": "",
+          "Timestamp": "2025-12-02T21:29:26.902042981+08:00",
+          "ExecutionTime": 994639416
+        },
+        {
+          "ToolName": "call_kubectl",
+          "Arguments": {
+            "args": "get pods -n namespace-76"
+          },
+          "Result": "NAME                        READY   STATUS    RESTARTS   AGE\nbackend-5c64d8db94-fg2dr    1/1     Running   0          38s\nfrontend-6978d8c89d-bn6fz   1/1     Running   0          36s\n",
+          "Error": "",
+          "Timestamp": "2025-12-02T21:29:29.206986609+08:00",
+          "ExecutionTime": 897162906
+        },
+        {
+          "ToolName": "call_kubectl",
+          "Arguments": {
+            "args": "describe svc backend-service -n namespace-76"
+          },
+          "Result": "Name:                     backend-service\nNamespace:                namespace-76\nLabels:                   \u003cnone\u003e\nAnnotations:              \u003cnone\u003e\nSelector:                 app=backend,version=v2\nType:                     ClusterIP\nIP Family Policy:         SingleStack\nIP Families:              IPv4\nIP:                       10.0.250.246\nIPs:                      10.0.250.246\nPort:                     \u003cunset\u003e  80/TCP\nTargetPort:               80/TCP\nEndpoints:                \nSession Affinity:         None\nInternal Traffic Policy:  Cluster\nEvents:                   \u003cnone\u003e\n",
+          "Error": "",
+          "Timestamp": "2025-12-02T21:29:32.265345251+08:00",
+          "ExecutionTime": 1754308306
+        },
+        {
+          "ToolName": "call_kubectl",
+          "Arguments": {
+            "args": "describe pod backend-5c64d8db94-fg2dr -n namespace-76"
+          },
+          "Result": "Name:             backend-5c64d8db94-fg2dr\nNamespace:        namespace-76\nPriority:         0\nService Account:  default\nNode:             aks-nodepool1-31093287-vmss000001/10.224.0.5\nStart Time:       Tue, 02 Dec 2025 21:28:53 +0800\nLabels:           app=backend\n                  pod-template-hash=5c64d8db94\n                  version=v1\nAnnotations:      \u003cnone\u003e\nStatus:           Running\nIP:               10.244.0.14\nIPs:\n  IP:           10.244.0.14\nControlled By:  ReplicaSet/backend-5c64d8db94\nContainers:\n  backend:\n    Container ID:   containerd://12ee3643790fc26477f6ef0050ca2f3080070c54d343d8f2c7b7711c0b19dc16\n    Image:          nginx:alpine\n    Image ID:       docker.io/library/nginx@sha256:b3c656d55d7ad751196f21b7fd2e8d4da9cb430e32f646adcf92441b72f82b14\n    Port:           80/TCP\n    Host Port:      0/TCP\n    State:          Running\n      Started:      Tue, 02 Dec 2025 21:28:54 +0800\n    Ready:          True\n    Restart Count:  0\n    Limits:\n      memory:  64Mi\n    Requests:\n      cpu:        10m\n      memory:     64Mi\n    Environment:  \u003cnone\u003e\n    Mounts:\n      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-zq8l8 (ro)\nConditions:\n  Type                        Status\n  PodReadyToStartContainers   True \n  Initialized                 True \n  Ready                       True \n  ContainersReady             True \n  PodScheduled                True \nVolumes:\n  kube-api-access-zq8l8:\n    Type:                    Projected (a volume that contains injected data from multiple sources)\n    TokenExpirationSeconds:  3607\n    ConfigMapName:           kube-root-ca.crt\n    ConfigMapOptional:       \u003cnil\u003e\n    DownwardAPI:             true\nQoS Class:                   Burstable\nNode-Selectors:              \u003cnone\u003e\nTolerations:                 node.kubernetes.io/memory-pressure:NoSchedule op=Exists\n                             node.kubernetes.io/not-ready:NoExecute op=Exists for 300s\n                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s\nEvents:\n  Type    Reason     Age   From               Message\n  ----    ------     ----  ----               -------\n  Normal  Scheduled  45s   default-scheduler  Successfully assigned namespace-76/backend-5c64d8db94-fg2dr to aks-nodepool1-31093287-vmss000001\n  Normal  Pulled     45s   kubelet            Container image \"nginx:alpine\" already present on machine\n  Normal  Created    45s   kubelet            Created container: backend\n  Normal  Started    45s   kubelet            Started container backend\n",
+          "Error": "",
+          "Timestamp": "2025-12-02T21:29:37.888450003+08:00",
+          "ExecutionTime": 1359654267
+        }
+      ],
+      "ToolSelectionCorrect": false,
+      "ToolSelectionScore": 1,
+      "ParameterAccuracy": 1,
+      "OutputQualityScore": 1,
+      "Status": "pass",
+      "ErrorMessage": "",
+      "ValidationResults": [
+        {
+          "ExpectedTool": "call_kubectl",
+          "ToolCalled": true,
+          "CallCount": 4,
+          "MinCalls": 2,
+          "ArgsValid": true,
+          "MatchedPatterns": [
+            "namespace-76",
+            "backend|service|endpoint"
+          ],
+          "MissingPatterns": [],
+          "Score": 1
+        }
+      ],
+      "JudgingResult": {
+        "Score": 1,
+        "Reasoning": "The answer correctly identifies the issue as a mismatch between the service selector and the pod labels, includes the labels for `version=v1` and `version=v2`, mentions the lack of endpoints due to this mismatch, and provides clear steps for resolution. It fully covers all expected points."
+      }
+    },
+    {
+      "TestCase": {
+        "ID": "06_liveness_probe_misconfiguration",
+        "Title": "Diagnose Liveness Probe Port Misconfiguration",
+        "Description": "Test agent's ability to identify liveness probe checking wrong port causing restarts",
+        "Tags": [
+          "kubernetes",
+          "medium"
+        ],
+        "UserPrompt": "Why does the web-app pod keep restarting in namespace-77?",
+        "ExpectedOutput": [
+          "liveness probe.*8080",
+          "nginx.*listening.*80",
+          "probe.*wrong port",
+          "restart.*probe.*fail"
+        ],
+        "ExpectedToolUsage": [
+          {
+            "ToolName": "call_kubectl",
+            "MinCalls": 1,
+            "RequiredArgsPatterns": [
+              "namespace-77",
+              "web-app|pod"
+            ]
+          }
+        ],
+        "BeforeTest": "kubectl apply -f ./manifest.yaml\nsleep 45\n",
+        "AfterTest": "kubectl delete -f ./manifest.yaml",
+        "Timeout": 300000000000,
+        "FilePath": "fixtures/kubectl/medium/06_liveness_probe_misconfiguration"
+      },
+      "StartTime": "2025-12-02T21:30:15.824414511+08:00",
+      "EndTime": "2025-12-02T21:31:17.712272138+08:00",
+      "ExecutionTime": 58029607827,
+      "TotalToolCallTime": 2403904664,
+      "AvgToolCallDuration": 1201952332,
+      "LLMIterations": 3,
+      "FinalAnswer": "The pod `web-app` in the `namespace-77` namespace is restarting due to failing the configured **liveness probe**. Here are the details:\n\n1. **Liveness Probe Definition**:\n   - A liveness probe is set to check the endpoint `http://:8080/healthz`.\n   - The probe checks every 5 seconds and expects a response. If it fails 3 times consecutively, the container is restarted.\n\n2. **Reason for Restart**:\n   - The probe is failing with the error: `Get \"http://10.244.0.149:8080/healthz\": dial tcp 10.244.0.149:8080: connect: connection refused`.\n   - This indicates that the application in the container is either:\n     - Not listening on port `8080`.\n     - Or not responding properly to the `/healthz` endpoint.\n\n3. **Observed Behavior**:\n   - The container gets restarted after failing the liveness probe, despite successful termination signals (`Exit Code 0`).\n\n### Steps to Resolve:\n1. **Verify Application Configuration**:\n   - Ensure the application is actually running on port `8080`, as specified in the liveness probe.\n   - Make sure the `/healthz` endpoint is properly implemented and accessible.\n\n2. **Update Probe Configuration**:\n   - If the application uses a different port or endpoint for health checks, update the liveness probe configuration in the deployment.\n\n3. **Inspect Application Logs**:\n   - View the logs of the pod to see if the application reports any errors:\n     ```sh\n     kubectl logs web-app-6b849dd6f9-66f2k -n namespace-77\n     ```\n\nWould you like me to check the logs for more details?",
+      "ToolCalls": [
+        {
+          "ToolName": "call_kubectl",
+          "Arguments": {
+            "args": "get pods -n namespace-77"
+          },
+          "Result": "NAME                       READY   STATUS    RESTARTS      AGE\nweb-app-6b849dd6f9-66f2k   1/1     Running   2 (10s ago)   50s\n",
+          "Error": "",
+          "Timestamp": "2025-12-02T21:31:06.493616243+08:00",
+          "ExecutionTime": 1007390431
+        },
+        {
+          "ToolName": "call_kubectl",
+          "Arguments": {
+            "args": "describe pod web-app-6b849dd6f9-66f2k -n namespace-77"
+          },
+          "Result": "Name:             web-app-6b849dd6f9-66f2k\nNamespace:        namespace-77\nPriority:         0\nService Account:  default\nNode:             aks-nodepool1-31093287-vmss000001/10.224.0.5\nStart Time:       Tue, 02 Dec 2025 21:30:19 +0800\nLabels:           app=web-app\n                  pod-template-hash=6b849dd6f9\nAnnotations:      \u003cnone\u003e\nStatus:           Running\nIP:               10.244.0.149\nIPs:\n  IP:           10.244.0.149\nControlled By:  ReplicaSet/web-app-6b849dd6f9\nContainers:\n  web-app:\n    Container ID:   containerd://b300d5bc1901205da8af20562ff18676d43774cf052df84129c6456fbb92f1c4\n    Image:          nginx:alpine\n    Image ID:       docker.io/library/nginx@sha256:b3c656d55d7ad751196f21b7fd2e8d4da9cb430e32f646adcf92441b72f82b14\n    Port:           80/TCP\n    Host Port:      0/TCP\n    State:          Running\n      Started:      Tue, 02 Dec 2025 21:30:59 +0800\n    Last State:     Terminated\n      Reason:       Completed\n      Exit Code:    0\n      Started:      Tue, 02 Dec 2025 21:30:39 +0800\n      Finished:     Tue, 02 Dec 2025 21:30:59 +0800\n    Ready:          True\n    Restart Count:  2\n    Limits:\n      memory:  64Mi\n    Requests:\n      cpu:        10m\n      memory:     64Mi\n    Liveness:     http-get http://:8080/healthz delay=10s timeout=1s period=5s #success=1 #failure=3\n    Readiness:    http-get http://:80/ delay=5s timeout=1s period=5s #success=1 #failure=3\n    Environment:  \u003cnone\u003e\n    Mounts:\n      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-qxk2t (ro)\nConditions:\n  Type                        Status\n  PodReadyToStartContainers   True \n  Initialized                 True \n  Ready                       True \n  ContainersReady             True \n  PodScheduled                True \nVolumes:\n  kube-api-access-qxk2t:\n    Type:                    Projected (a volume that contains injected data from multiple sources)\n    TokenExpirationSeconds:  3607\n    ConfigMapName:           kube-root-ca.crt\n    ConfigMapOptional:       \u003cnil\u003e\n    DownwardAPI:             true\nQoS Class:                   Burstable\nNode-Selectors:              \u003cnone\u003e\nTolerations:                 node.kubernetes.io/memory-pressure:NoSchedule op=Exists\n                             node.kubernetes.io/not-ready:NoExecute op=Exists for 300s\n                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s\nEvents:\n  Type     Reason     Age                From               Message\n  ----     ------     ----               ----               -------\n  Normal   Scheduled  53s                default-scheduler  Successfully assigned namespace-77/web-app-6b849dd6f9-66f2k to aks-nodepool1-31093287-vmss000001\n  Normal   Pulled     13s (x3 over 53s)  kubelet            Container image \"nginx:alpine\" already present on machine\n  Normal   Created    13s (x3 over 53s)  kubelet            Created container: web-app\n  Normal   Started    13s (x3 over 53s)  kubelet            Started container web-app\n  Normal   Killing    13s (x2 over 33s)  kubelet            Container web-app failed liveness probe, will be restarted\n  Warning  Unhealthy  3s (x7 over 43s)   kubelet            Liveness probe failed: Get \"http://10.244.0.149:8080/healthz\": dial tcp 10.244.0.149:8080: connect: connection refused\n",
+          "Error": "",
+          "Timestamp": "2025-12-02T21:31:10.766503504+08:00",
+          "ExecutionTime": 1396514233
+        }
+      ],
+      "ToolSelectionCorrect": false,
+      "ToolSelectionScore": 1,
+      "ParameterAccuracy": 1,
+      "OutputQualityScore": 0.9,
+      "Status": "pass",
+      "ErrorMessage": "",
+      "ValidationResults": [
+        {
+          "ExpectedTool": "call_kubectl",
+          "ToolCalled": true,
+          "CallCount": 2,
+          "MinCalls": 1,
+          "ArgsValid": true,
+          "MatchedPatterns": [
+            "namespace-77",
+            "web-app|pod"
+          ],
+          "MissingPatterns": [],
+          "Score": 1
+        }
+      ],
+      "JudgingResult": {
+        "Score": 0.9,
+        "Reasoning": "The answer is clear, covers the failing liveness probe, mentions port 8080 and '/healthz' endpoint issues, and discusses the container restarting due to probe failures. However, it does not explicitly mention nginx or a possible mismatch with port 80, which is part of the expected answer."
+      }
+    },
+    {
+      "TestCase": {
+        "ID": "07_missing_cpu_limits",
+        "Title": "Diagnose Missing CPU Limits Required by ResourceQuota",
+        "Description": "Test agent's ability to identify missing CPU limits preventing pod creation due to quota",
+        "Tags": [
+          "kubernetes",
+          "medium"
+        ],
+        "UserPrompt": "Why are pods in pending state for the api-server deployment in namespace-78a?",
+        "ExpectedOutput": [
+          "missing.*limits.cpu",
+          "ResourceQuota.*requires.*cpu.*limits",
+          "compute-quota",
+          "container.*spec.*limits"
+        ],
+        "ExpectedToolUsage": [
+          {
+            "ToolName": "call_kubectl",
+            "MinCalls": 2,
+            "RequiredArgsPatterns": [
+              "namespace-78a",
+              "resourcequota|quota|deployment"
+            ]
+          }
+        ],
+        "BeforeTest": "kubectl apply -f ./manifest.yaml\nsleep 20\n",
+        "AfterTest": "kubectl delete -f ./manifest.yaml",
+        "Timeout": 120000000000,
+        "FilePath": "fixtures/kubectl/medium/07_missing_cpu_limits"
+      },
+      "StartTime": "2025-12-02T21:31:26.432712417+08:00",
+      "EndTime": "2025-12-02T21:32:09.661308659+08:00",
+      "ExecutionTime": 41415302298,
+      "TotalToolCallTime": 6163906925,
+      "AvgToolCallDuration": 1232781385,
+      "LLMIterations": 6,
+      "FinalAnswer": "The pods in the `api-server` deployment in namespace `namespace-78a` are stuck in a pending state because they fail to meet the resource quota requirements. Specifically, the error indicates:\n\n```\nError creating: pods \"api-server-69cb98dc6d-xxxxx\" is forbidden: failed quota: compute-quota: must specify limits.cpu for: api-server\n```\n\nThis means that your namespace `namespace-78a` has a resource quota (`compute-quota`) that requires you to specify `limits.cpu` for any pods being created. However, the `api-server` deployment does not define `limits.cpu` for its containers.\n\n### Resolution Steps\n1. Update the deployment to include proper `limits.cpu` values for the `api-server` container:\n   - Add a `resources` block with appropriate CPU limits. For example:\n     ```yaml\n     resources:\n       limits:\n         cpu: \"250m\"\n         memory: \"64Mi\"\n       requests:\n         cpu: \"10m\"\n         memory: \"64Mi\"\n     ```\n   - This ensures that the required CPU limits are explicitly set.\n\n2. Apply the update:\n   - Make the changes in your `Deployment` YAML file and reapply it:\n     ```bash\n     kubectl apply -f deployment.yaml\n     ```\n\n3. Verify:\n   - Check the status of the pods again:\n     ```bash\n     kubectl get pods -n namespace-78a\n     ```\n   - Ensure that the pods are now successfully created and running.\n\nLet me know if you need further guidance!",
+      "ToolCalls": [
+        {
+          "ToolName": "call_kubectl",
+          "Arguments": {
+            "args": "get pods -n namespace-78a"
+          },
+          "Result": "",
+          "Error": "",
+          "Timestamp": "2025-12-02T21:31:52.80994202+08:00",
+          "ExecutionTime": 983853494
+        },
+        {
+          "ToolName": "call_kubectl",
+          "Arguments": {
+            "args": "get pods -n namespace-78a --selector=app=api-server"
+          },
+          "Result": "",
+          "Error": "",
+          "Timestamp": "2025-12-02T21:31:55.111594184+08:00",
+          "ExecutionTime": 881235951
+        },
+        {
+          "ToolName": "call_kubectl",
+          "Arguments": {
+            "args": "get deployments -n namespace-78a"
+          },
+          "Result": "NAME         READY   UP-TO-DATE   AVAILABLE   AGE\napi-server   0/3     0            0           29s\n",
+          "Error": "",
+          "Timestamp": "2025-12-02T21:31:57.366338382+08:00",
+          "ExecutionTime": 976234957
+        },
+        {
+          "ToolName": "call_kubectl",
+          "Arguments": {
+            "args": "describe deployment api-server -n namespace-78a"
+          },
+          "Result": "Name:                   api-server\nNamespace:              namespace-78a\nCreationTimestamp:      Tue, 02 Dec 2025 21:31:30 +0800\nLabels:                 \u003cnone\u003e\nAnnotations:            deployment.kubernetes.io/revision: 1\nSelector:               app=api-server\nReplicas:               3 desired | 0 updated | 0 total | 0 available | 3 unavailable\nStrategyType:           RollingUpdate\nMinReadySeconds:        0\nRollingUpdateStrategy:  25% max unavailable, 25% max surge\nPod Template:\n  Labels:  app=api-server\n  Containers:\n   api-server:\n    Image:      nginx:alpine\n    Port:       \u003cnone\u003e\n    Host Port:  \u003cnone\u003e\n    Limits:\n      memory:  64Mi\n    Requests:\n      cpu:         10m\n      memory:      64Mi\n    Environment:   \u003cnone\u003e\n    Mounts:        \u003cnone\u003e\n  Volumes:         \u003cnone\u003e\n  Node-Selectors:  \u003cnone\u003e\n  Tolerations:     \u003cnone\u003e\nConditions:\n  Type             Status  Reason\n  ----             ------  ------\n  Progressing      True    NewReplicaSetCreated\n  Available        False   MinimumReplicasUnavailable\n  ReplicaFailure   True    FailedCreate\nOldReplicaSets:    \u003cnone\u003e\nNewReplicaSet:     api-server-69cb98dc6d (0/3 replicas created)\nEvents:\n  Type    Reason             Age   From                   Message\n  ----    ------             ----  ----                   -------\n  Normal  ScalingReplicaSet  31s   deployment-controller  Scaled up replica set api-server-69cb98dc6d from 0 to 3\n",
+          "Error": "",
+          "Timestamp": "2025-12-02T21:32:00.245352261+08:00",
+          "ExecutionTime": 1607996174
+        },
+        {
+          "ToolName": "call_kubectl",
+          "Arguments": {
+            "args": "describe replicaset api-server-69cb98dc6d -n namespace-78a"
+          },
+          "Result": "Name:           api-server-69cb98dc6d\nNamespace:      namespace-78a\nSelector:       app=api-server,pod-template-hash=69cb98dc6d\nLabels:         app=api-server\n                pod-template-hash=69cb98dc6d\nAnnotations:    deployment.kubernetes.io/desired-replicas: 3\n                deployment.kubernetes.io/max-replicas: 4\n                deployment.kubernetes.io/revision: 1\nControlled By:  Deployment/api-server\nReplicas:       0 current / 3 desired\nPods Status:    0 Running / 0 Waiting / 0 Succeeded / 0 Failed\nPod Template:\n  Labels:  app=api-server\n           pod-template-hash=69cb98dc6d\n  Containers:\n   api-server:\n    Image:      nginx:alpine\n    Port:       \u003cnone\u003e\n    Host Port:  \u003cnone\u003e\n    Limits:\n      memory:  64Mi\n    Requests:\n      cpu:         10m\n      memory:      64Mi\n    Environment:   \u003cnone\u003e\n    Mounts:        \u003cnone\u003e\n  Volumes:         \u003cnone\u003e\n  Node-Selectors:  \u003cnone\u003e\n  Tolerations:     \u003cnone\u003e\nConditions:\n  Type             Status  Reason\n  ----             ------  ------\n  ReplicaFailure   True    FailedCreate\nEvents:\n  Type     Reason        Age                From                   Message\n  ----     ------        ----               ----                   -------\n  Warning  FailedCreate  34s                replicaset-controller  Error creating: pods \"api-server-69cb98dc6d-7vqdk\" is forbidden: failed quota: compute-quota: must specify limits.cpu for: api-server\n  Warning  FailedCreate  34s                replicaset-controller  Error creating: pods \"api-server-69cb98dc6d-5vnph\" is forbidden: failed quota: compute-quota: must specify limits.cpu for: api-server\n  Warning  FailedCreate  34s                replicaset-controller  Error creating: pods \"api-server-69cb98dc6d-vdgx4\" is forbidden: failed quota: compute-quota: must specify limits.cpu for: api-server\n  Warning  FailedCreate  33s                replicaset-controller  Error creating: pods \"api-server-69cb98dc6d-w66ch\" is forbidden: failed quota: compute-quota: must specify limits.cpu for: api-server\n  Warning  FailedCreate  33s                replicaset-controller  Error creating: pods \"api-server-69cb98dc6d-z6ggp\" is forbidden: failed quota: compute-quota: must specify limits.cpu for: api-server\n  Warning  FailedCreate  33s                replicaset-controller  Error creating: pods \"api-server-69cb98dc6d-z9fg2\" is forbidden: failed quota: compute-quota: must specify limits.cpu for: api-server\n  Warning  FailedCreate  33s                replicaset-controller  Error creating: pods \"api-server-69cb98dc6d-56dm2\" is forbidden: failed quota: compute-quota: must specify limits.cpu for: api-server\n  Warning  FailedCreate  33s                replicaset-controller  Error creating: pods \"api-server-69cb98dc6d-9s7xp\" is forbidden: failed quota: compute-quota: must specify limits.cpu for: api-server\n  Warning  FailedCreate  32s                replicaset-controller  Error creating: pods \"api-server-69cb98dc6d-srvpt\" is forbidden: failed quota: compute-quota: must specify limits.cpu for: api-server\n  Warning  FailedCreate  13s (x4 over 31s)  replicaset-controller  (combined from similar events): Error creating: pods \"api-server-69cb98dc6d-r6nsm\" is forbidden: failed quota: compute-quota: must specify limits.cpu for: api-server\n",
+          "Error": "",
+          "Timestamp": "2025-12-02T21:32:03.266143353+08:00",
+          "ExecutionTime": 1714586349
+        }
+      ],
+      "ToolSelectionCorrect": false,
+      "ToolSelectionScore": 1,
+      "ParameterAccuracy": 1,
+      "OutputQualityScore": 1,
+      "Status": "pass",
+      "ErrorMessage": "",
+      "ValidationResults": [
+        {
+          "ExpectedTool": "call_kubectl",
+          "ToolCalled": true,
+          "CallCount": 5,
+          "MinCalls": 2,
+          "ArgsValid": true,
+          "MatchedPatterns": [
+            "namespace-78a",
+            "resourcequota|quota|deployment"
+          ],
+          "MissingPatterns": [],
+          "Score": 1
+        }
+      ],
+      "JudgingResult": {
+        "Score": 1,
+        "Reasoning": "The answer perfectly addresses the user's question and includes all expected points. It specifically mentions 'missing limits.cpu,' explains the ResourceQuota requirement for CPU limits, references the 'compute-quota,' and points out the absence of 'limits' in the container spec. Additionally, appropriate resolution steps are provided, making the answer comprehensive and actionable."
+      }
+    },
+    {
+      "TestCase": {
+        "ID": "08_cpu_quota_exceeded",
+        "Title": "Diagnose CPU ResourceQuota Exceeded",
+        "Description": "Test agent's ability to identify deployment exceeding namespace CPU quota",
+        "Tags": [
+          "kubernetes",
+          "medium"
+        ],
+        "UserPrompt": "What's wrong with the api-server deployment in namespace-78b?",
+        "ExpectedOutput": [
+          "CPU quota.*exceeded",
+          "quota.*20m",
+          "deployment.*30m",
+          "ResourceQuota.*insufficient.*CPU"
+        ],
+        "ExpectedToolUsage": [
+          {
+            "ToolName": "call_kubectl",
+            "MinCalls": 2,
+            "RequiredArgsPatterns": [
+              "namespace-78b",
+              "resourcequota|quota"
+            ]
+          }
+        ],
+        "BeforeTest": "kubectl apply -f ./manifest.yaml\nsleep 20\n",
+        "AfterTest": "kubectl delete -f ./manifest.yaml",
+        "Timeout": 120000000000,
+        "FilePath": "fixtures/kubectl/medium/08_cpu_quota_exceeded"
+      },
+      "StartTime": "2025-12-02T21:32:20.58225604+08:00",
+      "EndTime": "2025-12-02T21:33:03.450557312+08:00",
+      "ExecutionTime": 40929211111,
+      "TotalToolCallTime": 6268531648,
+      "AvgToolCallDuration": 1253706329,
+      "LLMIterations": 6,
+      "FinalAnswer": "The `api-server` deployment in the `namespace-78b` namespace is facing an issue due to the resource quota limitations. Specifically, the cluster is exceeding the allocated CPU resource quota (`compute-quota`):\n\n- The deployment requested `10m` of CPU for each pod.\n- Currently, `20m` of CPU is already used.\n- The quota for CPU (`requests.cpu`) is `20m`, so it cannot accommodate the additional CPU request for the third pod.\n\n### Solution:\n1. **Increase the CPU quota**:\n   - If appropriate, increase the `requests.cpu` limit in the resource quota configuration (`compute-quota`) for this namespace.\n\n2. **Reduce CPU requests**:\n   - Update the deployment to lower the CPU requests for each pod by modifying the deployment configuration.\n\n3. **Evaluate Resource Needs**:\n   - Ensure the resource requests and quota are balanced based on actual usage and requirements.\n\nWould you like assistance on how to modify the resource quota or deployment settings?",
+      "ToolCalls": [
+        {
+          "ToolName": "call_kubectl",
+          "Arguments": {
+            "args": "get deployments -n namespace-78b"
+          },
+          "Result": "NAME         READY   UP-TO-DATE   AVAILABLE   AGE\napi-server   2/3     2            2           24s\n",
+          "Error": "",
+          "Timestamp": "2025-12-02T21:32:47.254662865+08:00",
+          "ExecutionTime": 978134629
+        },
+        {
+          "ToolName": "call_kubectl",
+          "Arguments": {
+            "args": "describe deployment api-server -n namespace-78b"
+          },
+          "Result": "Name:                   api-server\nNamespace:              namespace-78b\nCreationTimestamp:      Tue, 02 Dec 2025 21:32:24 +0800\nLabels:                 \u003cnone\u003e\nAnnotations:            deployment.kubernetes.io/revision: 1\nSelector:               app=api-server\nReplicas:               3 desired | 2 updated | 2 total | 2 available | 1 unavailable\nStrategyType:           RollingUpdate\nMinReadySeconds:        0\nRollingUpdateStrategy:  25% max unavailable, 25% max surge\nPod Template:\n  Labels:  app=api-server\n  Containers:\n   api-server:\n    Image:      nginx:alpine\n    Port:       \u003cnone\u003e\n    Host Port:  \u003cnone\u003e\n    Limits:\n      cpu:     20m\n      memory:  64Mi\n    Requests:\n      cpu:         10m\n      memory:      64Mi\n    Environment:   \u003cnone\u003e\n    Mounts:        \u003cnone\u003e\n  Volumes:         \u003cnone\u003e\n  Node-Selectors:  \u003cnone\u003e\n  Tolerations:     \u003cnone\u003e\nConditions:\n  Type             Status  Reason\n  ----             ------  ------\n  Available        False   MinimumReplicasUnavailable\n  ReplicaFailure   True    FailedCreate\n  Progressing      True    ReplicaSetUpdated\nOldReplicaSets:    \u003cnone\u003e\nNewReplicaSet:     api-server-5484f6bcc6 (2/3 replicas created)\nEvents:\n  Type    Reason             Age   From                   Message\n  ----    ------             ----  ----                   -------\n  Normal  ScalingReplicaSet  27s   deployment-controller  Scaled up replica set api-server-5484f6bcc6 from 0 to 3\n",
+          "Error": "",
+          "Timestamp": "2025-12-02T21:32:49.622287444+08:00",
+          "ExecutionTime": 1674299662
+        },
+        {
+          "ToolName": "call_kubectl",
+          "Arguments": {
+            "args": "get pods -n namespace-78b"
+          },
+          "Result": "NAME                          READY   STATUS    RESTARTS   AGE\napi-server-5484f6bcc6-j2wn5   1/1     Running   0          29s\napi-server-5484f6bcc6-xjq7b   1/1     Running   0          29s\n",
+          "Error": "",
+          "Timestamp": "2025-12-02T21:32:52.500828208+08:00",
+          "ExecutionTime": 1017800629
+        },
+        {
+          "ToolName": "call_kubectl",
+          "Arguments": {
+            "args": "get replicaset -n namespace-78b"
+          },
+          "Result": "NAME                    DESIRED   CURRENT   READY   AGE\napi-server-5484f6bcc6   3         2         2       33s\n",
+          "Error": "",
+          "Timestamp": "2025-12-02T21:32:56.010437387+08:00",
+          "ExecutionTime": 880213402
+        },
+        {
+          "ToolName": "call_kubectl",
+          "Arguments": {
+            "args": "describe replicaset api-server-5484f6bcc6 -n namespace-78b"
+          },
+          "Result": "Name:           api-server-5484f6bcc6\nNamespace:      namespace-78b\nSelector:       app=api-server,pod-template-hash=5484f6bcc6\nLabels:         app=api-server\n                pod-template-hash=5484f6bcc6\nAnnotations:    deployment.kubernetes.io/desired-replicas: 3\n                deployment.kubernetes.io/max-replicas: 4\n                deployment.kubernetes.io/revision: 1\nControlled By:  Deployment/api-server\nReplicas:       2 current / 3 desired\nPods Status:    2 Running / 0 Waiting / 0 Succeeded / 0 Failed\nPod Template:\n  Labels:  app=api-server\n           pod-template-hash=5484f6bcc6\n  Containers:\n   api-server:\n    Image:      nginx:alpine\n    Port:       \u003cnone\u003e\n    Host Port:  \u003cnone\u003e\n    Limits:\n      cpu:     20m\n      memory:  64Mi\n    Requests:\n      cpu:         10m\n      memory:      64Mi\n    Environment:   \u003cnone\u003e\n    Mounts:        \u003cnone\u003e\n  Volumes:         \u003cnone\u003e\n  Node-Selectors:  \u003cnone\u003e\n  Tolerations:     \u003cnone\u003e\nConditions:\n  Type             Status  Reason\n  ----             ------  ------\n  ReplicaFailure   True    FailedCreate\nEvents:\n  Type     Reason            Age                From                   Message\n  ----     ------            ----               ----                   -------\n  Normal   SuccessfulCreate  36s                replicaset-controller  Created pod: api-server-5484f6bcc6-j2wn5\n  Warning  FailedCreate      36s                replicaset-controller  Error creating: pods \"api-server-5484f6bcc6-pbwj5\" is forbidden: exceeded quota: compute-quota, requested: requests.cpu=10m, used: requests.cpu=20m, limited: requests.cpu=20m\n  Normal   SuccessfulCreate  36s                replicaset-controller  Created pod: api-server-5484f6bcc6-xjq7b\n  Warning  FailedCreate      36s                replicaset-controller  Error creating: pods \"api-server-5484f6bcc6-p9sqz\" is forbidden: exceeded quota: compute-quota, requested: requests.cpu=10m, used: requests.cpu=20m, limited: requests.cpu=20m\n  Warning  FailedCreate      36s                replicaset-controller  Error creating: pods \"api-server-5484f6bcc6-q722z\" is forbidden: exceeded quota: compute-quota, requested: requests.cpu=10m, used: requests.cpu=20m, limited: requests.cpu=20m\n  Warning  FailedCreate      36s                replicaset-controller  Error creating: pods \"api-server-5484f6bcc6-lfxrs\" is forbidden: exceeded quota: compute-quota, requested: requests.cpu=10m, used: requests.cpu=20m, limited: requests.cpu=20m\n  Warning  FailedCreate      36s                replicaset-controller  Error creating: pods \"api-server-5484f6bcc6-w6587\" is forbidden: exceeded quota: compute-quota, requested: requests.cpu=10m, used: requests.cpu=20m, limited: requests.cpu=20m\n  Warning  FailedCreate      36s                replicaset-controller  Error creating: pods \"api-server-5484f6bcc6-ls5j5\" is forbidden: exceeded quota: compute-quota, requested: requests.cpu=10m, used: requests.cpu=20m, limited: requests.cpu=20m\n  Warning  FailedCreate      36s                replicaset-controller  Error creating: pods \"api-server-5484f6bcc6-8qsjc\" is forbidden: exceeded quota: compute-quota, requested: requests.cpu=10m, used: requests.cpu=20m, limited: requests.cpu=20m\n  Warning  FailedCreate      35s                replicaset-controller  Error creating: pods \"api-server-5484f6bcc6-b87c8\" is forbidden: exceeded quota: compute-quota, requested: requests.cpu=10m, used: requests.cpu=20m, limited: requests.cpu=20m\n  Warning  FailedCreate      35s                replicaset-controller  Error creating: pods \"api-server-5484f6bcc6-7wclv\" is forbidden: exceeded quota: compute-quota, requested: requests.cpu=10m, used: requests.cpu=20m, limited: requests.cpu=20m\n  Warning  FailedCreate      31s (x6 over 33s)  replicaset-controller  (combined from similar events): Error creating: pods \"api-server-5484f6bcc6-ffzqw\" is forbidden: exceeded quota: compute-quota, requested: requests.cpu=10m, used: requests.cpu=20m, limited: requests.cpu=20m\n",
+          "Error": "",
+          "Timestamp": "2025-12-02T21:32:58.489754332+08:00",
+          "ExecutionTime": 1718083326
+        }
+      ],
+      "ToolSelectionCorrect": false,
+      "ToolSelectionScore": 1,
+      "ParameterAccuracy": 0.75,
+      "OutputQualityScore": 0,
+      "Status": "fail",
+      "ErrorMessage": "",
+      "ValidationResults": [
+        {
+          "ExpectedTool": "call_kubectl",
+          "ToolCalled": true,
+          "CallCount": 5,
+          "MinCalls": 2,
+          "ArgsValid": false,
+          "MatchedPatterns": [
+            "namespace-78b"
+          ],
+          "MissingPatterns": [
+            "resourcequota|quota"
+          ],
+          "Score": 0.75
+        }
+      ],
+      "JudgingResult": null
+    },
+    {
+      "TestCase": {
+        "ID": "09_pod_anti_affinity_conflict",
+        "Title": "Diagnose Pod Anti-Affinity Scheduling Failure",
+        "Description": "Test agent's ability to identify insufficient nodes for anti-affinity requirements",
+        "Tags": [
+          "kubernetes",
+          "medium"
+        ],
+        "UserPrompt": "Why can't the silver-puffin pods be scheduled in namespace-82?",
+        "ExpectedOutput": [
+          "pod anti-affinity",
+          "different nodes",
+          "insufficient nodes",
+          "hostname.*topology"
+        ],
+        "ExpectedToolUsage": [
+          {
+            "ToolName": "call_kubectl",
+            "MinCalls": 1,
+            "RequiredArgsPatterns": [
+              "namespace-82",
+              "pod|affinity"
+            ]
+          }
+        ],
+        "BeforeTest": "kubectl apply -f ./manifest.yaml\nsleep 20\n",
+        "AfterTest": "kubectl delete -f ./manifest.yaml",
+        "Timeout": 120000000000,
+        "FilePath": "fixtures/kubectl/medium/09_pod_anti_affinity_conflict"
+      },
+      "StartTime": "2025-12-02T21:33:10.431308605+08:00",
+      "EndTime": "2025-12-02T21:33:44.887148748+08:00",
+      "ExecutionTime": 32509878512,
+      "TotalToolCallTime": 2553427074,
+      "AvgToolCallDuration": 1276713537,
+      "LLMIterations": 3,
+      "FinalAnswer": "The `silver-puffin` pods in the namespace `namespace-82` cannot be scheduled because of the following issue:\n\n- The scheduler reports that **\"0/2 nodes are available: 2 node(s) didn't match pod anti-affinity rules.\"**\n\nThis implies that the pod has anti-affinity rules configured that prevent it from being co-located with certain other pods or on specific nodes. As a result, none of the available nodes satisfy the scheduling requirements. \n\nTo resolve this, you should review the pod's anti-affinity rules and ensure that they are correctly configured or adjust them if necessary. Alternatively, check the cluster's node configuration to see why the nodes do not meet these rules.",
+      "ToolCalls": [
+        {
+          "ToolName": "call_kubectl",
+          "Arguments": {
+            "args": "get pods -n namespace-82"
+          },
+          "Result": "NAME                             READY   STATUS    RESTARTS   AGE\nsilver-puffin-5c6f7d5d78-44lhc   0/1     Pending   0          24s\nsilver-puffin-5c6f7d5d78-bqdhn   0/1     Pending   0          24s\nsilver-puffin-5c6f7d5d78-bqn7z   1/1     Running   0          24s\nsilver-puffin-5c6f7d5d78-krtr2   0/1     Pending   0          24s\nsilver-puffin-5c6f7d5d78-pcvsf   1/1     Running   0          24s\nsilver-puffin-5c6f7d5d78-qmc2r   0/1     Pending   0          24s\nsilver-puffin-5c6f7d5d78-rj9bq   0/1     Pending   0          24s\nsilver-puffin-5c6f7d5d78-tvndz   0/1     Pending   0          24s\n",
+          "Error": "",
+          "Timestamp": "2025-12-02T21:33:36.123299728+08:00",
+          "ExecutionTime": 1184161528
+        },
+        {
+          "ToolName": "call_kubectl",
+          "Arguments": {
+            "args": "describe pod silver-puffin-5c6f7d5d78-44lhc -n namespace-82"
+          },
+          "Result": "Name:             silver-puffin-5c6f7d5d78-44lhc\nNamespace:        namespace-82\nPriority:         0\nService Account:  default\nNode:             \u003cnone\u003e\nLabels:           app=silver-puffin\n                  pod-template-hash=5c6f7d5d78\nAnnotations:      \u003cnone\u003e\nStatus:           Pending\nIP:               \nIPs:              \u003cnone\u003e\nControlled By:    ReplicaSet/silver-puffin-5c6f7d5d78\nContainers:\n  silver-puffin:\n    Image:      redis:alpine\n    Port:       \u003cnone\u003e\n    Host Port:  \u003cnone\u003e\n    Limits:\n      memory:  64Mi\n    Requests:\n      cpu:        5m\n      memory:     16Mi\n    Environment:  \u003cnone\u003e\n    Mounts:\n      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-cgzpq (ro)\nConditions:\n  Type           Status\n  PodScheduled   False \nVolumes:\n  kube-api-access-cgzpq:\n    Type:                    Projected (a volume that contains injected data from multiple sources)\n    TokenExpirationSeconds:  3607\n    ConfigMapName:           kube-root-ca.crt\n    ConfigMapOptional:       \u003cnil\u003e\n    DownwardAPI:             true\nQoS Class:                   Burstable\nNode-Selectors:              \u003cnone\u003e\nTolerations:                 node.kubernetes.io/memory-pressure:NoSchedule op=Exists\n                             node.kubernetes.io/not-ready:NoExecute op=Exists for 300s\n                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s\nEvents:\n  Type     Reason            Age   From               Message\n  ----     ------            ----  ----               -------\n  Warning  FailedScheduling  25s   default-scheduler  0/2 nodes are available: 2 node(s) didn't match pod anti-affinity rules. preemption: 0/2 nodes are available: 2 No preemption victims found for incoming pod.\n",
+          "Error": "",
+          "Timestamp": "2025-12-02T21:33:38.638022774+08:00",
+          "ExecutionTime": 1369265546
+        }
+      ],
+      "ToolSelectionCorrect": false,
+      "ToolSelectionScore": 1,
+      "ParameterAccuracy": 1,
+      "OutputQualityScore": 0.9,
+      "Status": "pass",
+      "ErrorMessage": "",
+      "ValidationResults": [
+        {
+          "ExpectedTool": "call_kubectl",
+          "ToolCalled": true,
+          "CallCount": 2,
+          "MinCalls": 1,
+          "ArgsValid": true,
+          "MatchedPatterns": [
+            "namespace-82",
+            "pod|affinity"
+          ],
+          "MissingPatterns": [],
+          "Score": 1
+        }
+      ],
+      "JudgingResult": {
+        "Score": 0.9,
+        "Reasoning": "The answer correctly identifies pod anti-affinity as the root cause and mentions that the nodes do not match the rules, addressing main points like node incompatibility and anti-affinity configuration. However, it does not explicitly reference 'insufficient nodes' or 'hostname.*topology,' which were part of the expected answer."
+      }
+    },
+    {
+      "TestCase": {
+        "ID": "10_hpa_not_scaling",
+        "Title": "Diagnose HPA Unable to Calculate Metrics",
+        "Description": "Test agent's ability to identify missing resource requests preventing HPA from scaling",
+        "Tags": [
+          "kubernetes",
+          "medium"
+        ],
+        "UserPrompt": "Why isn't the golden-eagle deployment scaling despite high CPU usage in namespace-85?",
+        "ExpectedOutput": [
+          "HPA.*cannot calculate.*CPU metrics",
+          "resource requests.*not defined",
+          "missing.*resource.*requests",
+          "pod spec.*resources"
+        ],
+        "ExpectedToolUsage": [
+          {
+            "ToolName": "call_kubectl",
+            "MinCalls": 2,
+            "RequiredArgsPatterns": [
+              "namespace-85",
+              "hpa|deployment"
+            ]
+          }
+        ],
+        "BeforeTest": "kubectl apply -f ./manifest.yaml\nsleep 30\n",
+        "AfterTest": "kubectl delete -f ./manifest.yaml",
+        "Timeout": 120000000000,
+        "FilePath": "fixtures/kubectl/medium/10_hpa_not_scaling"
+      },
+      "StartTime": "2025-12-02T21:33:55.226590768+08:00",
+      "EndTime": "2025-12-02T21:34:43.604555197+08:00",
+      "ExecutionTime": 46506930742,
+      "TotalToolCallTime": 2679261875,
+      "AvgToolCallDuration": 1339630937,
+      "LLMIterations": 2,
+      "FinalAnswer": "Here’s what I found:\n\n1. **Horizontal Pod Autoscaler (HPA)**:\n   - An HPA named `golden-eagle-hpa` exists in the `namespace-85` namespace, and it targets the `Deployment/golden-eagle`.\n   - The HPA has the following key configurations:\n     - CPU target: 50% average utilization.\n     - Minimum replicas: 1.\n     - Maximum replicas: 5.\n   - However, the `Targets` column (`cpu: \u003cunknown\u003e/50%`) indicates that the HPA is not receiving CPU metrics for the deployment.\n\n2. **Deployment `golden-eagle`**:\n   - The deployment has a single replica as desired.\n   - The container in the deployment lacks resource requests and limits for CPU/memory, which are critical for HPA to determine the CPU utilization and scale accordingly.\n   - Events show no scaling activity beyond the initial creation of the deployment, and there are no issues recorded.\n\n### Issue Identified:\nThe HPA is unable to scale the deployment due to the absence of resource requests and limits for the `golden-eagle` container. Without these, it cannot calculate the current CPU utilization percentage against the target threshold.\n\n### Solution:\n1. **Define CPU Resource Requests and Limits**:\n   Update the deployment to include CPU resource requests and limits for the container. For example:\n   ```yaml\n   resources:\n     requests:\n       cpu: \"100m\"\n     limits:\n       cpu: \"200m\"\n   ```\n\n2. **Validate Metrics Server**:\n   Ensure the Kubernetes Metrics Server is deployed and functioning correctly, as it is required for HPA to retrieve CPU usage data.\n\n3. **Monitor HPA Behavior**:\n   Once the resource requests are added, check the HPA status and ensure it receives updated metrics under the `Targets` column.\n\nWould you like assistance with generating the YAML file to update this deployment or checking the metrics server?",
+      "ToolCalls": [
+        {
+          "ToolName": "call_kubectl",
+          "Arguments": {
+            "args": "get hpa -n namespace-85"
+          },
+          "Result": "NAME               REFERENCE                 TARGETS              MINPODS   MAXPODS   REPLICAS   AGE\ngolden-eagle-hpa   Deployment/golden-eagle   cpu: \u003cunknown\u003e/50%   1         5         1          38s\n",
+          "Error": "",
+          "Timestamp": "2025-12-02T21:34:35.714359929+08:00",
+          "ExecutionTime": 998249557
+        },
+        {
+          "ToolName": "call_kubectl",
+          "Arguments": {
+            "args": "describe deployment golden-eagle -n namespace-85"
+          },
+          "Result": "Name:                   golden-eagle\nNamespace:              namespace-85\nCreationTimestamp:      Tue, 02 Dec 2025 21:33:58 +0800\nLabels:                 \u003cnone\u003e\nAnnotations:            deployment.kubernetes.io/revision: 1\nSelector:               app=golden-eagle\nReplicas:               1 desired | 1 updated | 1 total | 1 available | 0 unavailable\nStrategyType:           RollingUpdate\nMinReadySeconds:        0\nRollingUpdateStrategy:  25% max unavailable, 25% max surge\nPod Template:\n  Labels:  app=golden-eagle\n  Containers:\n   golden-eagle:\n    Image:      busybox\n    Port:       \u003cnone\u003e\n    Host Port:  \u003cnone\u003e\n    Command:\n      sh\n      -c\n      while true; do echo 'Working...'; sleep 1; done\n    Environment:   \u003cnone\u003e\n    Mounts:        \u003cnone\u003e\n  Volumes:         \u003cnone\u003e\n  Node-Selectors:  \u003cnone\u003e\n  Tolerations:     \u003cnone\u003e\nConditions:\n  Type           Status  Reason\n  ----           ------  ------\n  Available      True    MinimumReplicasAvailable\n  Progressing    True    NewReplicaSetAvailable\nOldReplicaSets:  \u003cnone\u003e\nNewReplicaSet:   golden-eagle-79847cc468 (1/1 replicas created)\nEvents:\n  Type    Reason             Age   From                   Message\n  ----    ------             ----  ----                   -------\n  Normal  ScalingReplicaSet  39s   deployment-controller  Scaled up replica set golden-eagle-79847cc468 from 0 to 1\n",
+          "Error": "",
+          "Timestamp": "2025-12-02T21:34:35.714298908+08:00",
+          "ExecutionTime": 1681012318
+        }
+      ],
+      "ToolSelectionCorrect": false,
+      "ToolSelectionScore": 1,
+      "ParameterAccuracy": 1,
+      "OutputQualityScore": 1,
+      "Status": "pass",
+      "ErrorMessage": "",
+      "ValidationResults": [
+        {
+          "ExpectedTool": "call_kubectl",
+          "ToolCalled": true,
+          "CallCount": 2,
+          "MinCalls": 2,
+          "ArgsValid": true,
+          "MatchedPatterns": [
+            "namespace-85",
+            "hpa|deployment"
+          ],
+          "MissingPatterns": [],
+          "Score": 1
+        }
+      ],
+      "JudgingResult": {
+        "Score": 1,
+        "Reasoning": "The answer fully addresses the issue by identifying that the HPA cannot calculate CPU metrics due to missing resource requests in the pod spec. It also provides a clear solution to add the resource requests and limits and mentions validating the metrics server. All expected points are covered and explained thoroughly."
+      }
+    },
+    {
+      "TestCase": {
+        "ID": "11_pod_names_contain_service",
+        "Title": "Diagnose Readiness Probe Failure",
+        "Description": "Test agent's ability to identify failing readiness probe causing pod not ready",
+        "Tags": [
+          "kubernetes",
+          "medium"
+        ],
+        "UserPrompt": "What is the issue with search-engine-service",
+        "ExpectedOutput": [
+          "search-engine-service.*pod.*not ready",
+          "readiness probe.*failing",
+          "readiness probe.*exit 1",
+          "probe.*command.*fail"
+        ],
+        "ExpectedToolUsage": [
+          {
+            "ToolName": "call_kubectl",
+            "MinCalls": 1,
+            "RequiredArgsPatterns": [
+              "app-111",
+              "search-engine-service"
+            ]
+          }
+        ],
+        "BeforeTest": "kubectl apply -f ./manifest.yaml\nsleep 30\n",
+        "AfterTest": "kubectl delete -f ./manifest.yaml",
+        "Timeout": 120000000000,
+        "FilePath": "fixtures/kubectl/medium/11_pod_names_contain_service"
+      },
+      "StartTime": "2025-12-02T21:35:17.115483572+08:00",
+      "EndTime": "2025-12-02T21:36:04.605071391+08:00",
+      "ExecutionTime": 43680904383,
+      "TotalToolCallTime": 2646440372,
+      "AvgToolCallDuration": 1323220186,
+      "LLMIterations": 3,
+      "FinalAnswer": "The issue with the `search-engine-service` pod within the `app-111` namespace is that its readiness probe is failing. This is preventing the container from being marked as \"Ready.\" Here are the relevant findings:\n\n1. **Pod Details**:\n   - The container is running a `busybox` image with a simple looped command (`sh -c while true; do echo 'Running...'; sleep 5; done`).\n   - The state of the container is running, but it is not considered \"Ready.\"\n\n2. **Readiness Probe**:\n   - The readiness probe is configured as follows:\n     ```sh\n     exec [sh -c exit 1]\n     delay=5s\n     timeout=1s\n     period=5s\n     ```\n\n   - The configured probe always fails since the command `exit 1` returns a non-zero exit code (`1`), which is interpreted as a failure.\n\n3. **Pod Conditions**:\n   - The `Ready` and `ContainersReady` conditions are marked as `False` because the readiness probe fails repeatedly.\n\n4. **Events**:\n   - The pod successfully started, pulled the image, created the container, and then started it.\n   - The readiness probe has been failing since the pod started.\n\n### Solution\nTo resolve the issue:\n- Update the readiness probe to use a valid command that correctly checks the readiness of your application inside the container. For example, replace `sh -c exit 1` with a command that returns `0` when the container is ready.\n- If the container simply needs to run without any readiness checks, you can remove or disable the readiness probe from the pod configuration.\n\nDo you need assistance updating the readiness probe or navigating further?",
+      "ToolCalls": [
+        {
+          "ToolName": "call_kubectl",
+          "Arguments": {
+            "args": "get pods --all-namespaces"
+          },
+          "Result": "NAMESPACE           NAME                                                   READY   STATUS    RESTARTS   AGE\naks-mcp-inspector   aks-mcp-inspector-755c84f5f6-g5fl8                     1/1     Running   0          11d\napp-111             search-engine-service                                  0/1     Running   0          34s\ndefault             aks-mcp-7496c87dc7-rrr7n                               1/1     Running   0          11d\ndefault             azure-api-mcp-b4645b99c-tdfrt                          1/1     Running   0          11d\ndefault             azure-mcp-azure-api-mcp-646d55bf7c-lnllk               1/1     Running   0          11d\ndefault             azure-mcp-azure-api-mcp-646d55bf7c-w4krm               1/1     Running   0          11d\ndefault             kubectl-test-pod-5f8ddb5d54-mkwkb                      1/1     Running   0          11d\ndefault             workload-identity-demo-846c69c99b-pjvcf                1/1     Running   0          11d\ngatekeeper-system   gatekeeper-audit-55768b56d7-h6lh8                      1/1     Running   0          11d\ngatekeeper-system   gatekeeper-controller-f465c8d88-4tsh7                  1/1     Running   0          11d\ngatekeeper-system   gatekeeper-controller-f465c8d88-7kxcs                  1/1     Running   0          11d\nkube-system         ama-logs-llr9k                                         3/3     Running   0          11d\nkube-system         ama-logs-nnqws                                         3/3     Running   0          11d\nkube-system         ama-logs-rs-769ff77bb8-pqc59                           2/2     Running   0          11d\nkube-system         azure-cns-9rrx6                                        1/1     Running   0          11d\nkube-system         azure-cns-vwhjm                                        1/1     Running   0          11d\nkube-system         azure-ip-masq-agent-gbcmg                              1/1     Running   0          11d\nkube-system         azure-ip-masq-agent-pgkww                              1/1     Running   0          11d\nkube-system         azure-policy-6c7ccfd44d-2bmbk                          1/1     Running   0          11d\nkube-system         azure-policy-webhook-c7c56688d-g9srd                   1/1     Running   0          11d\nkube-system         azure-wi-webhook-controller-manager-656f4c446d-5f922   1/1     Running   0          11d\nkube-system         azure-wi-webhook-controller-manager-656f4c446d-76zl8   1/1     Running   0          11d\nkube-system         cloud-node-manager-5hp5h                               1/1     Running   0          11d\nkube-system         cloud-node-manager-lhwtf                               1/1     Running   0          11d\nkube-system         coredns-6865d647c6-cx56q                               1/1     Running   0          11d\nkube-system         coredns-6865d647c6-rbscn                               1/1     Running   0          11d\nkube-system         coredns-autoscaler-67d9d668db-crlgm                    1/1     Running   0          11d\nkube-system         csi-azuredisk-node-7gd7m                               3/3     Running   0          11d\nkube-system         csi-azuredisk-node-9g8gf                               3/3     Running   0          11d\nkube-system         csi-azurefile-node-mc9qb                               3/3     Running   0          11d\nkube-system         csi-azurefile-node-mrjgf                               3/3     Running   0          11d\nkube-system         konnectivity-agent-autoscaler-6ff7779788-lfrs7         1/1     Running   0          11d\nkube-system         konnectivity-agent-dd98dd6d5-mhnbb                     1/1     Running   0          11d\nkube-system         konnectivity-agent-dd98dd6d5-vkfbq                     1/1     Running   0          11d\nkube-system         kube-proxy-2r4tp                                       1/1     Running   0          11d\nkube-system         kube-proxy-4rnjd                                       1/1     Running   0          11d\nkube-system         metrics-server-66b7768944-h9wt4                        2/2     Running   0          11d\nkube-system         metrics-server-66b7768944-z989f                        2/2     Running   0          11d\n",
+          "Error": "",
+          "Timestamp": "2025-12-02T21:35:53.222851321+08:00",
+          "ExecutionTime": 1236489533
+        },
+        {
+          "ToolName": "call_kubectl",
+          "Arguments": {
+            "args": "describe pod search-engine-service -n app-111"
+          },
+          "Result": "Name:             search-engine-service\nNamespace:        app-111\nPriority:         0\nService Account:  default\nNode:             aks-nodepool1-31093287-vmss000001/10.224.0.5\nStart Time:       Tue, 02 Dec 2025 21:35:21 +0800\nLabels:           \u003cnone\u003e\nAnnotations:      \u003cnone\u003e\nStatus:           Running\nIP:               10.244.0.80\nIPs:\n  IP:  10.244.0.80\nContainers:\n  get-details:\n    Container ID:  containerd://8822764343efc46043deb4e5b93b8715cbfbd6a80d7b1b524d3db65f09c5bada\n    Image:         busybox\n    Image ID:      docker.io/library/busybox@sha256:e3652a00a2fabd16ce889f0aa32c38eec347b997e73bd09e69c962ec7f8732ee\n    Port:          \u003cnone\u003e\n    Host Port:     \u003cnone\u003e\n    Command:\n      sh\n      -c\n      while true; do echo 'Running...'; sleep 5; done\n    State:          Running\n      Started:      Tue, 02 Dec 2025 21:35:22 +0800\n    Ready:          False\n    Restart Count:  0\n    Readiness:      exec [sh -c exit 1] delay=5s timeout=1s period=5s #success=1 #failure=3\n    Environment:    \u003cnone\u003e\n    Mounts:\n      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-rvwvh (ro)\nConditions:\n  Type                        Status\n  PodReadyToStartContainers   True \n  Initialized                 True \n  Ready                       False \n  ContainersReady             False \n  PodScheduled                True \nVolumes:\n  kube-api-access-rvwvh:\n    Type:                    Projected (a volume that contains injected data from multiple sources)\n    TokenExpirationSeconds:  3607\n    ConfigMapName:           kube-root-ca.crt\n    ConfigMapOptional:       \u003cnil\u003e\n    DownwardAPI:             true\nQoS Class:                   BestEffort\nNode-Selectors:              \u003cnone\u003e\nTolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s\n                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s\nEvents:\n  Type     Reason     Age               From               Message\n  ----     ------     ----              ----               -------\n  Normal   Scheduled  37s               default-scheduler  Successfully assigned app-111/search-engine-service to aks-nodepool1-31093287-vmss000001\n  Normal   Pulling    38s               kubelet            Pulling image \"busybox\"\n  Normal   Pulled     38s               kubelet            Successfully pulled image \"busybox\" in 109ms (109ms including waiting). Image size: 2224358 bytes.\n  Normal   Created    38s               kubelet            Created container: get-details\n  Normal   Started    37s               kubelet            Started container get-details\n  Warning  Unhealthy  1s (x7 over 31s)  kubelet            Readiness probe failed:\n",
+          "Error": "",
+          "Timestamp": "2025-12-02T21:35:57.778213432+08:00",
+          "ExecutionTime": 1409950839
+        }
+      ],
+      "ToolSelectionCorrect": false,
+      "ToolSelectionScore": 1,
+      "ParameterAccuracy": 1,
+      "OutputQualityScore": 1,
+      "Status": "pass",
+      "ErrorMessage": "",
+      "ValidationResults": [
+        {
+          "ExpectedTool": "call_kubectl",
+          "ToolCalled": true,
+          "CallCount": 2,
+          "MinCalls": 1,
+          "ArgsValid": true,
+          "MatchedPatterns": [
+            "app-111",
+            "search-engine-service"
+          ],
+          "MissingPatterns": [],
+          "Score": 1
+        }
+      ],
+      "JudgingResult": {
+        "Score": 1,
+        "Reasoning": "The answer comprehensively identifies the issue with the 'search-engine-service' pod, including all expected points such as the readiness probe failing, the command (exit 1) causing probe failure, and the impact of the readiness probe on pod conditions. It also suggests a clear solution to resolve the issue. All expected elements are present without any omissions."
+      }
+    },
+    {
+      "TestCase": {
+        "ID": "12_find_pvcs_by_uuid",
+        "Title": "Find PVCs by Backup ID Annotation",
+        "Description": "Test agent's ability to search PVCs by annotation and report sizes across namespaces",
+        "Tags": [
+          "kubernetes",
+          "medium"
+        ],
+        "UserPrompt": "Find all PVCs that were created from backup ID b7f3a521-8c4d-4e6a-9f2b-1a3d5e7f9c2e and cite their sizes",
+        "ExpectedOutput": [
+          "Found.*4.*PVCs",
+          "database-pvc.*app-112-prod.*2Mi",
+          "media-storage.*app-112-prod.*2Mi",
+          "test-database.*app-112-staging.*2Mi",
+          "build-cache.*app-112-dev.*2Mi"
+        ],
+        "ExpectedToolUsage": [
+          {
+            "ToolName": "call_kubectl",
+            "MinCalls": 1,
+            "RequiredArgsPatterns": [
+              "pvc|persistentvolumeclaim",
+              "b7f3a521-8c4d-4e6a-9f2b-1a3d5e7f9c2e"
+            ]
+          }
+        ],
+        "BeforeTest": "kubectl apply -f ./manifest.yaml\nsleep 5\n",
+        "AfterTest": "kubectl delete -f ./manifest.yaml",
+        "Timeout": 120000000000,
+        "FilePath": "fixtures/kubectl/medium/12_find_pvcs_by_uuid"
+      },
+      "StartTime": "2025-12-02T21:36:37.969365386+08:00",
+      "EndTime": "2025-12-02T21:36:58.943389481+08:00",
+      "ExecutionTime": 20149859859,
+      "TotalToolCallTime": 1214575767,
+      "AvgToolCallDuration": 1214575767,
+      "LLMIterations": 2,
+      "FinalAnswer": "The following PVCs were created from backup ID `b7f3a521-8c4d-4e6a-9f2b-1a3d5e7f9c2e` along with their sizes:\n\n1. **PVC Name**: `build-cache`  \n   **Namespace**: `app-112-dev`  \n   **Size**: `2Mi`\n   \n2. **PVC Name**: `database-pvc`  \n   **Namespace**: `app-112-prod`  \n   **Size**: `2Mi`\n   \n3. **PVC Name**: `media-storage`  \n   **Namespace**: `app-112-prod`  \n   **Size**: `2Mi`\n   \n4. **PVC Name**: `test-database`  \n   **Namespace**: `app-112-staging`  \n   **Size**: `2Mi`",
+      "ToolCalls": [
+        {
+          "ToolName": "call_kubectl",
+          "Arguments": {
+            "args": "get pvc --all-namespaces -o json"
+          },
+          "Result": "{\n    \"apiVersion\": \"v1\",\n    \"items\": [\n        {\n            \"apiVersion\": \"v1\",\n            \"kind\": \"PersistentVolumeClaim\",\n            \"metadata\": {\n                \"annotations\": {\n                    \"backup.velero.io/backup-id\": \"b7f3a521-8c4d-4e6a-9f2b-1a3d5e7f9c2e\",\n                    \"backup.velero.io/backup-time\": \"2024-01-15T03:00:00Z\",\n                    \"kubectl.kubernetes.io/last-applied-configuration\": \"{\\\"apiVersion\\\":\\\"v1\\\",\\\"kind\\\":\\\"PersistentVolumeClaim\\\",\\\"metadata\\\":{\\\"annotations\\\":{\\\"backup.velero.io/backup-id\\\":\\\"b7f3a521-8c4d-4e6a-9f2b-1a3d5e7f9c2e\\\",\\\"backup.velero.io/backup-time\\\":\\\"2024-01-15T03:00:00Z\\\",\\\"storage.kubernetes.io/tier\\\":\\\"standard\\\"},\\\"name\\\":\\\"build-cache\\\",\\\"namespace\\\":\\\"app-112-dev\\\"},\\\"spec\\\":{\\\"accessModes\\\":[\\\"ReadWriteMany\\\"],\\\"resources\\\":{\\\"requests\\\":{\\\"storage\\\":\\\"2Mi\\\"}}}}\\n\",\n                    \"storage.kubernetes.io/tier\": \"standard\"\n                },\n                \"creationTimestamp\": \"2025-12-02T13:36:46Z\",\n                \"finalizers\": [\n                    \"kubernetes.io/pvc-protection\"\n                ],\n                \"name\": \"build-cache\",\n                \"namespace\": \"app-112-dev\",\n                \"resourceVersion\": \"15935741\",\n                \"uid\": \"f66f5b93-cad5-44b6-849c-1a15c6a1a9a9\"\n            },\n            \"spec\": {\n                \"accessModes\": [\n                    \"ReadWriteMany\"\n                ],\n                \"resources\": {\n                    \"requests\": {\n                        \"storage\": \"2Mi\"\n                    }\n                },\n                \"storageClassName\": \"default\",\n                \"volumeMode\": \"Filesystem\"\n            },\n            \"status\": {\n                \"phase\": \"Pending\"\n            }\n        },\n        {\n            \"apiVersion\": \"v1\",\n            \"kind\": \"PersistentVolumeClaim\",\n            \"metadata\": {\n                \"annotations\": {\n                    \"backup.velero.io/backup-id\": \"a3c5e7f9-2b4d-6e8a-c1f3-5a7d9e1b3f5e\",\n                    \"backup.velero.io/backup-time\": \"2024-01-12T03:00:00Z\",\n                    \"kubectl.kubernetes.io/last-applied-configuration\": \"{\\\"apiVersion\\\":\\\"v1\\\",\\\"kind\\\":\\\"PersistentVolumeClaim\\\",\\\"metadata\\\":{\\\"annotations\\\":{\\\"backup.velero.io/backup-id\\\":\\\"a3c5e7f9-2b4d-6e8a-c1f3-5a7d9e1b3f5e\\\",\\\"backup.velero.io/backup-time\\\":\\\"2024-01-12T03:00:00Z\\\",\\\"storage.kubernetes.io/tier\\\":\\\"standard\\\"},\\\"name\\\":\\\"dev-workspace\\\",\\\"namespace\\\":\\\"app-112-dev\\\"},\\\"spec\\\":{\\\"accessModes\\\":[\\\"ReadWriteOnce\\\"],\\\"resources\\\":{\\\"requests\\\":{\\\"storage\\\":\\\"2Mi\\\"}}}}\\n\",\n                    \"storage.kubernetes.io/tier\": \"standard\"\n                },\n                \"creationTimestamp\": \"2025-12-02T13:36:46Z\",\n                \"finalizers\": [\n                    \"kubernetes.io/pvc-protection\"\n                ],\n                \"name\": \"dev-workspace\",\n                \"namespace\": \"app-112-dev\",\n                \"resourceVersion\": \"15935737\",\n                \"uid\": \"b97447b3-6305-4f77-88e2-ec122b8c9dcc\"\n            },\n            \"spec\": {\n                \"accessModes\": [\n                    \"ReadWriteOnce\"\n                ],\n                \"resources\": {\n                    \"requests\": {\n                        \"storage\": \"2Mi\"\n                    }\n                },\n                \"storageClassName\": \"default\",\n                \"volumeMode\": \"Filesystem\"\n            },\n            \"status\": {\n                \"phase\": \"Pending\"\n            }\n        },\n        {\n            \"apiVersion\": \"v1\",\n            \"kind\": \"PersistentVolumeClaim\",\n            \"metadata\": {\n                \"annotations\": {\n                    \"kubectl.kubernetes.io/last-applied-configuration\": \"{\\\"apiVersion\\\":\\\"v1\\\",\\\"kind\\\":\\\"PersistentVolumeClaim\\\",\\\"metadata\\\":{\\\"annotations\\\":{\\\"storage.kubernetes.io/tier\\\":\\\"standard\\\"},\\\"name\\\":\\\"temp-storage\\\",\\\"namespace\\\":\\\"app-112-dev\\\"},\\\"spec\\\":{\\\"accessModes\\\":[\\\"ReadWriteOnce\\\"],\\\"resources\\\":{\\\"requests\\\":{\\\"storage\\\":\\\"2Mi\\\"}}}}\\n\",\n                    \"storage.kubernetes.io/tier\": \"standard\"\n                },\n                \"creationTimestamp\": \"2025-12-02T13:36:47Z\",\n                \"finalizers\": [\n                    \"kubernetes.io/pvc-protection\"\n                ],\n                \"name\": \"temp-storage\",\n                \"namespace\": \"app-112-dev\",\n                \"resourceVersion\": \"15935747\",\n                \"uid\": \"b013f352-553a-4e79-a567-774d1114aed4\"\n            },\n            \"spec\": {\n                \"accessModes\": [\n                    \"ReadWriteOnce\"\n                ],\n                \"resources\": {\n                    \"requests\": {\n                        \"storage\": \"2Mi\"\n                    }\n                },\n                \"storageClassName\": \"default\",\n                \"volumeMode\": \"Filesystem\"\n            },\n            \"status\": {\n                \"phase\": \"Pending\"\n            }\n        },\n        {\n            \"apiVersion\": \"v1\",\n            \"kind\": \"PersistentVolumeClaim\",\n            \"metadata\": {\n                \"annotations\": {\n                    \"backup.velero.io/backup-id\": \"b7f3a521-8c4d-4e6a-9f2b-1a3d5e7f9c2e\",\n                    \"backup.velero.io/backup-time\": \"2024-01-15T03:00:00Z\",\n                    \"kubectl.kubernetes.io/last-applied-configuration\": \"{\\\"apiVersion\\\":\\\"v1\\\",\\\"kind\\\":\\\"PersistentVolumeClaim\\\",\\\"metadata\\\":{\\\"annotations\\\":{\\\"backup.velero.io/backup-id\\\":\\\"b7f3a521-8c4d-4e6a-9f2b-1a3d5e7f9c2e\\\",\\\"backup.velero.io/backup-time\\\":\\\"2024-01-15T03:00:00Z\\\",\\\"storage.kubernetes.io/tier\\\":\\\"premium\\\"},\\\"name\\\":\\\"database-pvc\\\",\\\"namespace\\\":\\\"app-112-prod\\\"},\\\"spec\\\":{\\\"accessModes\\\":[\\\"ReadWriteOnce\\\"],\\\"resources\\\":{\\\"requests\\\":{\\\"storage\\\":\\\"2Mi\\\"}}}}\\n\",\n                    \"storage.kubernetes.io/tier\": \"premium\"\n                },\n                \"creationTimestamp\": \"2025-12-02T13:36:42Z\",\n                \"finalizers\": [\n                    \"kubernetes.io/pvc-protection\"\n                ],\n                \"name\": \"database-pvc\",\n                \"namespace\": \"app-112-prod\",\n                \"resourceVersion\": \"15935705\",\n                \"uid\": \"b474f3cb-3202-4683-bd8f-a9a951cdf382\"\n            },\n            \"spec\": {\n                \"accessModes\": [\n                    \"ReadWriteOnce\"\n                ],\n                \"resources\": {\n                    \"requests\": {\n                        \"storage\": \"2Mi\"\n                    }\n                },\n                \"storageClassName\": \"default\",\n                \"volumeMode\": \"Filesystem\"\n            },\n            \"status\": {\n                \"phase\": \"Pending\"\n            }\n        },\n        {\n            \"apiVersion\": \"v1\",\n            \"kind\": \"PersistentVolumeClaim\",\n            \"metadata\": {\n                \"annotations\": {\n                    \"backup.velero.io/backup-id\": \"d9e2f7a3-5b1c-4d8e-a3f6-2c4e6f8a1b3d\",\n                    \"backup.velero.io/backup-time\": \"2024-01-14T03:00:00Z\",\n                    \"kubectl.kubernetes.io/last-applied-configuration\": \"{\\\"apiVersion\\\":\\\"v1\\\",\\\"kind\\\":\\\"PersistentVolumeClaim\\\",\\\"metadata\\\":{\\\"annotations\\\":{\\\"backup.velero.io/backup-id\\\":\\\"d9e2f7a3-5b1c-4d8e-a3f6-2c4e6f8a1b3d\\\",\\\"backup.velero.io/backup-time\\\":\\\"2024-01-14T03:00:00Z\\\",\\\"storage.kubernetes.io/tier\\\":\\\"archive\\\"},\\\"name\\\":\\\"logs-archive\\\",\\\"namespace\\\":\\\"app-112-prod\\\"},\\\"spec\\\":{\\\"accessModes\\\":[\\\"ReadWriteOnce\\\"],\\\"resources\\\":{\\\"requests\\\":{\\\"storage\\\":\\\"2Mi\\\"}}}}\\n\",\n                    \"storage.kubernetes.io/tier\": \"archive\"\n                },\n                \"creationTimestamp\": \"2025-12-02T13:36:43Z\",\n                \"finalizers\": [\n                    \"kubernetes.io/pvc-protection\"\n                ],\n                \"name\": \"logs-archive\",\n                \"namespace\": \"app-112-prod\",\n                \"resourceVersion\": \"15935714\",\n                \"uid\": \"9ac71bab-12af-4ab8-aec7-ad712d423c40\"\n            },\n            \"spec\": {\n                \"accessModes\": [\n                    \"ReadWriteOnce\"\n                ],\n                \"resources\": {\n                    \"requests\": {\n                        \"storage\": \"2Mi\"\n                    }\n                },\n                \"storageClassName\": \"default\",\n                \"volumeMode\": \"Filesystem\"\n            },\n            \"status\": {\n                \"phase\": \"Pending\"\n            }\n        },\n        {\n            \"apiVersion\": \"v1\",\n            \"kind\": \"PersistentVolumeClaim\",\n            \"metadata\": {\n                \"annotations\": {\n                    \"backup.velero.io/backup-id\": \"b7f3a521-8c4d-4e6a-9f2b-1a3d5e7f9c2e\",\n                    \"backup.velero.io/backup-time\": \"2024-01-15T03:00:00Z\",\n                    \"kubectl.kubernetes.io/last-applied-configuration\": \"{\\\"apiVersion\\\":\\\"v1\\\",\\\"kind\\\":\\\"PersistentVolumeClaim\\\",\\\"metadata\\\":{\\\"annotations\\\":{\\\"backup.velero.io/backup-id\\\":\\\"b7f3a521-8c4d-4e6a-9f2b-1a3d5e7f9c2e\\\",\\\"backup.velero.io/backup-time\\\":\\\"2024-01-15T03:00:00Z\\\",\\\"storage.kubernetes.io/tier\\\":\\\"standard\\\"},\\\"name\\\":\\\"media-storage\\\",\\\"namespace\\\":\\\"app-112-prod\\\"},\\\"spec\\\":{\\\"accessModes\\\":[\\\"ReadWriteMany\\\"],\\\"resources\\\":{\\\"requests\\\":{\\\"storage\\\":\\\"2Mi\\\"}}}}\\n\",\n                    \"storage.kubernetes.io/tier\": \"standard\"\n                },\n                \"creationTimestamp\": \"2025-12-02T13:36:43Z\",\n                \"finalizers\": [\n                    \"kubernetes.io/pvc-protection\"\n                ],\n                \"name\": \"media-storage\",\n                \"namespace\": \"app-112-prod\",\n                \"resourceVersion\": \"15935709\",\n                \"uid\": \"c8822655-3bd2-496d-b852-aecc9044b979\"\n            },\n            \"spec\": {\n                \"accessModes\": [\n                    \"ReadWriteMany\"\n                ],\n                \"resources\": {\n                    \"requests\": {\n                        \"storage\": \"2Mi\"\n                    }\n                },\n                \"storageClassName\": \"default\",\n                \"volumeMode\": \"Filesystem\"\n            },\n            \"status\": {\n                \"phase\": \"Pending\"\n            }\n        },\n        {\n            \"apiVersion\": \"v1\",\n            \"kind\": \"PersistentVolumeClaim\",\n            \"metadata\": {\n                \"annotations\": {\n                    \"backup.velero.io/backup-id\": \"f1a2b3c4-d5e6-7f8a-9b0c-1d2e3f4a5b6c\",\n                    \"backup.velero.io/backup-time\": \"2024-01-16T03:00:00Z\",\n                    \"kubectl.kubernetes.io/last-applied-configuration\": \"{\\\"apiVersion\\\":\\\"v1\\\",\\\"kind\\\":\\\"PersistentVolumeClaim\\\",\\\"metadata\\\":{\\\"annotations\\\":{\\\"backup.velero.io/backup-id\\\":\\\"f1a2b3c4-d5e6-7f8a-9b0c-1d2e3f4a5b6c\\\",\\\"backup.velero.io/backup-time\\\":\\\"2024-01-16T03:00:00Z\\\",\\\"storage.kubernetes.io/tier\\\":\\\"premium\\\"},\\\"name\\\":\\\"prometheus-data\\\",\\\"namespace\\\":\\\"app-112-prod\\\"},\\\"spec\\\":{\\\"accessModes\\\":[\\\"ReadWriteOnce\\\"],\\\"resources\\\":{\\\"requests\\\":{\\\"storage\\\":\\\"2Mi\\\"}}}}\\n\",\n                    \"storage.kubernetes.io/tier\": \"premium\"\n                },\n                \"creationTimestamp\": \"2025-12-02T13:36:48Z\",\n                \"finalizers\": [\n                    \"kubernetes.io/pvc-protection\"\n                ],\n                \"name\": \"prometheus-data\",\n                \"namespace\": \"app-112-prod\",\n                \"resourceVersion\": \"15935759\",\n                \"uid\": \"12b13e64-e1b2-444b-b7b6-4c4c99ae9ebf\"\n            },\n            \"spec\": {\n                \"accessModes\": [\n                    \"ReadWriteOnce\"\n                ],\n                \"resources\": {\n                    \"requests\": {\n                        \"storage\": \"2Mi\"\n                    }\n                },\n                \"storageClassName\": \"default\",\n                \"volumeMode\": \"Filesystem\"\n            },\n            \"status\": {\n                \"phase\": \"Pending\"\n            }\n        },\n        {\n            \"apiVersion\": \"v1\",\n            \"kind\": \"PersistentVolumeClaim\",\n            \"metadata\": {\n                \"annotations\": {\n                    \"backup.velero.io/backup-id\": \"e8f1a6b2-7c3d-4e9f-b5a7-3d5f7e9b2c4e\",\n                    \"backup.velero.io/backup-time\": \"2024-01-13T03:00:00Z\",\n                    \"kubectl.kubernetes.io/last-applied-configuration\": \"{\\\"apiVersion\\\":\\\"v1\\\",\\\"kind\\\":\\\"PersistentVolumeClaim\\\",\\\"metadata\\\":{\\\"annotations\\\":{\\\"backup.velero.io/backup-id\\\":\\\"e8f1a6b2-7c3d-4e9f-b5a7-3d5f7e9b2c4e\\\",\\\"backup.velero.io/backup-time\\\":\\\"2024-01-13T03:00:00Z\\\",\\\"storage.kubernetes.io/tier\\\":\\\"standard\\\"},\\\"name\\\":\\\"staging-cache\\\",\\\"namespace\\\":\\\"app-112-staging\\\"},\\\"spec\\\":{\\\"accessModes\\\":[\\\"ReadWriteMany\\\"],\\\"resources\\\":{\\\"requests\\\":{\\\"storage\\\":\\\"2Mi\\\"}}}}\\n\",\n                    \"storage.kubernetes.io/tier\": \"standard\"\n                },\n                \"creationTimestamp\": \"2025-12-02T13:36:45Z\",\n                \"finalizers\": [\n                    \"kubernetes.io/pvc-protection\"\n                ],\n                \"name\": \"staging-cache\",\n                \"namespace\": \"app-112-staging\",\n                \"resourceVersion\": \"15935731\",\n                \"uid\": \"0ceb4b7a-2b35-44a8-a83e-7c19a8dd9c4a\"\n            },\n            \"spec\": {\n                \"accessModes\": [\n                    \"ReadWriteMany\"\n                ],\n                \"resources\": {\n                    \"requests\": {\n                        \"storage\": \"2Mi\"\n                    }\n                },\n                \"storageClassName\": \"default\",\n                \"volumeMode\": \"Filesystem\"\n            },\n            \"status\": {\n                \"phase\": \"Pending\"\n            }\n        },\n        {\n            \"apiVersion\": \"v1\",\n            \"kind\": \"PersistentVolumeClaim\",\n            \"metadata\": {\n                \"annotations\": {\n                    \"backup.velero.io/backup-id\": \"b7f3a521-8c4d-4e6a-9f2b-1a3d5e7f9c2e\",\n                    \"backup.velero.io/backup-time\": \"2024-01-15T03:00:00Z\",\n                    \"kubectl.kubernetes.io/last-applied-configuration\": \"{\\\"apiVersion\\\":\\\"v1\\\",\\\"kind\\\":\\\"PersistentVolumeClaim\\\",\\\"metadata\\\":{\\\"annotations\\\":{\\\"backup.velero.io/backup-id\\\":\\\"b7f3a521-8c4d-4e6a-9f2b-1a3d5e7f9c2e\\\",\\\"backup.velero.io/backup-time\\\":\\\"2024-01-15T03:00:00Z\\\",\\\"storage.kubernetes.io/tier\\\":\\\"standard\\\"},\\\"name\\\":\\\"test-database\\\",\\\"namespace\\\":\\\"app-112-staging\\\"},\\\"spec\\\":{\\\"accessModes\\\":[\\\"ReadWriteOnce\\\"],\\\"resources\\\":{\\\"requests\\\":{\\\"storage\\\":\\\"2Mi\\\"}}}}\\n\",\n                    \"storage.kubernetes.io/tier\": \"standard\"\n                },\n                \"creationTimestamp\": \"2025-12-02T13:36:44Z\",\n                \"finalizers\": [\n                    \"kubernetes.io/pvc-protection\"\n                ],\n                \"name\": \"test-database\",\n                \"namespace\": \"app-112-staging\",\n                \"resourceVersion\": \"15935723\",\n                \"uid\": \"de09e377-1ebb-4ae6-983b-057eab882b2a\"\n            },\n            \"spec\": {\n                \"accessModes\": [\n                    \"ReadWriteOnce\"\n                ],\n                \"resources\": {\n                    \"requests\": {\n                        \"storage\": \"2Mi\"\n                    }\n                },\n                \"storageClassName\": \"default\",\n                \"volumeMode\": \"Filesystem\"\n            },\n            \"status\": {\n                \"phase\": \"Pending\"\n            }\n        }\n    ],\n    \"kind\": \"List\",\n    \"metadata\": {\n        \"resourceVersion\": \"\"\n    }\n}\n",
+          "Error": "",
+          "Timestamp": "2025-12-02T21:36:53.661310471+08:00",
+          "ExecutionTime": 1214575767
+        }
+      ],
+      "ToolSelectionCorrect": false,
+      "ToolSelectionScore": 1,
+      "ParameterAccuracy": 0.75,
+      "OutputQualityScore": 0,
+      "Status": "fail",
+      "ErrorMessage": "",
+      "ValidationResults": [
+        {
+          "ExpectedTool": "call_kubectl",
+          "ToolCalled": true,
+          "CallCount": 1,
+          "MinCalls": 1,
+          "ArgsValid": false,
+          "MatchedPatterns": [
+            "pvc|persistentvolumeclaim"
+          ],
+          "MissingPatterns": [
+            "b7f3a521-8c4d-4e6a-9f2b-1a3d5e7f9c2e"
+          ],
+          "Score": 0.75
+        }
+      ],
+      "JudgingResult": null
+    }
+  ],
+  "Timestamp": "2025-12-02T21:25:52.38595922+08:00",
+  "Model": "",
+  "MCPBinary": "../aks-mcp"
+}
