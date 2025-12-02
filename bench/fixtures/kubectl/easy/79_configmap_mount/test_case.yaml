@@ -1,0 +1,33 @@
+id: "79_configmap_mount"
+title: "Diagnose missing ConfigMap mount"
+description: "Test if AI can diagnose a pod stuck in ContainerCreating due to missing ConfigMap"
+
+user_prompt: "Why is the app-server pod stuck in ContainerCreating state in namespace-79?"
+
+expected_output:
+  - App server stuck in ContainerCreating
+  - mount ConfigMap app-config
+  - doesn't exist
+
+expected_tool_usage:
+  - tool_name: "call_kubectl"
+    min_calls: 1
+    required_args_patterns:
+      - "describe.*pod.*app-server"
+      - "namespace-79"
+
+before_test: |
+  kubectl apply -f ./manifest.yaml
+  echo "Waiting for pod to get stuck..."
+  sleep 20
+
+after_test: |
+  kubectl delete -f ./manifest.yaml --ignore-not-found=true
+
+tags:
+  - kubernetes
+  - easy
+  - configmap
+  - volume-mount
+
+timeout: 300s

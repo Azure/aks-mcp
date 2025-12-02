@@ -1,0 +1,33 @@
+id: "83_secret_not_found"
+title: "Diagnose pod failing due to missing Secret"
+description: "Test if AI can diagnose a pod that fails to start because it references a Secret that doesn't exist"
+
+user_prompt: "Why is the database pod failing to start in namespace-83?"
+
+expected_output:
+  - Database pod failing to start
+  - references Secret database-secret
+  - doesn't exist
+
+expected_tool_usage:
+  - tool_name: "call_kubectl"
+    min_calls: 1
+    required_args_patterns:
+      - "describe.*pod.*database"
+      - "namespace-83"
+
+before_test: |
+  kubectl apply -f ./manifest.yaml
+  echo "Waiting for pod to fail..."
+  sleep 20
+
+after_test: |
+  kubectl delete -f ./manifest.yaml --ignore-not-found=true
+
+tags:
+  - kubernetes
+  - easy
+  - secret
+  - pod-issues
+
+timeout: 300s

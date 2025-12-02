@@ -1,0 +1,34 @@
+id: "54_large_pod_list"
+title: "Handle large pod lists without truncation"
+description: "Test if AI can handle 2000+ pods and identify the actual failing pod in a different namespace"
+
+user_prompt: "can you please check what is going on in namespace-54b namespace on the robusta-prod cluster?"
+
+expected_output:
+  - fast-fail-pod failing because of image issues
+  - ImagePull
+  - namespace-54b
+
+expected_tool_usage:
+  - tool_name: "call_kubectl"
+    min_calls: 1
+    required_args_patterns:
+      - "namespace-54b"
+      - "pod"
+
+before_test: |
+  kubectl apply -f ./manifest.yaml
+  chmod +x ./wait_for_replicas.sh
+  ./wait_for_replicas.sh massive-pod-deployment-with-very-long-name 2000 namespace-54a 600
+
+after_test: |
+  kubectl delete -f ./manifest.yaml --ignore-not-found=true
+  ./wait_for_replicas.sh massive-pod-deployment-with-very-long-name 0 namespace-54a 600 || true
+
+tags:
+  - kubernetes
+  - easy
+  - context_window
+  - large-list
+
+timeout: 600s

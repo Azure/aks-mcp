@@ -1,0 +1,35 @@
+id: "17_oom_kill"
+title: "Diagnose fast OOM kill"
+description: "Test if AI can diagnose a pod that gets OOMKilled quickly"
+
+user_prompt: "What is the issue with analytics-exporter-fast?"
+
+expected_output:
+  - analytics-exporter-fast is getting OOMKILLED
+  - OOMKilled
+  - memory
+
+expected_tool_usage:
+  - tool_name: "call_kubectl"
+    min_calls: 1
+    required_args_patterns:
+      - "describe.*pod.*analytics-exporter-fast"
+      - "app-17"
+
+before_test: |
+  kubectl create namespace app-17 || true
+  kubectl apply -f ./manifest.yaml -n app-17
+  echo "Waiting for fast OOM to occur..."
+  sleep 5
+
+after_test: |
+  kubectl delete -f ./manifest.yaml -n app-17 --ignore-not-found=true
+  kubectl delete namespace app-17 --ignore-not-found=true
+
+tags:
+  - kubernetes
+  - easy
+  - oom
+  - pod-issues
+
+timeout: 300s

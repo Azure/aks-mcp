@@ -1,0 +1,24 @@
+id: "13a_pending_node_selector"
+title: "Pod Pending Due to Node Selector Mismatch"
+description: "Tests detection of pod pending state caused by node selector that doesn't match any nodes"
+tags:
+  - kubernetes
+  - easy
+user_prompt: "What is the issue with user-profile-import?"
+expected_output:
+  - "node selector mismatch"
+  - "pending"
+expected_tool_usage:
+  - tool_name: "call_kubectl"
+    min_calls: 1
+    required_args_patterns:
+      - "get.*pod|describe.*pod"
+      - "user-profile-import"
+before_test: |
+  kubectl create namespace app-13a || true
+  kubectl apply -f https://raw.githubusercontent.com/robusta-dev/kubernetes-demos/main/pending_pods/pending_pod_node_selector.yaml -n app-13a
+  sleep 30
+after_test: |
+  kubectl delete -f https://raw.githubusercontent.com/robusta-dev/kubernetes-demos/main/pending_pods/pending_pod_node_selector.yaml -n app-13a || true
+  kubectl delete namespace app-13a || true
+timeout: 5m

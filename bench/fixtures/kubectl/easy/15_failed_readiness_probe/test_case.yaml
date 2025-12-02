@@ -1,0 +1,33 @@
+id: "15_failed_readiness_probe"
+title: "Diagnose pod not ready due to failing readiness probe"
+description: "Test if AI can diagnose a pod that is not ready because its readiness probe is failing"
+
+user_prompt: "What is the issue with the search-engine pod in namespace app-15?"
+
+expected_output:
+  - search-engine pod is not ready
+  - failing readiness probe
+  - readiness
+
+expected_tool_usage:
+  - tool_name: "call_kubectl"
+    min_calls: 1
+    required_args_patterns:
+      - "search-engine"
+      - "app-15"
+
+before_test: |
+  kubectl apply -f ./manifest.yaml
+  echo "Waiting for readiness probe to fail..."
+  sleep 30
+
+after_test: |
+  kubectl delete -f ./manifest.yaml --ignore-not-found=true
+
+tags:
+  - kubernetes
+  - easy
+  - readiness-probe
+  - pod-issues
+
+timeout: 300s

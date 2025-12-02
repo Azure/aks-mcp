@@ -1,0 +1,25 @@
+id: "110_image_pull_events"
+title: "Fetching Kubernetes Events for Image Pull Failures"
+description: "Tests ability to fetch and identify image pull failure events for a specific deployment"
+tags:
+  - kubernetes
+  - easy
+user_prompt: "Fetch and analyze all kubernetes events for the data-processor deployment in namespace app-110. What image pull errors do you see?"
+expected_output:
+  - "data-processor"
+  - "ErrImagePull|ImagePullBackOff|image.*pull"
+expected_tool_usage:
+  - tool_name: "call_kubectl"
+    min_calls: 1
+    required_args_patterns:
+      - "events|get.*event"
+      - "app-110"
+before_test: |
+  kubectl create namespace app-110 || true
+  kubectl apply -f fixtures/kubectl/easy/110_image_pull_events/manifest.yaml -n app-110
+  echo "Waiting for image pull events..."
+  timeout 30 bash -c 'until kubectl get events -n app-110 --field-selector involvedObject.kind=Pod 2>/dev/null | grep -q "ErrImagePull\|ImagePullBackOff"; do sleep 1; done' || echo "Warning: Image pull events not detected"
+  sleep 5
+after_test: |
+  kubectl delete namespace app-110 --wait=false || true
+timeout: 5m

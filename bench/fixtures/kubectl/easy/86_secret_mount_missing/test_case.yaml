@@ -1,0 +1,24 @@
+id: "86_secret_mount_missing"
+title: "Frontend Deployment Failing Due to Missing Secret Mount"
+description: "Tests that LLM actually diagnoses missing Secret issue rather than pattern matching similar ConfigMap scenarios"
+tags:
+  - kubernetes
+  - easy
+user_prompt: "The frontend deployment in production namespace is showing issues. Can you investigate why the pods are not running?"
+expected_output:
+  - "Secret.*frontend-api-keys|frontend-api-keys.*Secret"
+  - "doesn't exist|not found|missing"
+expected_tool_usage:
+  - tool_name: "call_kubectl"
+    min_calls: 1
+    required_args_patterns:
+      - "production"
+      - "frontend|pod"
+before_test: |
+  kubectl apply -f ./manifest.yaml
+  echo "Waiting for pods to be created..."
+  sleep 30
+  kubectl wait --for=condition=Ready pod -l app=frontend -n production --timeout=60s || echo "Warning: Pods not ready (expected - missing secret)"
+after_test: |
+  kubectl delete -f ./manifest.yaml || true
+timeout: 5m

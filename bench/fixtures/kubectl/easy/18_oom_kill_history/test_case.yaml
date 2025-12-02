@@ -1,0 +1,28 @@
+id: "18_oom_kill_history"
+title: "Diagnose historical OOM kill from pod history"
+description: "Test if AI can find OOM kill information from historical pod data (server test type)"
+
+user_prompt: "why did my pod analytics-exporter-fast-76897854c-xxljr died around 2025-10-19?"
+
+expected_output:
+  - analytics-exporter-fast pod was OOMKILLED
+  - OOMKilled
+  - memory
+
+expected_tool_usage:
+  - tool_name: "call_kubectl"
+    min_calls: 1
+    required_args_patterns:
+      - "analytics-exporter-fast"
+
+before_test:
+
+after_test:
+
+tags:
+  - kubernetes
+  - easy
+  - oom
+  - historical
+
+timeout: 300s

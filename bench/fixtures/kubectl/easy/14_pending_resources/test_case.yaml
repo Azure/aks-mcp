@@ -1,0 +1,35 @@
+id: "14_pending_resources"
+title: "Diagnose pending pod due to insufficient GPU resources"
+description: "Test if AI can diagnose a pod stuck in Pending state due to insufficient GPU resources"
+
+user_prompt: "What is the issue with user-profile-resources in namespace app-14? Check both pod status and node capacity."
+
+expected_output:
+  - insufficient GPU resources
+  - pending
+  - nvidia.com/gpu
+
+expected_tool_usage:
+  - tool_name: "call_kubectl"
+    min_calls: 1
+    required_args_patterns:
+      - "user-profile-resources"
+      - "app-14"
+
+before_test: |
+  kubectl create namespace app-14 || true
+  kubectl apply -f ./manifest.yaml -n app-14
+  echo "Waiting for pod to be pending..."
+  sleep 30
+
+after_test: |
+  kubectl delete -f ./manifest.yaml -n app-14 --ignore-not-found=true
+  kubectl delete namespace app-14 --ignore-not-found=true
+
+tags:
+  - kubernetes
+  - easy
+  - pending
+  - resources
+
+timeout: 300s
