@@ -175,7 +175,7 @@ func runLoginCommand(proc Proc, cmd string, loginMethod string) error {
 		return fmt.Errorf("%s login failed: %s", loginMethod, out)
 	}
 	if err != nil {
-		return fmt.Errorf("%s login failed: %w", loginMethod, err)
+		return fmt.Errorf("%s login failed: %w; output: %s", loginMethod, err, out)
 	}
 	return nil
 }
@@ -185,16 +185,18 @@ func setSubscription(proc Proc, subscriptionID, loginMethod string) error {
 	if subscriptionID == "" {
 		return nil
 	}
-	if _, err := proc.Run(fmt.Sprintf("account set --subscription %s", subscriptionID)); err != nil {
-		return fmt.Errorf("%s login failed: %w", loginMethod, err)
+	out, err := proc.Run(fmt.Sprintf("account set --subscription %s", subscriptionID))
+	if err != nil {
+		return fmt.Errorf("%s set subscription failed: %w; output: %s", loginMethod, err, out)
 	}
 	return nil
 }
 
 // Checks that account info is returned after a login attempt.
 func showAccount(proc Proc, loginMethod string) error {
-	if _, err := proc.Run("account show --query id -o tsv"); err != nil {
-		return fmt.Errorf("%s login failed: %w", loginMethod, err)
+	out, err := proc.Run("account show --query id -o tsv")
+	if err != nil {
+		return fmt.Errorf("%s account verification failed: %w; output: %s", loginMethod, err, out)
 	}
 	return nil
 }

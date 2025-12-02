@@ -145,7 +145,7 @@ func TestEnsureAzCliLogin_SubscriptionSetFailure(t *testing.T) {
 	}}
 
 	_, err := EnsureAzCliLoginWithProc(p, cfg)
-	if err == nil || !strings.Contains(err.Error(), "service principal login failed") {
+	if err == nil || !strings.Contains(err.Error(), "service principal set subscription failed") {
 		t.Fatalf("expected subscription set failure wrapped in service principal context, got %v", err)
 	}
 }
@@ -165,7 +165,7 @@ func TestEnsureAzCliLogin_ReprobeFailure(t *testing.T) {
 	}}
 
 	_, err := EnsureAzCliLoginWithProc(p, cfg)
-	if err == nil || !strings.Contains(err.Error(), "service principal login failed") {
+	if err == nil || !strings.Contains(err.Error(), "service principal account verification failed") {
 		t.Fatalf("expected reprobe failure wrapped in service principal context, got %v", err)
 	}
 }
