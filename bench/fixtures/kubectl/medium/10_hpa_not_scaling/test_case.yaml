@@ -1,0 +1,24 @@
+id: "10_hpa_not_scaling"
+title: "Diagnose HPA Unable to Calculate Metrics"
+description: "Test agent's ability to identify missing resource requests preventing HPA from scaling"
+user_prompt: "Why isn't the golden-eagle deployment scaling despite high CPU usage in namespace-85?"
+expected_output:
+  - "HPA.*cannot calculate.*CPU metrics"
+  - "resource requests.*not defined"
+  - "missing.*resource.*requests"
+  - "pod spec.*resources"
+expected_tool_usage:
+  - tool_name: "call_kubectl"
+    min_calls: 2
+    required_args_patterns:
+      - "namespace-85"
+      - "hpa|deployment"
+tags:
+  - kubernetes
+  - medium
+timeout: 2m
+before_test: |
+  kubectl apply -f ./manifest.yaml
+  sleep 30
+after_test: |
+  kubectl delete -f ./manifest.yaml

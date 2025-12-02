@@ -1,0 +1,24 @@
+id: "11_pod_names_contain_service"
+title: "Diagnose Readiness Probe Failure"
+description: "Test agent's ability to identify failing readiness probe causing pod not ready"
+user_prompt: "What is the issue with search-engine-service"
+expected_output:
+  - "search-engine-service.*pod.*not ready"
+  - "readiness probe.*failing"
+  - "readiness probe.*exit 1"
+  - "probe.*command.*fail"
+expected_tool_usage:
+  - tool_name: "call_kubectl"
+    min_calls: 1
+    required_args_patterns:
+      - "app-111"
+      - "search-engine-service"
+tags:
+  - kubernetes
+  - medium
+timeout: 2m
+before_test: |
+  kubectl apply -f ./manifest.yaml
+  sleep 30
+after_test: |
+  kubectl delete -f ./manifest.yaml

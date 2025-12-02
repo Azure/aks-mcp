@@ -1,0 +1,23 @@
+id: "08_cpu_quota_exceeded"
+title: "Diagnose CPU ResourceQuota Exceeded"
+description: "Test agent's ability to identify deployment exceeding namespace CPU quota"
+user_prompt: "What's wrong with the api-server deployment in namespace-78b?"
+expected_output:
+  - "CPU quota.*exceeded"
+  - "quota.*20m"
+  - "deployment.*30m"
+  - "ResourceQuota.*insufficient.*CPU"
+expected_tool_usage:
+  - tool_name: "call_kubectl"
+    min_calls: 2
+    required_args_patterns:
+      - "namespace-78b"
+tags:
+  - kubernetes
+  - medium
+timeout: 2m
+before_test: |
+  kubectl apply -f ./manifest.yaml
+  sleep 20
+after_test: |
+  kubectl delete -f ./manifest.yaml

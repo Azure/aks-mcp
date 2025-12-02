@@ -1,0 +1,24 @@
+id: "06_liveness_probe_misconfiguration"
+title: "Diagnose Liveness Probe Port Misconfiguration"
+description: "Test agent's ability to identify liveness probe checking wrong port causing restarts"
+user_prompt: "Why does the web-app pod keep restarting in namespace-77?"
+expected_output:
+  - "liveness probe.*8080"
+  - "nginx.*listening.*80"
+  - "probe.*wrong port"
+  - "restart.*probe.*fail"
+expected_tool_usage:
+  - tool_name: "call_kubectl"
+    min_calls: 1
+    required_args_patterns:
+      - "namespace-77"
+      - "web-app|pod"
+tags:
+  - kubernetes
+  - medium
+timeout: 5m
+before_test: |
+  kubectl apply -f ./manifest.yaml
+  sleep 45
+after_test: |
+  kubectl delete -f ./manifest.yaml

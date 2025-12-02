@@ -1,0 +1,24 @@
+id: "07_missing_cpu_limits"
+title: "Diagnose Missing CPU Limits Required by ResourceQuota"
+description: "Test agent's ability to identify missing CPU limits preventing pod creation due to quota"
+user_prompt: "Why are pods in pending state for the api-server deployment in namespace-78a?"
+expected_output:
+  - "missing.*limits.cpu"
+  - "ResourceQuota.*requires.*cpu.*limits"
+  - "compute-quota"
+  - "container.*spec.*limits"
+expected_tool_usage:
+  - tool_name: "call_kubectl"
+    min_calls: 2
+    required_args_patterns:
+      - "namespace-78a"
+      - "resourcequota|quota|deployment"
+tags:
+  - kubernetes
+  - medium
+timeout: 2m
+before_test: |
+  kubectl apply -f ./manifest.yaml
+  sleep 20
+after_test: |
+  kubectl delete -f ./manifest.yaml

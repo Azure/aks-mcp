@@ -1,0 +1,27 @@
+id: "04_network_policy_blocking_traffic"
+title: "Diagnose Network Policy Blocking Traffic"
+description: "Test agent's ability to identify NetworkPolicy misconfiguration blocking frontend-to-backend communication"
+tags:
+  - kubernetes
+  - hard
+  - network
+  - networkpolicy
+user_prompt: "Why is the frontend getting timeouts connecting to backend in namespace-84?"
+expected_output:
+  - "Frontend.*timeout"
+  - "NetworkPolicy"
+  - "backend.*only.*allow.*ingress.*tier.*backend"
+  - "frontend.*tier.*frontend"
+expected_tool_usage:
+  - tool_name: "call_kubectl"
+    min_calls: 3
+    required_args_patterns:
+      - "namespace-84"
+      - "networkpolicy|network"
+      - "frontend|backend"
+before_test: |
+  kubectl apply -f ./manifest.yaml
+  sleep 30
+after_test: |
+  kubectl delete -f ./manifest.yaml
+timeout: 2m

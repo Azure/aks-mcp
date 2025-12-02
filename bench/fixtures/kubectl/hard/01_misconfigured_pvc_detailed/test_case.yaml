@@ -1,0 +1,26 @@
+id: "01_misconfigured_pvc_detailed"
+title: "Diagnose Redis PVC StorageClass Issue"
+description: "Test agent's ability to identify non-existent storage class in PVC configuration"
+tags:
+  - kubernetes
+  - hard
+  - pvc
+  - storage
+user_prompt: "What is the issue with redis in namespace app-24b?"
+expected_output:
+  - "Redis.*not.*running"
+  - "PVC.*cannot bind"
+  - "StorageClass.*standard-v2.*not exist"
+expected_tool_usage:
+  - tool_name: "call_kubectl"
+    min_calls: 2
+    required_args_patterns:
+      - "redis|pvc"
+before_test: |
+  kubectl create namespace app-24b || true
+  kubectl apply -f ./manifest.yaml -n app-24b
+  sleep 10
+after_test: |
+  kubectl delete -f ./manifest.yaml -n app-24b
+  kubectl delete namespace app-24b --ignore-not-found=true
+timeout: 3m

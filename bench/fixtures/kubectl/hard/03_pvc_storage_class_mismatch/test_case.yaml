@@ -1,0 +1,25 @@
+id: "03_pvc_storage_class_mismatch"
+title: "Diagnose Database PVC Storage Class Mismatch"
+description: "Test agent's ability to identify non-existent storage class preventing database startup"
+tags:
+  - kubernetes
+  - hard
+  - pvc
+  - storage
+user_prompt: "Why is the database not running in namespace-80?"
+expected_output:
+  - "Database.*PVC.*not.*binding"
+  - "storage.*class.*fast-ssd.*not.*exist"
+  - "chang.*different.*storage.*class"
+expected_tool_usage:
+  - tool_name: "call_kubectl"
+    min_calls: 2
+    required_args_patterns:
+      - "namespace-80"
+      - "pvc|storageclass"
+before_test: |
+  kubectl apply -f ./manifest.yaml
+  sleep 60
+after_test: |
+  kubectl delete -f ./manifest.yaml
+timeout: 3m

@@ -1,0 +1,24 @@
+id: "09_pod_anti_affinity_conflict"
+title: "Diagnose Pod Anti-Affinity Scheduling Failure"
+description: "Test agent's ability to identify insufficient nodes for anti-affinity requirements"
+user_prompt: "Why can't the silver-puffin pods be scheduled in namespace-82?"
+expected_output:
+  - "pod anti-affinity"
+  - "different nodes"
+  - "insufficient nodes"
+  - "hostname.*topology"
+expected_tool_usage:
+  - tool_name: "call_kubectl"
+    min_calls: 1
+    required_args_patterns:
+      - "namespace-82"
+      - "pod|affinity"
+tags:
+  - kubernetes
+  - medium
+timeout: 2m
+before_test: |
+  kubectl apply -f ./manifest.yaml
+  sleep 20
+after_test: |
+  kubectl delete -f ./manifest.yaml

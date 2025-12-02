@@ -1,0 +1,23 @@
+id: "02_misconfigured_ingress_class"
+title: "Diagnose Non-existent Ingress Class"
+description: "Test agent's ability to identify non-existent ingress class preventing external access"
+tags:
+  - kubernetes
+  - hard
+  - network
+  - ingress
+user_prompt: "Other services from outside the K8s cluster are unable to reach app.example.com. The ingress web-ingress in namespace app-25 shows no address. Why?"
+expected_output:
+  - "ingress.*class"
+  - "example-ingress-class.*not.*exist"
+expected_tool_usage:
+  - tool_name: "call_kubectl"
+    min_calls: 2
+    required_args_patterns:
+      - "ingress"
+before_test: |
+  kubectl apply -f ./manifest.yaml
+  sleep 10
+after_test: |
+  kubectl delete -f ./manifest.yaml
+timeout: 2m

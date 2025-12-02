@@ -1,0 +1,24 @@
+id: "05_service_discovery_issue"
+title: "Diagnose Service Selector Mismatch"
+description: "Test agent's ability to identify service selector misconfiguration causing no endpoints"
+user_prompt: "Why can't the frontend pod connect to the backend service in namespace-76?"
+expected_output:
+  - "service selector.*version.*v2"
+  - "pods.*version.*v1"
+  - "no endpoints"
+  - "selector.*mismatch"
+expected_tool_usage:
+  - tool_name: "call_kubectl"
+    min_calls: 2
+    required_args_patterns:
+      - "namespace-76"
+      - "backend|service|endpoint"
+tags:
+  - kubernetes
+  - medium
+timeout: 2m
+before_test: |
+  kubectl apply -f ./manifest.yaml
+  sleep 30
+after_test: |
+  kubectl delete -f ./manifest.yaml
