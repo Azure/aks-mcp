@@ -61,6 +61,26 @@ RUN HELM_ARCH=${TARGETARCH} && \
 # Install Azure CLI
 RUN pip3 install --break-system-packages --no-cache-dir azure-cli
 
+# Install Cilium CLI
+RUN CILIUM_VERSION="v0.18.9" && \
+    CILIUM_ARCH=$([ "$TARGETARCH" = "amd64" ] && echo "amd64" || echo "arm64") && \
+    curl -L --fail --remote-name-all "https://github.com/cilium/cilium-cli/releases/download/${CILIUM_VERSION}/cilium-linux-${CILIUM_ARCH}.tar.gz{,.sha256sum}" && \
+    sha256sum -c cilium-linux-${CILIUM_ARCH}.tar.gz.sha256sum && \
+    tar xzvf cilium-linux-${CILIUM_ARCH}.tar.gz && \
+    mv cilium /usr/local/bin/cilium && \
+    chmod +x /usr/local/bin/cilium && \
+    rm cilium-linux-${CILIUM_ARCH}.tar.gz cilium-linux-${CILIUM_ARCH}.tar.gz.sha256sum
+
+# Install Hubble CLI
+RUN HUBBLE_VERSION="v1.18.3" && \
+    HUBBLE_ARCH=$([ "$TARGETARCH" = "amd64" ] && echo "amd64" || echo "arm64") && \
+    curl -L --fail --remote-name-all "https://github.com/cilium/hubble/releases/download/${HUBBLE_VERSION}/hubble-linux-${HUBBLE_ARCH}.tar.gz{,.sha256sum}" && \
+    sha256sum -c hubble-linux-${HUBBLE_ARCH}.tar.gz.sha256sum && \
+    tar xzvf hubble-linux-${HUBBLE_ARCH}.tar.gz && \
+    mv hubble /usr/local/bin/hubble && \
+    chmod +x /usr/local/bin/hubble && \
+    rm hubble-linux-${HUBBLE_ARCH}.tar.gz hubble-linux-${HUBBLE_ARCH}.tar.gz.sha256sum
+
 # Create the mcp user and group
 RUN addgroup -S mcp && \
     adduser -S -G mcp -h /home/mcp mcp && \
