@@ -19,8 +19,29 @@ func ConvertConfig(cfg *config.ConfigData) *k8sconfig.ConfigData {
 	k8sSecurityConfig.SetAllowedNamespaces(cfg.AllowNamespaces)
 	k8sSecurityConfig.AccessLevel = k8ssecurity.AccessLevel(cfg.AccessLevel)
 
+	// Convert EnabledComponents []string to AdditionalTools map[string]bool
+	// This is needed for compatibility with mcp-kubernetes which still uses the map format
+	additionalTools := make(map[string]bool)
+
+	// Only convert Kubernetes-related components (helm, cilium, hubble)
+	// If EnabledComponents is empty, enable all additional tools
+	if len(cfg.EnabledComponents) == 0 {
+		// Empty list means all components enabled
+		additionalTools["helm"] = true
+		additionalTools["cilium"] = true
+		additionalTools["hubble"] = true
+	} else {
+		// Check which Kubernetes components are enabled
+		for _, component := range cfg.EnabledComponents {
+			switch component {
+			case "helm", "cilium", "hubble":
+				additionalTools[component] = true
+			}
+		}
+	}
+
 	k8sCfg := &k8sconfig.ConfigData{
-		AdditionalTools:  cfg.AdditionalTools,
+		AdditionalTools:  additionalTools,
 		Timeout:          cfg.Timeout,
 		SecurityConfig:   k8sSecurityConfig,
 		Transport:        cfg.Transport,

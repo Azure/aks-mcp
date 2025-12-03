@@ -260,8 +260,7 @@ Retrieve and manage Azure Advisor recommendations for AKS clusters.
 <details>
 <summary>Kubernetes Operations</summary>
 
-*Note: kubectl commands are available with all access levels. Additional tools
-require explicit enablement via `--additional-tools`*
+*Note: All Kubernetes tools (kubectl, helm, cilium, hubble) are enabled by default. Use `--enabled-components` to selectively enable specific components.*
 
 ### Unified kubectl Tool (Default)
 
@@ -299,10 +298,23 @@ Unified tool for executing kubectl commands directly. This tool provides a flexi
   - `kubectl_metadata`: Metadata management (label, annotate, set)
   - `kubectl_config`: Full configuration management (diff, auth, certificate, config)
 
-### Additional Tools (Optional)
+### Helm
 
-- `helm`: Helm package manager (requires `--additional-tools helm`)
-- `cilium`: Cilium CLI for eBPF networking (requires `--additional-tools cilium`)
+**Tool:** `helm`
+
+Helm package manager for Kubernetes.
+
+### Cilium
+
+**Tool:** `cilium`
+
+Cilium CLI for eBPF-based networking and security.
+
+### Hubble
+
+**Tool:** `hubble`
+
+Hubble network observability for Cilium.
 
 </details>
 
@@ -700,7 +712,7 @@ Command line arguments:
 ```sh
 Usage of ./aks-mcp:
       --access-level string       Access level (readonly, readwrite, admin) (default "readonly")
-      --additional-tools string   Comma-separated list of additional Kubernetes tools to support (kubectl is always enabled). Available: helm,cilium,hubble
+      --enabled-components string Comma-separated list of enabled components (empty means all components enabled). Available: az_cli,monitor,fleet,network,compute,detectors,advisor,inspektorgadget,kubectl,helm,cilium,hubble
       --allow-namespaces string   Comma-separated list of allowed Kubernetes namespaces (empty means all namespaces)
       --host string               Host to listen for the server (only used with transport sse or streamable-http) (default "127.0.0.1")
       --otlp-endpoint string      OTLP endpoint for OpenTelemetry traces (e.g. localhost:4317, default "")

@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/Azure/aks-mcp/internal/auth/oauth"
 	"github.com/Azure/aks-mcp/internal/azcli"
 	"github.com/Azure/aks-mcp/internal/azureclient"
+	"github.com/Azure/aks-mcp/internal/components"
 	"github.com/Azure/aks-mcp/internal/components/advisor"
 	"github.com/Azure/aks-mcp/internal/components/azaks"
 	"github.com/Azure/aks-mcp/internal/components/azapi"
@@ -162,6 +164,13 @@ func (s *Service) initializeOAuth() error {
 
 // registerAllComponents registers all component tools organized by category
 func (s *Service) registerAllComponents() {
+	// Log enabled components (validation is done in config validator)
+	if len(s.cfg.EnabledComponents) > 0 {
+		logger.Infof("Enabled components: %s", strings.Join(s.cfg.EnabledComponents, ", "))
+	} else {
+		logger.Infof("All components enabled by default")
+	}
+
 	// Azure Components
 	s.registerAzureComponents()
 
@@ -420,37 +429,51 @@ func (s *Service) Run() error {
 func (s *Service) registerAzureComponents() {
 	logger.Infof("Registering Azure Components...")
 
-	// Conditional registration based on UseLegacyTools flag
-	if s.cfg.UseLegacyTools {
-		logger.Infof("Using legacy Azure CLI tools (az_aks_operations, az_compute_operations)")
-		// AKS Operations Component (legacy)
-		s.registerAksOpsComponent()
-	} else {
-		logger.Infof("Using azure-api-mcp tool (call_az)")
-		// Azure API MCP Component (new)
-		s.registerAzureApiComponent()
+	// Azure CLI Component (unified registration)
+	if components.IsComponentEnabled("az_cli", s.cfg.EnabledComponents) {
+		if s.cfg.UseLegacyTools {
+			logger.Infof("Registering Azure CLI Component with legacy tools (az_aks_operations, az_compute_operations)")
+			s.registerAksOpsComponent()
+		} else {
+			logger.Infof("Registering Azure CLI Component with unified tool (call_az)")
+			s.registerAzureApiComponent()
+		}
 	}
 
 	// Monitoring Component
-	s.registerMonitoringComponent()
+	if components.IsComponentEnabled("monitor", s.cfg.EnabledComponents) {
+		s.registerMonitoringComponent()
+	}
 
 	// Fleet Management Component
-	s.registerFleetComponent()
+	if components.IsComponentEnabled("fleet", s.cfg.EnabledComponents) {
+		s.registerFleetComponent()
+	}
 
 	// Network Resources Component
-	s.registerNetworkComponent()
+	if components.IsComponentEnabled("network", s.cfg.EnabledComponents) {
+		s.registerNetworkComponent()
+	}
 
 	// Compute Resources Component
-	s.registerComputeComponent()
+	if components.IsComponentEnabled("compute", s.cfg.EnabledComponents) {
+		s.registerComputeComponent()
+	}
 
 	// Detector Resources Component
-	s.registerDetectorComponent()
+	if components.IsComponentEnabled("detectors", s.cfg.EnabledComponents) {
+		s.registerDetectorComponent()
+	}
 
 	// Azure Advisor Component
-	s.registerAdvisorComponent()
+	if components.IsComponentEnabled("advisor", s.cfg.EnabledComponents) {
+		s.registerAdvisorComponent()
+	}
 
 	// Register Inspektor Gadget tools for observability
-	s.registerInspektorGadgetComponent()
+	if components.IsComponentEnabled("inspektorgadget", s.cfg.EnabledComponents) {
+		s.registerInspektorGadgetComponent()
+	}
 
 	logger.Infof("Azure Components registered successfully")
 }
@@ -502,17 +525,28 @@ func (s *Service) registerKubectlComponent() {
 func (s *Service) registerOptionalKubernetesComponents() {
 	logger.Debugf("Registering Optional Kubernetes Components")
 
+	registeredAny := false
+
 	// Register helm if enabled
-	s.registerHelmComponent()
+	if components.IsComponentEnabled("helm", s.cfg.EnabledComponents) {
+		s.registerHelmComponent()
+		registeredAny = true
+	}
 
 	// Register cilium if enabled
-	s.registerCiliumComponent()
+	if components.IsComponentEnabled("cilium", s.cfg.EnabledComponents) {
+		s.registerCiliumComponent()
+		registeredAny = true
+	}
 
 	// Register hubble if enabled
-	s.registerHubbleComponent()
+	if components.IsComponentEnabled("hubble", s.cfg.EnabledComponents) {
+		s.registerHubbleComponent()
+		registeredAny = true
+	}
 
 	// Log if no optional components are enabled
-	if !s.cfg.AdditionalTools["helm"] && !s.cfg.AdditionalTools["cilium"] && !s.cfg.AdditionalTools["hubble"] {
+	if !registeredAny {
 		logger.Infof("No optional Kubernetes components enabled")
 	}
 }
@@ -604,32 +638,26 @@ func (s *Service) registerDetectorComponent() {
 
 // registerHelmComponent registers helm tools if enabled
 func (s *Service) registerHelmComponent() {
-	if s.cfg.AdditionalTools["helm"] {
-		logger.Debugf("Registering Kubernetes tool: helm")
-		helmTool := helm.RegisterHelm()
-		helmExecutor := k8s.WrapK8sExecutor(helm.NewExecutor())
-		s.mcpServer.AddTool(helmTool, tools.CreateToolHandler(helmExecutor, s.cfg))
-	}
+	logger.Debugf("Registering Kubernetes tool: helm")
+	helmTool := helm.RegisterHelm()
+	helmExecutor := k8s.WrapK8sExecutor(helm.NewExecutor())
+	s.mcpServer.AddTool(helmTool, tools.CreateToolHandler(helmExecutor, s.cfg))
 }
 
 // registerCiliumComponent registers cilium tools if enabled
 func (s *Service) registerCiliumComponent() {
-	if s.cfg.AdditionalTools["cilium"] {
-		logger.Debugf("Registering Kubernetes tool: cilium")
-		ciliumTool := cilium.RegisterCilium()
-		ciliumExecutor := k8s.WrapK8sExecutor(cilium.NewExecutor())
-		s.mcpServer.AddTool(ciliumTool, tools.CreateToolHandler(ciliumExecutor, s.cfg))
-	}
+	logger.Debugf("Registering Kubernetes tool: cilium")
+	ciliumTool := cilium.RegisterCilium()
+	ciliumExecutor := k8s.WrapK8sExecutor(cilium.NewExecutor())
+	s.mcpServer.AddTool(ciliumTool, tools.CreateToolHandler(ciliumExecutor, s.cfg))
 }
 
 // registerHubbleComponent registers hubble tools if enabled
 func (s *Service) registerHubbleComponent() {
-	if s.cfg.AdditionalTools["hubble"] {
-		logger.Debugf("Registering Kubernetes tool: hubble")
-		hubbleTool := hubble.RegisterHubble()
-		hubbleExecutor := k8s.WrapK8sExecutor(hubble.NewExecutor())
-		s.mcpServer.AddTool(hubbleTool, tools.CreateToolHandler(hubbleExecutor, s.cfg))
-	}
+	logger.Debugf("Registering Kubernetes tool: hubble")
+	hubbleTool := hubble.RegisterHubble()
+	hubbleExecutor := k8s.WrapK8sExecutor(hubble.NewExecutor())
+	s.mcpServer.AddTool(hubbleTool, tools.CreateToolHandler(hubbleExecutor, s.cfg))
 }
 
 // registerAzureApiComponent registers the azure-api-mcp call_az tool

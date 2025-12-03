@@ -62,8 +62,9 @@ oauth:
 
 # Application configuration
 config:
-  # Additional Kubernetes tools: helm, cilium, hubble
-  additionalTools: []
+  # Enabled components (empty means all components enabled)
+  # Available components: az_cli, monitor, fleet, network, compute, detectors, advisor, inspektorgadget, kubectl, helm, cilium, hubble
+  enabledComponents: []
   # Allowed Kubernetes namespaces (empty means all)
   allowNamespaces: []
   # Cache timeout

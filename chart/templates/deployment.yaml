@@ -78,9 +78,9 @@ spec:
             - "--log-level"
             - {{ .Values.app.logLevel | quote }}
             {{- end }}
-            {{- if .Values.config.additionalTools }}
-            - "--additional-tools"
-            - {{ join "," .Values.config.additionalTools | quote }}
+            {{- if .Values.config.enabledComponents }}
+            - "--enabled-components"
+            - {{ join "," .Values.config.enabledComponents | quote }}
             {{- end }}
             {{- if .Values.config.allowNamespaces }}
             - "--allow-namespaces"
@@ -119,15 +119,6 @@ spec:
                   name: {{ include "aks-mcp.azureSecretName" . }}
                   key: client-secret
                   optional: true
-            {{- end }}
-            {{- if or .Values.azure.subscriptionId .Values.azure.existingSecret }}
-            - name: AZURE_SUBSCRIPTION_ID
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "aks-mcp.azureSecretName" . }}
-                  key: subscription-id
-                  optional: true
-            {{- end }}
             {{- end }}
             # Application Configuration
             - name: DISABLE_CACHE
