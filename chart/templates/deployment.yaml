@@ -120,15 +120,6 @@ spec:
                   key: client-secret
                   optional: true
             {{- end }}
-            {{- if or .Values.azure.subscriptionId .Values.azure.existingSecret }}
-            - name: AZURE_SUBSCRIPTION_ID
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "aks-mcp.azureSecretName" . }}
-                  key: subscription-id
-                  optional: true
-            {{- end }}
-            {{- end }}
             # Application Configuration
             - name: DISABLE_CACHE
               value: {{ not .Values.app.cache | quote }}
