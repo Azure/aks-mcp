@@ -53,14 +53,14 @@ func TestConvertConfig_MapsFields(t *testing.T) {
 	t.Parallel()
 
 	in := &config.ConfigData{
-		Timeout:         600,
-		Transport:       "stdio",
-		Host:            "127.0.0.1",
-		Port:            8000,
-		AccessLevel:     "readonly",
-		AdditionalTools: map[string]bool{"helm": true, "cilium": false, "hubble": false},
-		AllowNamespaces: "default,platform",
-		OTLPEndpoint:    "otel:4317",
+		Timeout:           600,
+		Transport:         "stdio",
+		Host:              "127.0.0.1",
+		Port:              8000,
+		AccessLevel:       "readonly",
+		EnabledComponents: []string{"helm"},
+		AllowNamespaces:   "default,platform",
+		OTLPEndpoint:      "otel:4317",
 	}
 
 	got := ConvertConfig(in)
@@ -74,7 +74,8 @@ func TestConvertConfig_MapsFields(t *testing.T) {
 	mustEqual(t, got.Port, in.Port, "Port")
 	mustEqual(t, got.AccessLevel, in.AccessLevel, "AccessLevel")
 	mustEqual(t, got.OTLPEndpoint, in.OTLPEndpoint, "OTLPEndpoint")
-	mustDeepEqual(t, got.AdditionalTools, in.AdditionalTools, "AdditionalTools")
+	expectedAdditionalTools := map[string]bool{"helm": true}
+	mustDeepEqual(t, got.AdditionalTools, expectedAdditionalTools, "AdditionalTools")
 	mustEqual(t, got.AllowNamespaces, in.AllowNamespaces, "AllowNamespaces")
 
 	if got.SecurityConfig == nil {
@@ -87,22 +88,20 @@ func TestConvertConfig_DoesNotMutateInput(t *testing.T) {
 	t.Parallel()
 
 	in := &config.ConfigData{
-		Timeout:         42,
-		Transport:       "stdio",
-		Host:            "127.0.0.1",
-		Port:            8000,
-		AccessLevel:     "readonly",
-		AdditionalTools: map[string]bool{"helm": true},
-		AllowNamespaces: "default",
-		OTLPEndpoint:    "otel:4317",
+		Timeout:           42,
+		Transport:         "stdio",
+		Host:              "127.0.0.1",
+		Port:              8000,
+		AccessLevel:       "readonly",
+		EnabledComponents: []string{"helm"},
+		AllowNamespaces:   "default",
+		OTLPEndpoint:      "otel:4317",
 	}
 
-	// Verify the “no input mutation” guarantee by comparing to a copy.
+	// Verify the "no input mutation" guarantee by comparing to a copy.
 	orig := *in
-	orig.AdditionalTools = map[string]bool{}
-	for k, v := range in.AdditionalTools {
-		orig.AdditionalTools[k] = v
-	}
+	orig.EnabledComponents = make([]string, len(in.EnabledComponents))
+	copy(orig.EnabledComponents, in.EnabledComponents)
 
 	out := ConvertConfig(in)
 	mustDeepEqual(t, in, &orig, "input should remain unchanged")
@@ -118,7 +117,8 @@ func TestConvertConfig_DoesNotMutateInput(t *testing.T) {
 	mustEqual(t, out.AccessLevel, in.AccessLevel, "AccessLevel")
 	mustEqual(t, out.OTLPEndpoint, in.OTLPEndpoint, "OTLPEndpoint")
 	mustEqual(t, out.AllowNamespaces, in.AllowNamespaces, "AllowNamespaces")
-	mustDeepEqual(t, out.AdditionalTools, in.AdditionalTools, "AdditionalTools")
+	expectedAdditionalTools := map[string]bool{"helm": true}
+	mustDeepEqual(t, out.AdditionalTools, expectedAdditionalTools, "AdditionalTools")
 	mustEqual(t, out.SecurityConfig.AccessLevel, k8ssecurity.AccessLevel(in.AccessLevel), "SecurityConfig.AccessLevel")
 }
 
@@ -144,7 +144,8 @@ func TestConvertConfig_ZeroValueCfg(t *testing.T) {
 	mustEqual(t, out.AccessLevel, "", "AccessLevel")
 	mustEqual(t, out.OTLPEndpoint, "", "OTLPEndpoint")
 	mustEqual(t, out.AllowNamespaces, "", "AllowNamespaces")
-	mustDeepEqual(t, out.AdditionalTools, map[string]bool(nil), "AdditionalTools")
+	expectedAdditionalTools := map[string]bool{"helm": true, "cilium": true, "hubble": true}
+	mustDeepEqual(t, out.AdditionalTools, expectedAdditionalTools, "AdditionalTools")
 	mustEqual(t, out.SecurityConfig.AccessLevel, k8ssecurity.AccessLevel(""), "SecurityConfig.AccessLevel")
 }
 
@@ -156,13 +157,13 @@ func TestExecutorAdapter_DelegatesAndForwards(t *testing.T) {
 
 	params := map[string]interface{}{"k": "v"}
 	inCfg := &config.ConfigData{
-		Timeout:         10,
-		Transport:       "stdio",
-		Host:            "127.0.0.1",
-		Port:            8000,
-		AccessLevel:     "readonly",
-		AdditionalTools: map[string]bool{"helm": true},
-		AllowNamespaces: "default",
+		Timeout:           10,
+		Transport:         "stdio",
+		Host:              "127.0.0.1",
+		Port:              8000,
+		AccessLevel:       "readonly",
+		EnabledComponents: []string{"helm"},
+		AllowNamespaces:   "default",
 	}
 
 	got, err := adapter.Execute(params, inCfg)
@@ -179,7 +180,8 @@ func TestExecutorAdapter_DelegatesAndForwards(t *testing.T) {
 
 	mustEqual(t, fe.lastCfg.Port, inCfg.Port, "Port")
 	mustEqual(t, fe.lastCfg.AccessLevel, inCfg.AccessLevel, "AccessLevel")
-	mustDeepEqual(t, fe.lastCfg.AdditionalTools, inCfg.AdditionalTools, "AdditionalTools")
+	expectedAdditionalTools := map[string]bool{"helm": true}
+	mustDeepEqual(t, fe.lastCfg.AdditionalTools, expectedAdditionalTools, "AdditionalTools")
 	mustEqual(t, fe.lastCfg.AllowNamespaces, inCfg.AllowNamespaces, "AllowNamespaces")
 	mustEqual(t, fe.lastCfg.SecurityConfig.AccessLevel, k8ssecurity.AccessLevel("readonly"), "SecurityConfig.AccessLevel")
 }
@@ -215,14 +217,14 @@ func TestExecutorAdapter_PanicsOnNilConfig_CurrentBehavior(t *testing.T) {
 // Helps detect subtle regressions when config mapping logic evolves.
 func BenchmarkConvertConfig(b *testing.B) {
 	in := &config.ConfigData{
-		Timeout:         600,
-		Transport:       "stdio",
-		Host:            "127.0.0.1",
-		Port:            8000,
-		AccessLevel:     "readonly",
-		AdditionalTools: map[string]bool{"helm": true, "cilium": false, "hubble": false},
-		AllowNamespaces: "default,platform",
-		OTLPEndpoint:    "otel:4317",
+		Timeout:           600,
+		Transport:         "stdio",
+		Host:              "127.0.0.1",
+		Port:              8000,
+		AccessLevel:       "readonly",
+		EnabledComponents: []string{"helm"},
+		AllowNamespaces:   "default,platform",
+		OTLPEndpoint:      "otel:4317",
 	}
 
 	b.ResetTimer()

@@ -78,9 +78,9 @@ spec:
             - "--log-level"
             - {{ .Values.app.logLevel | quote }}
             {{- end }}
-            {{- if .Values.config.additionalTools }}
-            - "--additional-tools"
-            - {{ join "," .Values.config.additionalTools | quote }}
+            {{- if .Values.config.enabledComponents }}
+            - "--enabled-components"
+            - {{ join "," .Values.config.enabledComponents | quote }}
             {{- end }}
             {{- if .Values.config.allowNamespaces }}
             - "--allow-namespaces"

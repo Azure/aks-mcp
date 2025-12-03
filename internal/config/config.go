@@ -54,8 +54,8 @@ type ConfigData struct {
 	AccessLevel string
 
 	// Kubernetes-specific options
-	// Map of additional tools enabled (helm, cilium)
-	AdditionalTools map[string]bool
+	// List of enabled components (empty means all components enabled)
+	EnabledComponents []string
 	// Comma-separated list of allowed Kubernetes namespaces
 	AllowNamespaces string
 
@@ -79,17 +79,17 @@ type ConfigData struct {
 // NewConfig creates and returns a new configuration instance
 func NewConfig() *ConfigData {
 	return &ConfigData{
-		Timeout:         60,
-		CacheTimeout:    1 * time.Minute,
-		SecurityConfig:  security.NewSecurityConfig(),
-		OAuthConfig:     auth.NewDefaultOAuthConfig(),
-		Transport:       "stdio",
-		Port:            8000,
-		AccessLevel:     "readonly",
-		AdditionalTools: make(map[string]bool),
-		AllowNamespaces: "",
-		LogLevel:        "info",
-		UseLegacyTools:  os.Getenv("USE_LEGACY_TOOLS") == "true",
+		Timeout:           60,
+		CacheTimeout:      1 * time.Minute,
+		SecurityConfig:    security.NewSecurityConfig(),
+		OAuthConfig:       auth.NewDefaultOAuthConfig(),
+		Transport:         "stdio",
+		Port:              8000,
+		AccessLevel:       "readonly",
+		EnabledComponents: []string{},
+		AllowNamespaces:   "",
+		LogLevel:          "info",
+		UseLegacyTools:    os.Getenv("USE_LEGACY_TOOLS") == "true",
 	}
 }
 
@@ -117,9 +117,11 @@ func (cfg *ConfigData) ParseFlags() {
 	allowedCORSOrigins := flag.String("oauth-cors-origins", "",
 		"Comma-separated list of allowed CORS origins for OAuth endpoints (e.g. http://localhost:6274). If empty, no cross-origin requests are allowed for security")
 
-	// Kubernetes-specific settings
-	additionalTools := flag.String("additional-tools", "",
-		"Comma-separated list of additional Kubernetes tools to support (kubectl is always enabled). Available: helm,cilium,hubble")
+	// Component configuration
+	enabledComponents := flag.String("enabled-components", "",
+		"Comma-separated list of enabled components (empty means all components enabled). Available: az_cli,monitor,fleet,network,compute,detectors,advisor,inspektorgadget,kubectl,helm,cilium,hubble")
+
+	// Kubernetes namespaces configuration
 	flag.StringVar(&cfg.AllowNamespaces, "allow-namespaces", "",
 		"Comma-separated list of allowed Kubernetes namespaces (empty means all namespaces)")
 
@@ -167,11 +169,14 @@ func (cfg *ConfigData) ParseFlags() {
 		os.Exit(1)
 	}
 
-	// Parse additional tools
-	if *additionalTools != "" {
-		tools := strings.Split(*additionalTools, ",")
-		for _, tool := range tools {
-			cfg.AdditionalTools[strings.TrimSpace(tool)] = true
+	// Parse enabled components
+	if *enabledComponents != "" {
+		components := strings.Split(*enabledComponents, ",")
+		for _, comp := range components {
+			comp = strings.TrimSpace(comp)
+			if comp != "" {
+				cfg.EnabledComponents = append(cfg.EnabledComponents, comp)
+			}
 		}
 	}
 }

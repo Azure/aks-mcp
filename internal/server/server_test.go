@@ -84,53 +84,49 @@ func TestService(t *testing.T) {
 	tests := []struct {
 		name               string
 		accessLevel        string
-		additionalTools    map[string]bool
+		enabledComponents  []string
 		expectedAzureTools int
 		expectedK8sTools   int
 		description        string
 	}{
 		{
-			name:               "ReadOnly_NoOptional",
+			name:               "ReadOnly_AllComponents",
 			accessLevel:        "readonly",
-			additionalTools:    map[string]bool{},
+			enabledComponents:  []string{},
 			expectedAzureTools: 8, // AKS Ops + Monitoring + Fleet + Network + Compute (VMSS Info only) + Detectors (3) + Advisor + Inspektor Gadget
 			expectedK8sTools:   0, // Will be calculated based on kubectl tools for readonly
-			description:        "Readonly access with no optional tools",
+			description:        "Readonly access with all components enabled (default)",
 		},
 		{
-			name:               "ReadWrite_NoOptional",
+			name:               "ReadWrite_AllComponents",
 			accessLevel:        "readwrite",
-			additionalTools:    map[string]bool{},
+			enabledComponents:  []string{},
 			expectedAzureTools: 9, // Same as readonly + 1 read-write VMSS command
 			expectedK8sTools:   0, // Will be calculated based on kubectl tools for readwrite
-			description:        "Readwrite access with no optional tools",
+			description:        "Readwrite access with all components enabled (default)",
 		},
 		{
-			name:               "Admin_NoOptional",
+			name:               "Admin_AllComponents",
 			accessLevel:        "admin",
-			additionalTools:    map[string]bool{},
+			enabledComponents:  []string{},
 			expectedAzureTools: 9, // Same as readwrite (no admin VMSS commands currently)
 			expectedK8sTools:   0, // Will be calculated based on kubectl tools for admin
-			description:        "Admin access with no optional tools",
+			description:        "Admin access with all components enabled (default)",
 		},
 		{
-			name:        "ReadOnly_AllOptional",
-			accessLevel: "readonly",
-			additionalTools: map[string]bool{
-				"helm":   true,
-				"cilium": true,
-				"hubble": true,
-			},
-			expectedAzureTools: 8, // Same as readonly (Inspektor Gadget now included automatically)
-			expectedK8sTools:   0, // Will be calculated + 2 optional tools
-			description:        "Readonly access with all optional tools",
+			name:               "ReadOnly_SelectiveComponents",
+			accessLevel:        "readonly",
+			enabledComponents:  []string{"monitor", "network", "helm"},
+			expectedAzureTools: 2, // Only monitor and network
+			expectedK8sTools:   0, // Will be calculated + helm
+			description:        "Readonly access with selective components",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create test configuration
-			cfg := createTestConfig(tt.accessLevel, tt.additionalTools)
+			cfg := createTestConfig(tt.accessLevel, tt.enabledComponents)
 
 			// Create service with injected fake Proc factory so Initialize doesn't call the real az binary
 			service := NewService(cfg, WithAzCliProcFactory(func(timeout int) azcli.Proc { return &fakeProc{} }))
@@ -139,16 +135,12 @@ func TestService(t *testing.T) {
 			kubectlTools := kubectl.RegisterKubectlTools(tt.accessLevel, false)
 			expectedKubectlCount := len(kubectlTools)
 
-			// Add optional tools count
+			// Count optional kubernetes tools enabled
 			optionalToolsCount := 0
-			if tt.additionalTools["helm"] {
-				optionalToolsCount++
-			}
-			if tt.additionalTools["cilium"] {
-				optionalToolsCount++
-			}
-			if tt.additionalTools["hubble"] {
-				optionalToolsCount++
+			for _, comp := range tt.enabledComponents {
+				if comp == "helm" || comp == "cilium" || comp == "hubble" {
+					optionalToolsCount++
+				}
 			}
 
 			expectedTotalK8sTools := expectedKubectlCount + optionalToolsCount
@@ -264,7 +256,7 @@ func TestAKSOperationsAccess(t *testing.T) {
 
 	for _, level := range accessLevels {
 		t.Run("AccessLevel_"+level, func(t *testing.T) {
-			cfg := createTestConfig(level, map[string]bool{})
+			cfg := createTestConfig(level, []string{})
 
 			// Test that AKS operations tool is registered with proper access
 			tool := azaks.RegisterAzAksOperations(cfg)
@@ -291,7 +283,7 @@ func TestServiceInitialization(t *testing.T) {
 		_ = os.Unsetenv("AZURE_SUBSCRIPTION_ID")
 	}()
 
-	cfg := createTestConfig("readonly", map[string]bool{})
+	cfg := createTestConfig("readonly", []string{})
 	service := NewService(cfg, WithAzCliProcFactory(func(timeout int) azcli.Proc { return &fakeProc{} }))
 
 	// Test service creation - must be non-nil
@@ -360,10 +352,10 @@ func TestExpectedToolsByAccessLevel(t *testing.T) {
 }
 
 // createTestConfig creates a test configuration
-func createTestConfig(accessLevel string, additionalTools map[string]bool) *config.ConfigData {
+func createTestConfig(accessLevel string, enabledComponents []string) *config.ConfigData {
 	cfg := config.NewConfig()
 	cfg.AccessLevel = accessLevel
-	cfg.AdditionalTools = additionalTools
+	cfg.EnabledComponents = enabledComponents
 	cfg.Transport = "stdio"
 	cfg.Timeout = 60
 	return cfg
@@ -388,7 +380,7 @@ func BenchmarkServiceInitialization(b *testing.B) {
 		_ = os.Unsetenv("AZURE_SUBSCRIPTION_ID")
 	}()
 
-	cfg := createTestConfig("readonly", map[string]bool{})
+	cfg := createTestConfig("readonly", []string{})
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -402,7 +394,7 @@ func BenchmarkServiceInitialization(b *testing.B) {
 
 // TestCreateCustomHTTPServerWithHelp404 tests the custom HTTP server creation for streamable-http transport
 func TestCreateCustomHTTPServerWithHelp404(t *testing.T) {
-	cfg := createTestConfig("readonly", map[string]bool{})
+	cfg := createTestConfig("readonly", []string{})
 	service := NewService(cfg)
 	err := service.Initialize()
 	if err != nil {
@@ -518,7 +510,7 @@ func TestCreateCustomHTTPServerWithHelp404(t *testing.T) {
 
 // TestCreateCustomSSEServerWithHelp404 tests the custom HTTP server creation for SSE transport
 func TestCreateCustomSSEServerWithHelp404(t *testing.T) {
-	cfg := createTestConfig("readonly", map[string]bool{})
+	cfg := createTestConfig("readonly", []string{})
 	service := NewService(cfg)
 	err := service.Initialize()
 	if err != nil {
@@ -654,7 +646,7 @@ func TestCreateCustomSSEServerWithHelp404(t *testing.T) {
 
 // TestSSEServerEndpointsAccessible tests that SSE endpoints are still accessible
 func TestSSEServerEndpointsAccessible(t *testing.T) {
-	cfg := createTestConfig("readonly", map[string]bool{})
+	cfg := createTestConfig("readonly", []string{})
 	service := NewService(cfg)
 	err := service.Initialize()
 	if err != nil {
@@ -717,7 +709,7 @@ func TestSSEServerEndpointsAccessible(t *testing.T) {
 
 // TestJSONResponseFormat tests the format of JSON error responses
 func TestJSONResponseFormat(t *testing.T) {
-	cfg := createTestConfig("readonly", map[string]bool{})
+	cfg := createTestConfig("readonly", []string{})
 	service := NewService(cfg)
 	err := service.Initialize()
 	if err != nil {
