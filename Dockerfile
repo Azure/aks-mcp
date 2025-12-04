@@ -31,7 +31,7 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
     -o aks-mcp ./cmd/aks-mcp
 
 # Runtime stage
-FROM alpine:3.22
+FROM alpine:3.23
 ARG TARGETARCH
 
 # Install required packages for kubectl and helm, plus build tools for Azure CLI
