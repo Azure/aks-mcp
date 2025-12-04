@@ -75,7 +75,9 @@ jobs:
 
       - name: Authenticate to MCR
         run: |
+          MCR_REGISTRY=$(echo "${{ secrets.AKS_MCP_MCR_REGISTRY }}" | tr '[:upper:]' '[:lower:]')
           az acr login -n ${{ secrets.AKS_MCP_MCR_REGISTRY }}
+          echo "MCR_REGISTRY_LOWER=${MCR_REGISTRY}" >> $GITHUB_ENV
 
       - name: Authenticate to GHCR
         run: |
@@ -98,7 +100,7 @@ jobs:
         run: |
           GHCR_IMAGE="${{ steps.version.outputs.ghcr_image }}"
           VERSION="${{ steps.version.outputs.version }}"
-          MCR_REGISTRY="${{ secrets.AKS_MCP_MCR_REGISTRY }}"
+          MCR_REGISTRY="${{ env.MCR_REGISTRY_LOWER }}"
           MCR_IMAGE="${MCR_REGISTRY}.azurecr.io/public/aks/aks-mcp"
 
           # Tag with version
