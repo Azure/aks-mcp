@@ -34,7 +34,7 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
       mcr_image: ${{ steps.push.outputs.mcr_image }}
-      digest: ${{ steps.verify.outputs.digest }}
+      image_id: ${{ steps.verify.outputs.image_id }}
     steps:
       - name: Determine version and source image
         id: version
@@ -75,7 +75,9 @@ jobs:
 
       - name: Authenticate to MCR
         run: |
+          MCR_REGISTRY=$(echo "${{ secrets.AKS_MCP_MCR_REGISTRY }}" | tr '[:upper:]' '[:lower:]')
           az acr login -n ${{ secrets.AKS_MCP_MCR_REGISTRY }}
+          echo "MCR_REGISTRY_LOWER=${MCR_REGISTRY}" >> $GITHUB_ENV
 
       - name: Authenticate to GHCR
         run: |
@@ -88,17 +90,17 @@ jobs:
           echo "Pulling image: ${GHCR_IMAGE}"
           docker pull ${GHCR_IMAGE}
 
-          # Get the digest from GHCR
-          GHCR_DIGEST=$(docker inspect ${GHCR_IMAGE} --format='{{index .RepoDigests 0}}')
-          echo "ghcr_digest=${GHCR_DIGEST}" >> "$GITHUB_OUTPUT"
-          echo "GHCR Digest: ${GHCR_DIGEST}"
+          # Get the image ID (content hash) from GHCR
+          GHCR_IMAGE_ID=$(docker inspect ${GHCR_IMAGE} --format='{{.Id}}')
+          echo "ghcr_image_id=${GHCR_IMAGE_ID}" >> "$GITHUB_OUTPUT"
+          echo "GHCR Image ID: ${GHCR_IMAGE_ID}"
 
       - name: Tag and push to MCR
         id: push
         run: |
           GHCR_IMAGE="${{ steps.version.outputs.ghcr_image }}"
           VERSION="${{ steps.version.outputs.version }}"
-          MCR_REGISTRY="${{ secrets.AKS_MCP_MCR_REGISTRY }}"
+          MCR_REGISTRY="${{ env.MCR_REGISTRY_LOWER }}"
           MCR_IMAGE="${MCR_REGISTRY}.azurecr.io/public/aks/aks-mcp"
 
           # Tag with version
@@ -120,32 +122,36 @@ jobs:
           echo "mcr_image=${MCR_IMAGE}:${VERSION}" >> "$GITHUB_OUTPUT"
           echo "Successfully pushed to MCR"
 
-      - name: Verify digest consistency
+      - name: Verify image consistency
         id: verify
         run: |
-          GHCR_DIGEST="${{ steps.pull.outputs.ghcr_digest }}"
+          GHCR_IMAGE_ID="${{ steps.pull.outputs.ghcr_image_id }}"
           MCR_IMAGE="${{ steps.push.outputs.mcr_image }}"
 
-          # Pull the MCR image to get its digest
+          # Pull the MCR image to get its Image ID
           docker pull ${MCR_IMAGE}
-          MCR_DIGEST=$(docker inspect ${MCR_IMAGE} --format='{{index .RepoDigests 0}}')
+          MCR_IMAGE_ID=$(docker inspect ${MCR_IMAGE} --format='{{.Id}}')
 
-          echo "GHCR Digest: ${GHCR_DIGEST}"
-          echo "MCR Digest:  ${MCR_DIGEST}"
+          echo "GHCR Image ID: ${GHCR_IMAGE_ID}"
+          echo "MCR Image ID:  ${MCR_IMAGE_ID}"
 
-          # Extract just the sha256 part for comparison
-          GHCR_SHA=$(echo ${GHCR_DIGEST} | cut -d'@' -f2)
-          MCR_SHA=$(echo ${MCR_DIGEST} | cut -d'@' -f2)
-
-          if [ "${GHCR_SHA}" = "${MCR_SHA}" ]; then
-            echo "✅ Digest verification PASSED - Images are identical"
-            echo "digest=${MCR_SHA}" >> "$GITHUB_OUTPUT"
+          if [ "${GHCR_IMAGE_ID}" = "${MCR_IMAGE_ID}" ]; then
+            echo "✅ Image verification PASSED - Images are identical"
+            echo "image_id=${MCR_IMAGE_ID}" >> "$GITHUB_OUTPUT"
           else
-            echo "❌ Digest verification FAILED - Images differ!"
-            echo "GHCR SHA: ${GHCR_SHA}"
-            echo "MCR SHA:  ${MCR_SHA}"
+            echo "❌ Image verification FAILED - Images differ!"
+            echo "GHCR Image ID: ${GHCR_IMAGE_ID}"
+            echo "MCR Image ID:  ${MCR_IMAGE_ID}"
             exit 1
           fi
+
+          # Also show the manifest digests for reference
+          GHCR_IMAGE="${{ steps.version.outputs.ghcr_image }}"
+          GHCR_DIGEST=$(docker inspect ${GHCR_IMAGE} --format='{{index .RepoDigests 0}}')
+          MCR_DIGEST=$(docker inspect ${MCR_IMAGE} --format='{{index .RepoDigests 0}}')
+          echo "Note: Manifest digests may differ (this is expected for multi-arch images)"
+          echo "GHCR Manifest: ${GHCR_DIGEST}"
+          echo "MCR Manifest:  ${MCR_DIGEST}"
 
       - name: Summary
         run: |
@@ -157,7 +163,7 @@ jobs:
           echo "- **MCR Version**: ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Source Image**: ${{ steps.version.outputs.ghcr_image }}" >> $GITHUB_STEP_SUMMARY
           echo "- **MCR Image**: ${{ steps.push.outputs.mcr_image }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Digest**: ${{ steps.verify.outputs.digest }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image ID**: ${{ steps.verify.outputs.image_id }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Verification" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
