@@ -346,6 +346,10 @@ func prepareCommonParams(filterParams map[string]interface{}, cfg *config.Config
 		params[paramPod] = pod
 	}
 
+	if node, ok := filterParams["node"].(string); ok && node != "" {
+		params[paramNode] = node
+	}
+
 	if container, ok := filterParams["container"].(string); ok && container != "" {
 		params[paramContainer] = container
 	}

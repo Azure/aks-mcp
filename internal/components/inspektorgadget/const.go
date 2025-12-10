@@ -30,7 +30,7 @@ const (
 const (
 	paramAllNamespaces    = "operator.KubeManager.all-namespaces"
 	paramNamespace        = "operator.KubeManager.namespace"
-	paramNode             = "operator.KubeManager.node"
+	paramNode             = "node" // Node parameter is handled by the grpc runtime
 	paramPod              = "operator.KubeManager.podname"
 	paramContainer        = "operator.KubeManager.containername"
 	paramSelector         = "operator.KubeManager.selector"

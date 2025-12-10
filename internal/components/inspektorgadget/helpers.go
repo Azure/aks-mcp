@@ -182,6 +182,7 @@ func getFilterParamKeys() []string {
 		"pod",
 		"container",
 		"selector",
+		"node",
 	}...)
 }
 
