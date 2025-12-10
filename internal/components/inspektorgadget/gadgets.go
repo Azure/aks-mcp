@@ -227,10 +227,15 @@ var gadgets = []Gadget{
 				"description": "Maximum number of entries to return",
 				"default":     5,
 			},
+			"sort_by": map[string]interface{}{
+				"type":        "string",
+				"description": "Which metric to sort the results by.",
+				"default":     "wbytes_raw",
+				"enum":        []string{"rbytes_raw", "wbytes_raw"},
+			},
 		},
 		ParamsFunc: func(filterParams map[string]interface{}, gadgetParams map[string]string) {
 			// Set default values for sort and limiter parameters
-			gadgetParams[paramSort] = "-rbytes_raw,-wbytes_raw"
 			gadgetParams[paramLimiter] = "5"
 
 			topFileParams, ok := getGadgetParam(filterParams, topFile)
@@ -239,6 +244,9 @@ var gadgets = []Gadget{
 			}
 			if maxEntries, ok := topFileParams["max_entries"].(float64); ok && maxEntries > 0 {
 				gadgetParams[paramLimiter] = fmt.Sprintf("%d", int(maxEntries))
+			}
+			if sortBy, ok := topFileParams["sort_by"].(string); ok && sortBy != "" {
+				gadgetParams[paramSort] = fmt.Sprintf("-%s", sortBy)
 			}
 		},
 	},
