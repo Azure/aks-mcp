@@ -316,11 +316,11 @@ var gadgets = []Gadget{
 	{
 		Name:        profileBlockIO,
 		Image:       "ghcr.io/inspektor-gadget/gadget/profile_blockio",
-		Description: "Profiles a node and provides a histogram of block IO (disk) latency",
+		Description: "Profiles a single node and provides a histogram of block IO (disk) latency for it",
 		Params: map[string]interface{}{
 			"node": map[string]interface{}{
 				"type":        "string",
-				"description": "Target node of the block IO latency profiling",
+				"description": "Target node of the block IO latency profiling. Result is a series of histograms for the given node",
 			},
 		},
 		ParamsFunc: func(filterParams map[string]interface{}, gadgetParams map[string]string) {
