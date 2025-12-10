@@ -351,7 +351,7 @@ var gadgets = []Gadget{
 		},
 		ParamsFunc: func(filterParams map[string]interface{}, gadgetParams map[string]string) {
 			gadgetParams[paramNode] = ""
-			gadgetParams[paramSort] = "-bytes_raw"
+			gadgetParams[paramSort] = "-bytes"
 			gadgetParams[paramLimiter] = "5"
 
 			topBlockIOParams, ok := getGadgetParam(filterParams, topBlockIO)
