@@ -227,10 +227,15 @@ var gadgets = []Gadget{
 				"description": "Maximum number of entries to return",
 				"default":     5,
 			},
+			"sort_by": map[string]interface{}{
+				"type":        "string",
+				"description": "Which metric to sort the results by.",
+				"default":     "wbytes_raw",
+				"enum":        []string{"rbytes_raw", "wbytes_raw"},
+			},
 		},
 		ParamsFunc: func(filterParams map[string]interface{}, gadgetParams map[string]string) {
 			// Set default values for sort and limiter parameters
-			gadgetParams[paramSort] = "-rbytes_raw,-wbytes_raw"
 			gadgetParams[paramLimiter] = "5"
 
 			topFileParams, ok := getGadgetParam(filterParams, topFile)
@@ -239,6 +244,9 @@ var gadgets = []Gadget{
 			}
 			if maxEntries, ok := topFileParams["max_entries"].(float64); ok && maxEntries > 0 {
 				gadgetParams[paramLimiter] = fmt.Sprintf("%d", int(maxEntries))
+			}
+			if sortBy, ok := topFileParams["sort_by"].(string); ok && sortBy != "" {
+				gadgetParams[paramSort] = fmt.Sprintf("-%s", sortBy)
 			}
 		},
 	},
@@ -308,33 +316,15 @@ var gadgets = []Gadget{
 	{
 		Name:        profileBlockIO,
 		Image:       "ghcr.io/inspektor-gadget/gadget/profile_blockio",
-		Description: "Profiles a node and provides a histogram of block IO (disk) latency",
-		Params: map[string]interface{}{
-			"node": map[string]interface{}{
-				"type":        "string",
-				"description": "Target node of the block IO latency profiling",
-			},
-		},
-		ParamsFunc: func(filterParams map[string]interface{}, gadgetParams map[string]string) {
-			gadgetParams[paramNode] = ""
-			nodeParams, ok := getGadgetParam(filterParams, profileBlockIO)
-			if !ok {
-				return
-			}
-			if nodeFilter, ok := nodeParams["node"].(string); ok && nodeFilter != "" {
-				gadgetParams[paramNode] = nodeFilter
-			}
-		},
+		Description: "Profiles a single node and provides a histogram of block IO (disk) latency for it",
+		Params:      map[string]interface{}{},
+		ParamsFunc:  func(filterParams map[string]interface{}, gadgetParams map[string]string) {},
 	},
 	{
 		Name:        topBlockIO,
 		Image:       "ghcr.io/inspektor-gadget/gadget/top_blockio",
 		Description: "Shows top block IO (disk) activity by bytes for read/write operations (requires Kernel version >=6.6)",
 		Params: map[string]interface{}{
-			"node": map[string]interface{}{
-				"type":        "string",
-				"description": "Target node of this operation",
-			},
 			"max_entries": map[string]interface{}{
 				"type":        "number",
 				"description": "Maximum number of entries to return",
@@ -343,15 +333,12 @@ var gadgets = []Gadget{
 		},
 		ParamsFunc: func(filterParams map[string]interface{}, gadgetParams map[string]string) {
 			gadgetParams[paramNode] = ""
-			gadgetParams[paramSort] = "-bytes_raw"
+			gadgetParams[paramSort] = "-bytes"
 			gadgetParams[paramLimiter] = "5"
 
 			topBlockIOParams, ok := getGadgetParam(filterParams, topBlockIO)
 			if !ok {
 				return
-			}
-			if nodeFilter, ok := topBlockIOParams["node"].(string); ok && nodeFilter != "" {
-				gadgetParams[paramNode] = nodeFilter
 			}
 			if maxEntries, ok := topBlockIOParams["max_entries"].(float64); ok && maxEntries > 0 {
 				gadgetParams[paramLimiter] = fmt.Sprintf("%d", int(maxEntries))

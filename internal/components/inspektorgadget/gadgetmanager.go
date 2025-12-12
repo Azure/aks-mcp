@@ -91,7 +91,15 @@ func (g *manager) RunGadget(ctx context.Context, image string, params map[string
 		return "", fmt.Errorf("getting runtime: %w", err)
 	}
 
-	if err := rt.RunGadget(gadgetCtx, rt.ParamDescs().ToParams(), params); err != nil {
+	runtimeParams := rt.ParamDescs().ToParams()
+	if node, ok := params[paramNode]; ok && node != "" {
+		if err = runtimeParams.Set(paramNode, node); err != nil {
+			return "", fmt.Errorf("setting node parameter: %w", err)
+		}
+		delete(params, paramNode)
+	}
+
+	if err := rt.RunGadget(gadgetCtx, runtimeParams, params); err != nil {
 		return "", fmt.Errorf("running gadget: %w", err)
 	}
 
