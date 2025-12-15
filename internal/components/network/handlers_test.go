@@ -1,19 +1,24 @@
 package network
 
 import (
+	"context"
 	"testing"
+
+	"github.com/Azure/aks-mcp/internal/config"
 )
 
 // TestGetLoadBalancersInfoHandler tests the load balancers info handler
 func TestGetLoadBalancersInfoHandler(t *testing.T) {
+	cfg := &config.ConfigData{}
+
 	t.Run("missing subscription_id parameter", func(t *testing.T) {
 		params := map[string]interface{}{
 			"resource_group": "rg-test",
 			"cluster_name":   "cluster-test",
 		}
 
-		handler := GetLoadBalancersInfoHandler(nil, nil)
-		result, err := handler.Handle(params, nil)
+		handler := GetLoadBalancersInfoHandler(nil, cfg)
+		result, err := handler.Handle(context.Background(), params, cfg)
 
 		if err == nil {
 			t.Error("Expected error for missing subscription_id")
@@ -32,8 +37,8 @@ func TestGetLoadBalancersInfoHandler(t *testing.T) {
 			"cluster_name":    "cluster-test",
 		}
 
-		handler := GetLoadBalancersInfoHandler(nil, nil)
-		result, err := handler.Handle(params, nil)
+		handler := GetLoadBalancersInfoHandler(nil, cfg)
+		result, err := handler.Handle(context.Background(), params, cfg)
 
 		if err == nil {
 			t.Error("Expected error for missing resource_group")
@@ -52,8 +57,8 @@ func TestGetLoadBalancersInfoHandler(t *testing.T) {
 			"resource_group":  "rg-test",
 		}
 
-		handler := GetLoadBalancersInfoHandler(nil, nil)
-		result, err := handler.Handle(params, nil)
+		handler := GetLoadBalancersInfoHandler(nil, cfg)
+		result, err := handler.Handle(context.Background(), params, cfg)
 
 		if err == nil {
 			t.Error("Expected error for missing cluster_name")
@@ -73,8 +78,8 @@ func TestGetLoadBalancersInfoHandler(t *testing.T) {
 			"cluster_name":    "cluster-test",
 		}
 
-		handler := GetLoadBalancersInfoHandler(nil, nil)
-		result, err := handler.Handle(params, nil)
+		handler := GetLoadBalancersInfoHandler(nil, cfg)
+		result, err := handler.Handle(context.Background(), params, cfg)
 
 		if err == nil {
 			t.Error("Expected error for empty subscription_id")
@@ -94,8 +99,8 @@ func TestGetLoadBalancersInfoHandler(t *testing.T) {
 			"cluster_name":    "cluster-test",
 		}
 
-		handler := GetLoadBalancersInfoHandler(nil, nil)
-		result, err := handler.Handle(params, nil)
+		handler := GetLoadBalancersInfoHandler(nil, cfg)
+		result, err := handler.Handle(context.Background(), params, cfg)
 
 		if err == nil {
 			t.Error("Expected error for invalid parameter type")
@@ -114,14 +119,16 @@ func TestGetLoadBalancersInfoHandler(t *testing.T) {
 
 // TestGetPrivateEndpointInfoHandlerValidation tests the private endpoint info handler parameter validation
 func TestGetPrivateEndpointInfoHandlerValidation(t *testing.T) {
+	cfg := &config.ConfigData{}
+
 	t.Run("missing subscription_id parameter", func(t *testing.T) {
 		params := map[string]interface{}{
 			"resource_group": "rg-test",
 			"cluster_name":   "cluster-test",
 		}
 
-		handler := GetPrivateEndpointInfoHandler(nil, nil)
-		result, err := handler.Handle(params, nil)
+		handler := GetPrivateEndpointInfoHandler(nil, cfg)
+		result, err := handler.Handle(context.Background(), params, cfg)
 
 		if err == nil {
 			t.Error("Expected error for missing subscription_id")
@@ -140,8 +147,8 @@ func TestGetPrivateEndpointInfoHandlerValidation(t *testing.T) {
 			"cluster_name":    "cluster-test",
 		}
 
-		handler := GetPrivateEndpointInfoHandler(nil, nil)
-		result, err := handler.Handle(params, nil)
+		handler := GetPrivateEndpointInfoHandler(nil, cfg)
+		result, err := handler.Handle(context.Background(), params, cfg)
 
 		if err == nil {
 			t.Error("Expected error for missing resource_group")
@@ -160,8 +167,8 @@ func TestGetPrivateEndpointInfoHandlerValidation(t *testing.T) {
 			"resource_group":  "rg-test",
 		}
 
-		handler := GetPrivateEndpointInfoHandler(nil, nil)
-		result, err := handler.Handle(params, nil)
+		handler := GetPrivateEndpointInfoHandler(nil, cfg)
+		result, err := handler.Handle(context.Background(), params, cfg)
 
 		if err == nil {
 			t.Error("Expected error for missing cluster_name")
@@ -181,8 +188,8 @@ func TestGetPrivateEndpointInfoHandlerValidation(t *testing.T) {
 			"cluster_name":    "cluster-test",
 		}
 
-		handler := GetPrivateEndpointInfoHandler(nil, nil)
-		result, err := handler.Handle(params, nil)
+		handler := GetPrivateEndpointInfoHandler(nil, cfg)
+		result, err := handler.Handle(context.Background(), params, cfg)
 
 		if err == nil {
 			t.Error("Expected error for empty subscription_id")
@@ -202,8 +209,8 @@ func TestGetPrivateEndpointInfoHandlerValidation(t *testing.T) {
 			"cluster_name":    "cluster-test",
 		}
 
-		handler := GetPrivateEndpointInfoHandler(nil, nil)
-		result, err := handler.Handle(params, nil)
+		handler := GetPrivateEndpointInfoHandler(nil, cfg)
+		result, err := handler.Handle(context.Background(), params, cfg)
 
 		if err == nil {
 			t.Error("Expected error for invalid parameter type")

@@ -4,6 +4,8 @@
 package k8s
 
 import (
+	"context"
+
 	"github.com/Azure/aks-mcp/internal/config"
 	"github.com/Azure/aks-mcp/internal/tools"
 	k8sconfig "github.com/Azure/mcp-kubernetes/pkg/config"
@@ -70,7 +72,7 @@ type executorAdapter struct {
 
 // Execute adapts aks-mcp execution by converting its config
 // and delegating to the wrapped mcp-kubernetes executor.
-func (a *executorAdapter) Execute(params map[string]interface{}, cfg *config.ConfigData) (string, error) {
+func (a *executorAdapter) Execute(ctx context.Context, params map[string]interface{}, cfg *config.ConfigData) (string, error) {
 	k8sCfg := ConvertConfig(cfg)
-	return a.k8sExecutor.Execute(params, k8sCfg)
+	return a.k8sExecutor.Execute(ctx, params, k8sCfg)
 }

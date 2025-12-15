@@ -46,7 +46,7 @@ func CreateToolHandler(executor CommandExecutor, cfg *config.ConfigData) func(ct
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 
-		result, err := executor.Execute(args, cfg)
+		result, err := executor.Execute(ctx, args, cfg)
 		if cfg.TelemetryService != nil {
 			cfg.TelemetryService.TrackToolInvocation(ctx, req.Params.Name, getOperationValue(args), err == nil)
 		}
@@ -80,7 +80,7 @@ func CreateResourceHandler(handler ResourceHandler, cfg *config.ConfigData) func
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 
-		result, err := handler.Handle(args, cfg)
+		result, err := handler.Handle(ctx, args, cfg)
 
 		// Track tool invocation with minimal data
 		if cfg.TelemetryService != nil {

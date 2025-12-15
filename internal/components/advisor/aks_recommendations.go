@@ -1,6 +1,7 @@
 package advisor
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -12,7 +13,7 @@ import (
 )
 
 // HandleAdvisorRecommendation is the main handler for Azure Advisor recommendation operations
-func HandleAdvisorRecommendation(params map[string]interface{}, cfg *config.ConfigData) (string, error) {
+func HandleAdvisorRecommendation(ctx context.Context, params map[string]interface{}, cfg *config.ConfigData) (string, error) {
 	operation, ok := params["operation"].(string)
 	if !ok {
 		logger.Errorf("[ADVISOR] Missing operation parameter")
@@ -23,9 +24,9 @@ func HandleAdvisorRecommendation(params map[string]interface{}, cfg *config.Conf
 
 	switch operation {
 	case "list":
-		return handleAKSAdvisorRecommendationList(params, cfg)
+		return handleAKSAdvisorRecommendationList(ctx, params, cfg)
 	case "report":
-		return handleAKSAdvisorRecommendationReport(params, cfg)
+		return handleAKSAdvisorRecommendationReport(ctx, params, cfg)
 	default:
 		logger.Errorf("[ADVISOR] Invalid operation: %s", operation)
 		return "", fmt.Errorf("invalid operation: %s. Allowed values: list, report", operation)
@@ -33,7 +34,7 @@ func HandleAdvisorRecommendation(params map[string]interface{}, cfg *config.Conf
 }
 
 // handleAKSAdvisorRecommendationList lists AKS-related recommendations
-func handleAKSAdvisorRecommendationList(params map[string]interface{}, cfg *config.ConfigData) (string, error) {
+func handleAKSAdvisorRecommendationList(ctx context.Context, params map[string]interface{}, cfg *config.ConfigData) (string, error) {
 	subscriptionID, ok := params["subscription_id"].(string)
 	if !ok {
 		logger.Errorf("[ADVISOR] Missing subscription_id parameter")
@@ -61,7 +62,7 @@ func handleAKSAdvisorRecommendationList(params map[string]interface{}, cfg *conf
 	}
 
 	// Execute Azure CLI command to get recommendations
-	recommendations, err := listRecommendationsViaCLI(subscriptionID, resourceGroup, category, cfg)
+	recommendations, err := listRecommendationsViaCLI(ctx, subscriptionID, resourceGroup, category, cfg)
 	if err != nil {
 		logger.Errorf("[ADVISOR] Failed to list recommendations: %v", err)
 		return "", fmt.Errorf("failed to list recommendations: %w", err)
@@ -98,7 +99,7 @@ func handleAKSAdvisorRecommendationList(params map[string]interface{}, cfg *conf
 }
 
 // handleAKSAdvisorRecommendationReport generates a comprehensive report
-func handleAKSAdvisorRecommendationReport(params map[string]interface{}, cfg *config.ConfigData) (string, error) {
+func handleAKSAdvisorRecommendationReport(ctx context.Context, params map[string]interface{}, cfg *config.ConfigData) (string, error) {
 	subscriptionID, ok := params["subscription_id"].(string)
 	if !ok {
 		return "", fmt.Errorf("subscription_id parameter is required")
@@ -112,7 +113,7 @@ func handleAKSAdvisorRecommendationReport(params map[string]interface{}, cfg *co
 	}
 
 	// Get all AKS recommendations
-	recommendations, err := listRecommendationsViaCLI(subscriptionID, resourceGroup, "", cfg)
+	recommendations, err := listRecommendationsViaCLI(ctx, subscriptionID, resourceGroup, "", cfg)
 	if err != nil {
 		return "", fmt.Errorf("failed to list recommendations: %w", err)
 	}
@@ -134,7 +135,7 @@ func handleAKSAdvisorRecommendationReport(params map[string]interface{}, cfg *co
 }
 
 // listRecommendationsViaCLI executes Azure CLI command to list recommendations
-func listRecommendationsViaCLI(subscriptionID, resourceGroup, category string, cfg *config.ConfigData) ([]CLIRecommendation, error) {
+func listRecommendationsViaCLI(ctx context.Context, subscriptionID, resourceGroup, category string, cfg *config.ConfigData) ([]CLIRecommendation, error) {
 	executor := azcli.NewExecutor()
 
 	// Build command arguments
@@ -152,7 +153,7 @@ func listRecommendationsViaCLI(subscriptionID, resourceGroup, category string, c
 	logger.Debugf("[ADVISOR] Executing command: %s", cmdParams["command"])
 
 	// Execute command
-	output, err := executor.Execute(cmdParams, cfg)
+	output, err := executor.Execute(ctx, cmdParams, cfg)
 	if err != nil {
 		logger.Errorf("[ADVISOR] Command execution failed: %v", err)
 		return nil, fmt.Errorf("failed to execute Azure CLI command: %w", err)

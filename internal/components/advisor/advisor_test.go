@@ -1,6 +1,7 @@
 package advisor
 
 import (
+	"context"
 	"testing"
 
 	"github.com/Azure/aks-mcp/internal/config"
@@ -241,7 +242,7 @@ func TestHandleAdvisorRecommendationInvalidOperation(t *testing.T) {
 		"operation": "invalid_operation",
 	}
 
-	_, err := HandleAdvisorRecommendation(params, cfg)
+	_, err := HandleAdvisorRecommendation(context.Background(), params, cfg)
 	if err == nil {
 		t.Error("Expected error for invalid operation, got nil")
 	}
@@ -256,7 +257,7 @@ func TestHandleAdvisorRecommendationMissingOperation(t *testing.T) {
 	cfg := &config.ConfigData{}
 	params := map[string]interface{}{}
 
-	_, err := HandleAdvisorRecommendation(params, cfg)
+	_, err := HandleAdvisorRecommendation(context.Background(), params, cfg)
 	if err == nil {
 		t.Error("Expected error for missing operation, got nil")
 	}

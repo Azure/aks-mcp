@@ -1,6 +1,7 @@
 package kubernetes
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/Azure/aks-mcp/internal/config"
@@ -28,7 +29,7 @@ func NewClient() (*Client, error) {
 }
 
 // ExecuteKubectl executes a kubectl command
-func (c *Client) ExecuteKubectl(command string, cfg *config.ConfigData) (string, error) {
+func (c *Client) ExecuteKubectl(ctx context.Context, command string, cfg *config.ConfigData) (string, error) {
 	if c == nil {
 		return "", fmt.Errorf("Client is nil")
 	}
@@ -39,5 +40,5 @@ func (c *Client) ExecuteKubectl(command string, cfg *config.ConfigData) (string,
 	params := map[string]interface{}{
 		"command": command,
 	}
-	return c.executor.Execute(params, cfg)
+	return c.executor.Execute(ctx, params, cfg)
 }

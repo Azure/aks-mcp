@@ -1,6 +1,7 @@
 package azaks
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -19,7 +20,7 @@ func NewAksOperationsExecutor() *AksOperationsExecutor {
 }
 
 // Execute handles the AKS operations
-func (e *AksOperationsExecutor) Execute(params map[string]interface{}, cfg *config.ConfigData) (string, error) {
+func (e *AksOperationsExecutor) Execute(ctx context.Context, params map[string]interface{}, cfg *config.ConfigData) (string, error) {
 	// Parse operation parameter
 	operation, ok := params["operation"].(string)
 	if !ok {
@@ -88,7 +89,7 @@ func (e *AksOperationsExecutor) Execute(params map[string]interface{}, cfg *conf
 }
 
 // ExecuteSpecificCommand executes a specific operation with the given arguments (for backward compatibility)
-func (e *AksOperationsExecutor) ExecuteSpecificCommand(operation string, params map[string]interface{}, cfg *config.ConfigData) (string, error) {
+func (e *AksOperationsExecutor) ExecuteSpecificCommand(ctx context.Context, operation string, params map[string]interface{}, cfg *config.ConfigData) (string, error) {
 	// Create new params with operation
 	newParams := make(map[string]interface{})
 	for k, v := range params {
@@ -96,7 +97,7 @@ func (e *AksOperationsExecutor) ExecuteSpecificCommand(operation string, params 
 	}
 	newParams["operation"] = operation
 
-	return e.Execute(newParams, cfg)
+	return e.Execute(ctx, newParams, cfg)
 }
 
 // ensureOutputFormatArgs adds --output json when no explicit output format is provided

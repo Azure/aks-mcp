@@ -71,7 +71,7 @@ func getWorkspaceGUID(workspaceResourceID string, cfg *config.ConfigData) (strin
 		"command": cmd,
 	}
 
-	result, err := executor.Execute(cmdParams, cfg)
+	result, err := executor.Execute(context.Background(), cmdParams, cfg)
 	if err != nil {
 		return "", fmt.Errorf("failed to get workspace GUID: %w", err)
 	}

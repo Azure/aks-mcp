@@ -1,6 +1,7 @@
 package monitor
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -40,7 +41,7 @@ func mergeMonitoringParams(params map[string]interface{}) (map[string]interface{
 }
 
 // HandleResourceHealthQuery handles the resource health query for AKS clusters
-func HandleResourceHealthQuery(params map[string]interface{}, cfg *config.ConfigData) (string, error) {
+func HandleResourceHealthQuery(ctx context.Context, params map[string]interface{}, cfg *config.ConfigData) (string, error) {
 	// Extract and validate parameters
 	subscriptionID, ok := params["subscription_id"].(string)
 	if !ok || subscriptionID == "" {
@@ -102,7 +103,7 @@ func HandleResourceHealthQuery(params map[string]interface{}, cfg *config.Config
 		"command": "az " + strings.Join(args, " "),
 	}
 
-	result, err := executor.Execute(cmdParams, cfg)
+	result, err := executor.Execute(ctx, cmdParams, cfg)
 	if err != nil {
 		return "", fmt.Errorf("failed to execute resource health query: %w", err)
 	}
@@ -154,13 +155,13 @@ func validateResourceHealthParams(params map[string]interface{}) error {
 
 // GetResourceHealthHandler returns a ResourceHandler for the resource health tool
 func GetResourceHealthHandler(cfg *config.ConfigData) tools.ResourceHandler {
-	return tools.ResourceHandlerFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
-		return HandleResourceHealthQuery(params, cfg)
+	return tools.ResourceHandlerFunc(func(ctx context.Context, params map[string]interface{}, _ *config.ConfigData) (string, error) {
+		return HandleResourceHealthQuery(ctx, params, cfg)
 	})
 }
 
 // HandleAppInsightsQuery handles Application Insights telemetry queries for AKS clusters
-func HandleAppInsightsQuery(params map[string]interface{}, cfg *config.ConfigData) (string, error) {
+func HandleAppInsightsQuery(ctx context.Context, params map[string]interface{}, cfg *config.ConfigData) (string, error) {
 	// Extract and validate parameters
 	subscriptionID, ok := params["subscription_id"].(string)
 	if !ok || subscriptionID == "" {
@@ -224,7 +225,7 @@ func HandleAppInsightsQuery(params map[string]interface{}, cfg *config.ConfigDat
 		"command": "az " + strings.Join(args, " "),
 	}
 
-	result, err := executor.Execute(cmdParams, cfg)
+	result, err := executor.Execute(ctx, cmdParams, cfg)
 	if err != nil {
 		return "", fmt.Errorf("failed to execute Application Insights query: %w", err)
 	}
@@ -269,14 +270,14 @@ func validateAppInsightsParams(params map[string]interface{}) error {
 
 // GetAppInsightsHandler returns a ResourceHandler for the Application Insights tool
 func GetAppInsightsHandler(cfg *config.ConfigData) tools.ResourceHandler {
-	return tools.ResourceHandlerFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
-		return HandleAppInsightsQuery(params, cfg)
+	return tools.ResourceHandlerFunc(func(ctx context.Context, params map[string]interface{}, _ *config.ConfigData) (string, error) {
+		return HandleAppInsightsQuery(ctx, params, cfg)
 	})
 }
 
 // GetAzMonitoringHandler returns a ResourceHandler for the monitoring tool
 func GetAzMonitoringHandler(azClient *azureclient.AzureClient, cfg *config.ConfigData) tools.ResourceHandler {
-	return tools.ResourceHandlerFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
+	return tools.ResourceHandlerFunc(func(ctx context.Context, params map[string]interface{}, _ *config.ConfigData) (string, error) {
 		// Extract operation parameter
 		operation, ok := params["operation"].(string)
 		if !ok {
@@ -292,15 +293,15 @@ func GetAzMonitoringHandler(azClient *azureclient.AzureClient, cfg *config.Confi
 		// Handle different operations
 		switch operation {
 		case string(OpMetrics):
-			return handleMetricsOperation(params, cfg)
+			return handleMetricsOperation(ctx, params, cfg)
 		case string(OpResourceHealth):
-			return handleResourceHealthOperation(params, cfg)
+			return handleResourceHealthOperation(ctx, params, cfg)
 		case string(OpAppInsights):
-			return handleAppInsightsOperation(params, cfg)
+			return handleAppInsightsOperation(ctx, params, cfg)
 		case string(OpDiagnostics):
-			return handleDiagnosticsOperation(params, azClient, cfg)
+			return handleDiagnosticsOperation(ctx, params, azClient, cfg)
 		case string(OpControlPlaneLogs):
-			return handleLogsOperation(params, azClient, cfg)
+			return handleLogsOperation(ctx, params, azClient, cfg)
 		default:
 			return "", fmt.Errorf("operation '%s' not implemented", operation)
 		}
@@ -309,7 +310,7 @@ func GetAzMonitoringHandler(azClient *azureclient.AzureClient, cfg *config.Confi
 
 // Helper functions for different monitoring operations
 
-func handleMetricsOperation(params map[string]interface{}, cfg *config.ConfigData) (string, error) {
+func handleMetricsOperation(ctx context.Context, params map[string]interface{}, cfg *config.ConfigData) (string, error) {
 	queryType, ok := params["query_type"].(string)
 	if !ok {
 		return "", fmt.Errorf("missing or invalid 'query_type' parameter for metrics operation")
@@ -352,10 +353,10 @@ func handleMetricsOperation(params map[string]interface{}, cfg *config.ConfigDat
 		"command": baseCommand + " " + strings.Join(args, " "),
 	}
 
-	return executor.Execute(cmdParams, cfg)
+	return executor.Execute(ctx, cmdParams, cfg)
 }
 
-func handleResourceHealthOperation(params map[string]interface{}, cfg *config.ConfigData) (string, error) {
+func handleResourceHealthOperation(ctx context.Context, params map[string]interface{}, cfg *config.ConfigData) (string, error) {
 	// Merge parameters from top-level and nested JSON
 	mergedParams, err := mergeMonitoringParams(params)
 	if err != nil {
@@ -363,10 +364,10 @@ func handleResourceHealthOperation(params map[string]interface{}, cfg *config.Co
 	}
 
 	// Use existing resource health handler
-	return GetResourceHealthHandler(cfg).Handle(mergedParams, cfg)
+	return GetResourceHealthHandler(cfg).Handle(ctx, mergedParams, cfg)
 }
 
-func handleAppInsightsOperation(params map[string]interface{}, cfg *config.ConfigData) (string, error) {
+func handleAppInsightsOperation(ctx context.Context, params map[string]interface{}, cfg *config.ConfigData) (string, error) {
 	// Merge parameters from top-level and nested JSON
 	mergedParams, err := mergeMonitoringParams(params)
 	if err != nil {
@@ -374,10 +375,10 @@ func handleAppInsightsOperation(params map[string]interface{}, cfg *config.Confi
 	}
 
 	// Use existing app insights handler
-	return GetAppInsightsHandler(cfg).Handle(mergedParams, cfg)
+	return GetAppInsightsHandler(cfg).Handle(ctx, mergedParams, cfg)
 }
 
-func handleDiagnosticsOperation(params map[string]interface{}, azClient *azureclient.AzureClient, cfg *config.ConfigData) (string, error) {
+func handleDiagnosticsOperation(ctx context.Context, params map[string]interface{}, azClient *azureclient.AzureClient, cfg *config.ConfigData) (string, error) {
 	// Merge parameters from top-level and nested JSON
 	mergedParams, err := mergeMonitoringParams(params)
 	if err != nil {
@@ -385,10 +386,10 @@ func handleDiagnosticsOperation(params map[string]interface{}, azClient *azurecl
 	}
 
 	// Use existing control plane diagnostics handler
-	return diagnostics.GetControlPlaneDiagnosticSettingsHandler(azClient, cfg).Handle(mergedParams, cfg)
+	return diagnostics.GetControlPlaneDiagnosticSettingsHandler(azClient, cfg).Handle(ctx, mergedParams, cfg)
 }
 
-func handleLogsOperation(params map[string]interface{}, azClient *azureclient.AzureClient, cfg *config.ConfigData) (string, error) {
+func handleLogsOperation(ctx context.Context, params map[string]interface{}, azClient *azureclient.AzureClient, cfg *config.ConfigData) (string, error) {
 	// Merge parameters from top-level and nested JSON
 	mergedParams, err := mergeMonitoringParams(params)
 	if err != nil {
@@ -396,7 +397,7 @@ func handleLogsOperation(params map[string]interface{}, azClient *azureclient.Az
 	}
 
 	// Use existing control plane logs handler
-	return diagnostics.GetControlPlaneLogsHandler(azClient, cfg).Handle(mergedParams, cfg)
+	return diagnostics.GetControlPlaneLogsHandler(azClient, cfg).Handle(ctx, mergedParams, cfg)
 }
 
 // ensureOutputArg appends --output json when no explicit output flag is present

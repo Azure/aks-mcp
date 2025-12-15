@@ -1,6 +1,7 @@
 package kubernetes
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -24,7 +25,7 @@ func NewPlacementOperations(client *Client) *PlacementOperations {
 }
 
 // CreatePlacement creates a new ClusterResourcePlacement using kubectl
-func (p *PlacementOperations) CreatePlacement(name, selector, policy string, cfg *config.ConfigData) (string, error) {
+func (p *PlacementOperations) CreatePlacement(ctx context.Context, name, selector, policy string, cfg *config.ConfigData) (string, error) {
 	// Build resource selectors
 	var resourceSelectors string
 	if selector != "" {
@@ -75,26 +76,26 @@ spec:%s
 		return "", fmt.Errorf("failed to close temp file: %w", err)
 	}
 
-	return p.client.ExecuteKubectl(fmt.Sprintf("apply -f %s", tempFile.Name()), cfg)
+	return p.client.ExecuteKubectl(ctx, fmt.Sprintf("apply -f %s", tempFile.Name()), cfg)
 }
 
 // GetPlacement retrieves a ClusterResourcePlacement by name using kubectl
-func (p *PlacementOperations) GetPlacement(name string, cfg *config.ConfigData) (string, error) {
-	return p.client.ExecuteKubectl(fmt.Sprintf("get clusterresourceplacement %s -o json", name), cfg)
+func (p *PlacementOperations) GetPlacement(ctx context.Context, name string, cfg *config.ConfigData) (string, error) {
+	return p.client.ExecuteKubectl(ctx, fmt.Sprintf("get clusterresourceplacement %s -o json", name), cfg)
 }
 
 // ListPlacements lists all ClusterResourcePlacements using kubectl
-func (p *PlacementOperations) ListPlacements(cfg *config.ConfigData) (string, error) {
+func (p *PlacementOperations) ListPlacements(ctx context.Context, cfg *config.ConfigData) (string, error) {
 	if p == nil || p.client == nil {
 		return "", fmt.Errorf("placement client is nil")
 	}
 
-	return p.client.ExecuteKubectl("get clusterresourceplacement -o json", cfg)
+	return p.client.ExecuteKubectl(ctx, "get clusterresourceplacement -o json", cfg)
 }
 
 // DeletePlacement deletes a ClusterResourcePlacement by name using kubectl
-func (p *PlacementOperations) DeletePlacement(name string, cfg *config.ConfigData) (string, error) {
-	return p.client.ExecuteKubectl(fmt.Sprintf("delete clusterresourceplacement %s", name), cfg)
+func (p *PlacementOperations) DeletePlacement(ctx context.Context, name string, cfg *config.ConfigData) (string, error) {
+	return p.client.ExecuteKubectl(ctx, fmt.Sprintf("delete clusterresourceplacement %s", name), cfg)
 }
 
 // ParsePlacementArgs parses command arguments for placement operations

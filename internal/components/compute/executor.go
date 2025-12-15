@@ -1,6 +1,7 @@
 package compute
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -18,7 +19,7 @@ func NewComputeOperationsExecutor() *ComputeOperationsExecutor {
 }
 
 // Execute handles the compute operations
-func (e *ComputeOperationsExecutor) Execute(params map[string]interface{}, cfg *config.ConfigData) (string, error) {
+func (e *ComputeOperationsExecutor) Execute(ctx context.Context, params map[string]interface{}, cfg *config.ConfigData) (string, error) {
 	// Parse operation parameter
 	operation, ok := params["operation"].(string)
 	if !ok {

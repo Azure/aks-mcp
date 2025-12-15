@@ -20,7 +20,7 @@ import (
 
 // GetAKSVMSSInfoHandler returns a handler for the get_aks_vmss_info command
 func GetAKSVMSSInfoHandler(client *azureclient.AzureClient, cfg *config.ConfigData) tools.ResourceHandler {
-	return tools.ResourceHandlerFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
+	return tools.ResourceHandlerFunc(func(ctx context.Context, params map[string]interface{}, _ *config.ConfigData) (string, error) {
 		// Extract parameters
 		subID, rg, clusterName, err := common.ExtractAKSParameters(params)
 		if err != nil {
@@ -28,7 +28,6 @@ func GetAKSVMSSInfoHandler(client *azureclient.AzureClient, cfg *config.ConfigDa
 		}
 
 		// Get the cluster details
-		ctx := context.Background()
 		cluster, err := common.GetClusterDetails(ctx, client, subID, rg, clusterName)
 		if err != nil {
 			return "", fmt.Errorf("failed to get cluster details: %v", err)

@@ -18,22 +18,22 @@ import (
 
 // GetListDetectorsHandler returns handler for list_detectors tool
 func GetListDetectorsHandler(azClient *azureclient.AzureClient, cfg *config.ConfigData) tools.ResourceHandler {
-	return tools.ResourceHandlerFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
-		return HandleListDetectors(params, NewDetectorClient(azClient))
+	return tools.ResourceHandlerFunc(func(ctx context.Context, params map[string]interface{}, _ *config.ConfigData) (string, error) {
+		return HandleListDetectors(ctx, params, NewDetectorClient(azClient))
 	})
 }
 
 // GetRunDetectorHandler returns handler for run_detector tool
 func GetRunDetectorHandler(azClient *azureclient.AzureClient, cfg *config.ConfigData) tools.ResourceHandler {
-	return tools.ResourceHandlerFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
-		return HandleRunDetector(params, NewDetectorClient(azClient))
+	return tools.ResourceHandlerFunc(func(ctx context.Context, params map[string]interface{}, _ *config.ConfigData) (string, error) {
+		return HandleRunDetector(ctx, params, NewDetectorClient(azClient))
 	})
 }
 
 // GetRunDetectorsByCategoryHandler returns handler for run_detectors_by_category tool
 func GetRunDetectorsByCategoryHandler(azClient *azureclient.AzureClient, cfg *config.ConfigData) tools.ResourceHandler {
-	return tools.ResourceHandlerFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
-		return HandleRunDetectorsByCategory(params, NewDetectorClient(azClient))
+	return tools.ResourceHandlerFunc(func(ctx context.Context, params map[string]interface{}, _ *config.ConfigData) (string, error) {
+		return HandleRunDetectorsByCategory(ctx, params, NewDetectorClient(azClient))
 	})
 }
 
@@ -42,7 +42,7 @@ func GetRunDetectorsByCategoryHandler(azClient *azureclient.AzureClient, cfg *co
 // =============================================================================
 
 // HandleListDetectors implements the list_detectors functionality
-func HandleListDetectors(params map[string]interface{}, client *DetectorClient) (string, error) {
+func HandleListDetectors(ctx context.Context, params map[string]interface{}, client *DetectorClient) (string, error) {
 	// Extract cluster resource ID
 	clusterResourceID, ok := params["cluster_resource_id"].(string)
 	if !ok || clusterResourceID == "" {
@@ -56,7 +56,6 @@ func HandleListDetectors(params map[string]interface{}, client *DetectorClient) 
 	}
 
 	// List detectors
-	ctx := context.Background()
 	detectors, err := client.ListDetectors(ctx, subscriptionID, resourceGroup, clusterName)
 	if err != nil {
 		return "", fmt.Errorf("failed to list detectors: %v", err)
@@ -72,7 +71,7 @@ func HandleListDetectors(params map[string]interface{}, client *DetectorClient) 
 }
 
 // HandleRunDetector implements the run_detector functionality
-func HandleRunDetector(params map[string]interface{}, client *DetectorClient) (string, error) {
+func HandleRunDetector(ctx context.Context, params map[string]interface{}, client *DetectorClient) (string, error) {
 	// Extract cluster resource ID
 	clusterResourceID, ok := params["cluster_resource_id"].(string)
 	if !ok || clusterResourceID == "" {
@@ -109,7 +108,6 @@ func HandleRunDetector(params map[string]interface{}, client *DetectorClient) (s
 	}
 
 	// Run detector
-	ctx := context.Background()
 	result, err := client.RunDetector(ctx, subscriptionID, resourceGroup, clusterName, detectorName, startTime, endTime)
 	if err != nil {
 		return "", fmt.Errorf("failed to run detector: %v", err)
@@ -125,7 +123,7 @@ func HandleRunDetector(params map[string]interface{}, client *DetectorClient) (s
 }
 
 // HandleRunDetectorsByCategory implements the run_detectors_by_category functionality
-func HandleRunDetectorsByCategory(params map[string]interface{}, client *DetectorClient) (string, error) {
+func HandleRunDetectorsByCategory(ctx context.Context, params map[string]interface{}, client *DetectorClient) (string, error) {
 	// Extract cluster resource ID
 	clusterResourceID, ok := params["cluster_resource_id"].(string)
 	if !ok || clusterResourceID == "" {
@@ -167,7 +165,6 @@ func HandleRunDetectorsByCategory(params map[string]interface{}, client *Detecto
 	}
 
 	// Run detectors by category
-	ctx := context.Background()
 	results, err := client.RunDetectorsByCategory(ctx, subscriptionID, resourceGroup, clusterName, category, startTime, endTime)
 	if err != nil {
 		return "", fmt.Errorf("failed to run detectors by category: %v", err)

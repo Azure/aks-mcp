@@ -50,7 +50,7 @@ func GetDefaultSubscriptionID(cfg *config.ConfigData) (string, error) {
 		"command": "az account show --query id -o tsv",
 	}
 
-	out, err := executor.Execute(cmdParams, cfg)
+	out, err := executor.Execute(context.Background(), cmdParams, cfg)
 	if err != nil {
 		return "", fmt.Errorf("failed to get default subscription ID from Azure CLI: %w. Please set AZURE_SUBSCRIPTION_ID environment variable or provide subscription_id parameter", err)
 	}

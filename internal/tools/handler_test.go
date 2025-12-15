@@ -25,7 +25,7 @@ func TestCreateToolHandler_ErrorIncludesResultOutput(t *testing.T) {
 	cfg := config.NewConfig()
 
 	// Fake executor returns stderr-like output with an error
-	exec := CommandExecutorFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
+	exec := CommandExecutorFunc(func(ctx context.Context, params map[string]interface{}, _ *config.ConfigData) (string, error) {
 		return "ERROR: Azure CLI detailed message", errors.New("exit status 1")
 	})
 
@@ -57,7 +57,7 @@ func TestCreateToolHandler_ErrorIncludesResultOutput(t *testing.T) {
 func TestCreateToolHandler_ErrorWithoutOutput(t *testing.T) {
 	cfg := config.NewConfig()
 
-	exec := CommandExecutorFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
+	exec := CommandExecutorFunc(func(ctx context.Context, params map[string]interface{}, _ *config.ConfigData) (string, error) {
 		return "", errors.New("exit status 1")
 	})
 
@@ -86,7 +86,7 @@ func TestCreateToolHandler_ErrorWithoutOutput(t *testing.T) {
 func TestCreateResourceHandler_ErrorIncludesResultOutput(t *testing.T) {
 	cfg := config.NewConfig()
 
-	rh := ResourceHandlerFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
+	rh := ResourceHandlerFunc(func(ctx context.Context, params map[string]interface{}, _ *config.ConfigData) (string, error) {
 		return "API: detailed failure context", errors.New("bad request")
 	})
 
@@ -115,7 +115,7 @@ func TestCreateResourceHandler_ErrorIncludesResultOutput(t *testing.T) {
 func TestCreateResourceHandler_ErrorWithoutOutput(t *testing.T) {
 	cfg := config.NewConfig()
 
-	rh := ResourceHandlerFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
+	rh := ResourceHandlerFunc(func(ctx context.Context, params map[string]interface{}, _ *config.ConfigData) (string, error) {
 		return "", errors.New("bad request")
 	})
 
@@ -148,7 +148,7 @@ func TestCreateToolHandler_Success_Verbose_Telemetry_LongResult(t *testing.T) {
 	cfg.TelemetryService = telemetry.NewService(telemetry.NewConfig("svc", "1.0"))
 
 	long := strings.Repeat("x", 600)
-	exec := CommandExecutorFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
+	exec := CommandExecutorFunc(func(ctx context.Context, params map[string]interface{}, _ *config.ConfigData) (string, error) {
 		return long, nil
 	})
 
@@ -180,7 +180,7 @@ func TestCreateToolHandler_InvalidArguments_Verbose_LogsFallback_TracksTelemetry
 	cfg.LogLevel = "debug"
 	cfg.TelemetryService = telemetry.NewService(telemetry.NewConfig("svc", "1.0"))
 
-	exec := CommandExecutorFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
+	exec := CommandExecutorFunc(func(ctx context.Context, params map[string]interface{}, _ *config.ConfigData) (string, error) {
 		return "should not run", nil
 	})
 
@@ -213,7 +213,7 @@ func TestCreateResourceHandler_ShortSuccess_Verbose_Telemetry(t *testing.T) {
 	cfg.LogLevel = "debug"
 	cfg.TelemetryService = telemetry.NewService(telemetry.NewConfig("svc", "1.0"))
 
-	rh := ResourceHandlerFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
+	rh := ResourceHandlerFunc(func(ctx context.Context, params map[string]interface{}, _ *config.ConfigData) (string, error) {
 		return "ok", nil
 	})
 
@@ -243,7 +243,7 @@ func TestCreateResourceHandler_InvalidArguments_Verbose_LogsFallback_TracksTelem
 	cfg.LogLevel = "debug"
 	cfg.TelemetryService = telemetry.NewService(telemetry.NewConfig("svc", "1.0"))
 
-	rh := ResourceHandlerFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
+	rh := ResourceHandlerFunc(func(ctx context.Context, params map[string]interface{}, _ *config.ConfigData) (string, error) {
 		return "should not run", nil
 	})
 
@@ -274,7 +274,7 @@ func TestCreateToolHandler_Error_Verbose_LogErrorBranch(t *testing.T) {
 	cfg := config.NewConfig()
 	cfg.LogLevel = "debug"
 
-	exec := CommandExecutorFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
+	exec := CommandExecutorFunc(func(ctx context.Context, params map[string]interface{}, _ *config.ConfigData) (string, error) {
 		return "", errors.New("boom")
 	})
 

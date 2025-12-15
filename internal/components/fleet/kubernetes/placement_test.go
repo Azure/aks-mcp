@@ -1,6 +1,7 @@
 package kubernetes
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -64,7 +65,7 @@ func TestPlacementOperations_ListPlacements(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockClient := &Client{
 				executor: &MockExecutor{
-					ExecuteFunc: func(params map[string]any, cfg *config.ConfigData) (string, error) {
+					ExecuteFunc: func(ctx context.Context, params map[string]any, cfg *config.ConfigData) (string, error) {
 						if cmd, ok := params["command"].(string); ok && strings.Contains(cmd, "get clusterresourceplacement -o json") {
 							return tt.mockOutput, tt.mockError
 						}
@@ -75,7 +76,7 @@ func TestPlacementOperations_ListPlacements(t *testing.T) {
 			ops := NewPlacementOperations(mockClient)
 
 			cfg := &config.ConfigData{}
-			result, err := ops.ListPlacements(cfg)
+			result, err := ops.ListPlacements(context.Background(), cfg)
 
 			if tt.wantErr {
 				if err == nil {
@@ -101,7 +102,7 @@ func TestPlacementOperations_GetPlacement(t *testing.T) {
 
 	mockClient := &Client{
 		executor: &MockExecutor{
-			ExecuteFunc: func(params map[string]any, cfg *config.ConfigData) (string, error) {
+			ExecuteFunc: func(ctx context.Context, params map[string]any, cfg *config.ConfigData) (string, error) {
 				expectedCmd := fmt.Sprintf("get clusterresourceplacement %s -o json", placementName)
 				if cmd, ok := params["command"].(string); ok && strings.Contains(cmd, expectedCmd) {
 					return mockOutput, nil
@@ -113,7 +114,7 @@ func TestPlacementOperations_GetPlacement(t *testing.T) {
 	ops := NewPlacementOperations(mockClient)
 
 	cfg := &config.ConfigData{}
-	result, err := ops.GetPlacement(placementName, cfg)
+	result, err := ops.GetPlacement(context.Background(), placementName, cfg)
 
 	if err != nil {
 		t.Errorf("GetPlacement() unexpected error = %v", err)
@@ -131,7 +132,7 @@ func TestPlacementOperations_CreatePlacement(t *testing.T) {
 
 	mockClient := &Client{
 		executor: &MockExecutor{
-			ExecuteFunc: func(params map[string]any, cfg *config.ConfigData) (string, error) {
+			ExecuteFunc: func(ctx context.Context, params map[string]any, cfg *config.ConfigData) (string, error) {
 				if cmd, ok := params["command"].(string); ok && strings.Contains(cmd, "apply -f") {
 					return mockOutput, nil
 				}
@@ -142,7 +143,7 @@ func TestPlacementOperations_CreatePlacement(t *testing.T) {
 	ops := NewPlacementOperations(mockClient)
 
 	cfg := &config.ConfigData{}
-	result, err := ops.CreatePlacement(placementName, selector, policy, cfg)
+	result, err := ops.CreatePlacement(context.Background(), placementName, selector, policy, cfg)
 
 	if err != nil {
 		t.Errorf("CreatePlacement() unexpected error = %v", err)
@@ -158,7 +159,7 @@ func TestPlacementOperations_DeletePlacement(t *testing.T) {
 
 	mockClient := &Client{
 		executor: &MockExecutor{
-			ExecuteFunc: func(params map[string]any, cfg *config.ConfigData) (string, error) {
+			ExecuteFunc: func(ctx context.Context, params map[string]any, cfg *config.ConfigData) (string, error) {
 				expectedCmd := fmt.Sprintf("delete clusterresourceplacement %s", placementName)
 				if cmd, ok := params["command"].(string); ok && strings.Contains(cmd, expectedCmd) {
 					return mockOutput, nil
@@ -170,7 +171,7 @@ func TestPlacementOperations_DeletePlacement(t *testing.T) {
 	ops := NewPlacementOperations(mockClient)
 
 	cfg := &config.ConfigData{}
-	result, err := ops.DeletePlacement(placementName, cfg)
+	result, err := ops.DeletePlacement(context.Background(), placementName, cfg)
 
 	if err != nil {
 		t.Errorf("DeletePlacement() unexpected error = %v", err)
