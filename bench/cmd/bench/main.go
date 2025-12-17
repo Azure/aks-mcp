@@ -16,15 +16,16 @@ const version = "0.1.0"
 
 func main() {
 	var (
-		testPath      string
-		mcpBinary     string
-		accessLevel   string
-		outputPath    string
-		markdownPath  string
-		perfPath      string
-		tagsStr       string
-		showVersion   bool
-		parallel      int
+		testPath           string
+		mcpBinary          string
+		accessLevel        string
+		outputPath         string
+		markdownPath       string
+		perfPath           string
+		tagsStr            string
+		showVersion        bool
+		parallel           int
+		enableMultiCluster bool
 	)
 
 	flag.StringVar(&testPath, "test", "", "Path to test case file or directory (required)")
@@ -36,6 +37,7 @@ func main() {
 	flag.StringVar(&tagsStr, "tags", "", "Comma-separated list of tags to filter tests")
 	flag.BoolVar(&showVersion, "version", false, "Show version")
 	flag.IntVar(&parallel, "parallel", 1, "Number of tests to run in parallel (default: 1 for sequential)")
+	flag.BoolVar(&enableMultiCluster, "enable-multi-cluster", false, "Enable multi-cluster mode for kubectl (uses Azure AKS RunCommand API instead of local kubeconfig)")
 	
 	flag.Parse()
 
@@ -77,6 +79,9 @@ func main() {
 	fmt.Printf("Loaded %d test case(s)\n", len(testCases))
 
 	mcpArgs := []string{"--access-level", accessLevel}
+	if enableMultiCluster {
+		mcpArgs = append(mcpArgs, "--enable-multi-cluster")
+	}
 	testRunner := runner.NewRunner(runner.RunnerConfig{
 		MCPBinary: mcpBinary,
 		MCPArgs:   mcpArgs,
