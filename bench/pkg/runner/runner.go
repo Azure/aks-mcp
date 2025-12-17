@@ -16,21 +16,29 @@ import (
 type Runner struct {
 	mcpBinary      string
 	mcpArgs        []string
+	mcpServerURL   string
+	requestContext *mcp.RequestContext
 	toolValidator  *evaluator.ToolValidator
 	llmJudge       *evaluator.LLMJudge
 	parallel       int
 }
 
 type RunnerConfig struct {
-	MCPBinary   string
-	MCPArgs     []string
-	LLMClient   agent.LLMClient
-	Parallel    int
+	MCPBinary      string
+	MCPArgs        []string
+	MCPServerURL   string
+	RequestContext *mcp.RequestContext
+	LLMClient      agent.LLMClient
+	Parallel       int
 }
 
 func NewRunner(config RunnerConfig) *Runner {
 	if config.MCPBinary == "" {
 		config.MCPBinary = "../aks-mcp"
+	}
+	
+	if config.MCPServerURL == "" {
+		config.MCPServerURL = "http://localhost:3000"
 	}
 	
 	var llmJudge *evaluator.LLMJudge
@@ -44,11 +52,13 @@ func NewRunner(config RunnerConfig) *Runner {
 	}
 	
 	return &Runner{
-		mcpBinary:     config.MCPBinary,
-		mcpArgs:       config.MCPArgs,
-		toolValidator: evaluator.NewToolValidator(),
-		llmJudge:      llmJudge,
-		parallel:      parallel,
+		mcpBinary:      config.MCPBinary,
+		mcpArgs:        config.MCPArgs,
+		mcpServerURL:   config.MCPServerURL,
+		requestContext: config.RequestContext,
+		toolValidator:  evaluator.NewToolValidator(),
+		llmJudge:       llmJudge,
+		parallel:       parallel,
 	}
 }
 
@@ -72,14 +82,23 @@ func (r *Runner) RunTest(ctx context.Context, testCase *loader.TestCase, agentCo
 		}
 	}()
 
-	mcpClient := mcp.NewClient()
-	defer mcpClient.Close()
+	var mcpClient mcp.MCPClient
 
-	if err := mcpClient.Start(ctx, r.mcpBinary, r.mcpArgs); err != nil {
-		result.ErrorMessage = fmt.Sprintf("failed to start MCP server: %v", err)
-		result.EndTime = time.Now()
-		result.ExecutionTime = result.EndTime.Sub(result.StartTime)
-		return result, err
+	if r.requestContext != nil {
+		httpClient := mcp.NewHTTPClient(r.mcpServerURL, r.requestContext)
+		mcpClient = httpClient
+		defer httpClient.Close()
+	} else {
+		stdioClient := mcp.NewClient()
+		mcpClient = stdioClient
+		defer stdioClient.Close()
+
+		if err := stdioClient.Start(ctx, r.mcpBinary, r.mcpArgs); err != nil {
+			result.ErrorMessage = fmt.Sprintf("failed to start MCP server: %v", err)
+			result.EndTime = time.Now()
+			result.ExecutionTime = result.EndTime.Sub(result.StartTime)
+			return result, err
+		}
 	}
 
 	if _, err := mcpClient.Initialize(ctx); err != nil {

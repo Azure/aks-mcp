@@ -8,6 +8,7 @@ import (
 
 	"github.com/Azure/aks-mcp/bench/pkg/agent"
 	"github.com/Azure/aks-mcp/bench/pkg/loader"
+	"github.com/Azure/aks-mcp/bench/pkg/mcp"
 	"github.com/Azure/aks-mcp/bench/pkg/reporter"
 	"github.com/Azure/aks-mcp/bench/pkg/runner"
 )
@@ -26,6 +27,11 @@ func main() {
 		showVersion        bool
 		parallel           int
 		enableMultiCluster bool
+		subscriptionID     string
+		resourceGroup      string
+		clusterName        string
+		azureTokenEnv      string
+		mcpServerURL       string
 	)
 
 	flag.StringVar(&testPath, "test", "", "Path to test case file or directory (required)")
@@ -38,6 +44,11 @@ func main() {
 	flag.BoolVar(&showVersion, "version", false, "Show version")
 	flag.IntVar(&parallel, "parallel", 1, "Number of tests to run in parallel (default: 1 for sequential)")
 	flag.BoolVar(&enableMultiCluster, "enable-multi-cluster", false, "Enable multi-cluster mode for kubectl (uses Azure AKS RunCommand API instead of local kubeconfig)")
+	flag.StringVar(&subscriptionID, "subscription-id", "", "Azure subscription ID (required for multi-cluster mode)")
+	flag.StringVar(&resourceGroup, "resource-group", "", "Azure resource group (required for multi-cluster mode)")
+	flag.StringVar(&clusterName, "cluster-name", "", "AKS cluster name (required for multi-cluster mode)")
+	flag.StringVar(&azureTokenEnv, "azure-token-env", "AZURE_TOKEN", "Environment variable name for Azure token (default: AZURE_TOKEN)")
+	flag.StringVar(&mcpServerURL, "mcp-server-url", "http://localhost:3000", "MCP server URL for multi-cluster mode (default: http://localhost:3000)")
 	
 	flag.Parse()
 
@@ -50,6 +61,18 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error: --test is required\n")
 		flag.Usage()
 		os.Exit(1)
+	}
+
+	if enableMultiCluster {
+		if subscriptionID == "" || resourceGroup == "" || clusterName == "" {
+			fmt.Fprintf(os.Stderr, "Error: --subscription-id, --resource-group, and --cluster-name are required when --enable-multi-cluster is set\n")
+			flag.Usage()
+			os.Exit(1)
+		}
+		if os.Getenv(azureTokenEnv) == "" {
+			fmt.Fprintf(os.Stderr, "Error: Environment variable %s is required when --enable-multi-cluster is set\n", azureTokenEnv)
+			os.Exit(1)
+		}
 	}
 
 	azureConfig := agent.AzureConfig{
@@ -82,11 +105,24 @@ func main() {
 	if enableMultiCluster {
 		mcpArgs = append(mcpArgs, "--enable-multi-cluster")
 	}
+	
+	var requestContext *mcp.RequestContext
+	if enableMultiCluster {
+		requestContext = &mcp.RequestContext{
+			AzureToken:     os.Getenv(azureTokenEnv),
+			SubscriptionID: subscriptionID,
+			ResourceGroup:  resourceGroup,
+			ClusterName:    clusterName,
+		}
+	}
+	
 	testRunner := runner.NewRunner(runner.RunnerConfig{
-		MCPBinary: mcpBinary,
-		MCPArgs:   mcpArgs,
-		LLMClient: llmClient,
-		Parallel:  parallel,
+		MCPBinary:      mcpBinary,
+		MCPArgs:        mcpArgs,
+		LLMClient:      llmClient,
+		Parallel:       parallel,
+		MCPServerURL:   mcpServerURL,
+		RequestContext: requestContext,
 	})
 
 	agentConfig := agent.AgentConfig{

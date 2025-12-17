@@ -1,5 +1,7 @@
 package mcp
 
+import "context"
+
 // MCP Protocol types based on Model Context Protocol specification
 
 // JSONRPCRequest represents a JSON-RPC 2.0 request
@@ -103,4 +105,18 @@ type CallToolResult struct {
 type ContentBlock struct {
 	Type string `json:"type"`
 	Text string `json:"text,omitempty"`
+}
+
+type RequestContext struct {
+	AzureToken     string `json:"azure_token"`
+	SubscriptionID string `json:"subscription_id"`
+	ResourceGroup  string `json:"resource_group"`
+	ClusterName    string `json:"cluster_name"`
+}
+
+type MCPClient interface {
+	Initialize(ctx context.Context) (*InitializeResult, error)
+	ListTools(ctx context.Context) ([]Tool, error)
+	CallTool(ctx context.Context, name string, arguments map[string]interface{}) (*CallToolResult, error)
+	Close() error
 }

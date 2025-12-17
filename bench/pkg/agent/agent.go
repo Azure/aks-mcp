@@ -12,7 +12,7 @@ import (
 
 type Agent struct {
 	llmClient     LLMClient
-	mcpClient     *mcp.Client
+	mcpClient     mcp.MCPClient
 	maxIterations int
 	messages      []Message
 	toolCalls     []loader.ToolCallRecord
@@ -20,7 +20,7 @@ type Agent struct {
 
 type AgentConfig struct {
 	LLMClient     LLMClient
-	MCPClient     *mcp.Client
+	MCPClient     mcp.MCPClient
 	MaxIterations int
 }
 
