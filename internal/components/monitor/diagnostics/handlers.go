@@ -20,7 +20,7 @@ func buildClusterResourceID(subscriptionID, resourceGroup, clusterName string) s
 }
 
 // HandleControlPlaneDiagnosticSettings checks diagnostic settings for AKS cluster
-func HandleControlPlaneDiagnosticSettings(params map[string]interface{}, azClient *azureclient.AzureClient, cfg *config.ConfigData) (string, error) {
+func HandleControlPlaneDiagnosticSettings(ctx context.Context, params map[string]interface{}, azClient *azureclient.AzureClient, cfg *config.ConfigData) (string, error) {
 	// Extract and validate parameters using common helper
 	subscriptionID, resourceGroup, clusterName, err := common.ExtractAKSParameters(params)
 	if err != nil {
@@ -36,7 +36,6 @@ func HandleControlPlaneDiagnosticSettings(params map[string]interface{}, azClien
 	}
 
 	// Get diagnostic settings using Azure SDK
-	ctx := context.Background()
 	diagnosticSettings, err := azClient.GetDiagnosticSettings(ctx, subscriptionID, clusterResourceID)
 	if err != nil {
 		return "", fmt.Errorf("failed to get diagnostic settings for cluster %s in resource group %s: %w", clusterName, resourceGroup, err)
@@ -52,7 +51,7 @@ func HandleControlPlaneDiagnosticSettings(params map[string]interface{}, azClien
 }
 
 // HandleControlPlaneLogs queries specific control plane logs
-func HandleControlPlaneLogs(params map[string]interface{}, azClient *azureclient.AzureClient, cfg *config.ConfigData) (string, error) {
+func HandleControlPlaneLogs(ctx context.Context, params map[string]interface{}, azClient *azureclient.AzureClient, cfg *config.ConfigData) (string, error) {
 	// Extract and validate AKS parameters using common helper
 	subscriptionID, resourceGroup, clusterName, err := common.ExtractAKSParameters(params)
 	if err != nil {
@@ -113,7 +112,7 @@ func HandleControlPlaneLogs(params map[string]interface{}, azClient *azureclient
 		"command": cmd,
 	}
 
-	result, err := executor.Execute(cmdParams, cfg)
+	result, err := executor.Execute(ctx, cmdParams, cfg)
 	if err != nil {
 		return "", fmt.Errorf("failed to query control plane logs for category %s in cluster %s: %w", logCategory, clusterName, err)
 	}
@@ -126,14 +125,14 @@ func HandleControlPlaneLogs(params map[string]interface{}, azClient *azureclient
 
 // GetControlPlaneDiagnosticSettingsHandler returns handler for diagnostic settings tool
 func GetControlPlaneDiagnosticSettingsHandler(azClient *azureclient.AzureClient, cfg *config.ConfigData) tools.ResourceHandler {
-	return tools.ResourceHandlerFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
-		return HandleControlPlaneDiagnosticSettings(params, azClient, cfg)
+	return tools.ResourceHandlerFunc(func(ctx context.Context, params map[string]interface{}, _ *config.ConfigData) (string, error) {
+		return HandleControlPlaneDiagnosticSettings(ctx, params, azClient, cfg)
 	})
 }
 
 // GetControlPlaneLogsHandler returns handler for logs querying tool
 func GetControlPlaneLogsHandler(azClient *azureclient.AzureClient, cfg *config.ConfigData) tools.ResourceHandler {
-	return tools.ResourceHandlerFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
-		return HandleControlPlaneLogs(params, azClient, cfg)
+	return tools.ResourceHandlerFunc(func(ctx context.Context, params map[string]interface{}, _ *config.ConfigData) (string, error) {
+		return HandleControlPlaneLogs(ctx, params, azClient, cfg)
 	})
 }

@@ -1,6 +1,7 @@
 package kubernetes
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/Azure/aks-mcp/internal/config"
@@ -9,12 +10,12 @@ import (
 
 // MockExecutor is a mock implementation of CommandExecutor for testing
 type MockExecutor struct {
-	ExecuteFunc func(params map[string]any, cfg *config.ConfigData) (string, error)
+	ExecuteFunc func(ctx context.Context, params map[string]any, cfg *config.ConfigData) (string, error)
 }
 
-func (m *MockExecutor) Execute(params map[string]any, cfg *config.ConfigData) (string, error) {
+func (m *MockExecutor) Execute(ctx context.Context, params map[string]any, cfg *config.ConfigData) (string, error) {
 	if m.ExecuteFunc != nil {
-		return m.ExecuteFunc(params, cfg)
+		return m.ExecuteFunc(ctx, params, cfg)
 	}
 	return "", fmt.Errorf("mock not implemented")
 }

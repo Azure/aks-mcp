@@ -1,6 +1,7 @@
 package compute
 
 import (
+	"context"
 	"testing"
 
 	"github.com/Azure/aks-mcp/internal/components/common"
@@ -90,7 +91,7 @@ func TestGetAKSVMSSInfoHandler(t *testing.T) {
 		"invalid": "params",
 	}
 
-	_, err := handler.Handle(invalidParams, cfg)
+	_, err := handler.Handle(context.Background(), invalidParams, cfg)
 	if err == nil {
 		t.Error("Expected error with invalid parameters, got nil")
 		return

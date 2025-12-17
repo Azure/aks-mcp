@@ -1,6 +1,7 @@
 package azcli
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -251,7 +252,7 @@ func TestFleetExecutor_Execute(t *testing.T) {
 				},
 			}
 
-			_, err := executor.Execute(tt.params, cfg)
+			_, err := executor.Execute(context.Background(), tt.params, cfg)
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("Execute() error = nil, wantErr %v", tt.wantErr)
@@ -404,7 +405,7 @@ func TestFleetExecutor_ExecuteKubernetesClusterResourcePlacement(t *testing.T) {
 			// Skip initialization and mock placement operations directly for testing
 			executor.k8sClientInitialized = true
 
-			result, err := executor.executeKubernetesClusterResourcePlacement(tt.operation, tt.args, cfg)
+			result, err := executor.executeKubernetesClusterResourcePlacement(context.Background(), tt.operation, tt.args, cfg)
 
 			if tt.wantErr {
 				if err == nil {
@@ -492,7 +493,7 @@ func TestFleetExecutor_CreateClusterResourcePlacement(t *testing.T) {
 
 			// Test will fail if placementOps is nil, which is expected without proper initialization
 			// We're primarily testing the validation logic here
-			result, err := executor.createClusterResourcePlacement(tt.args, cfg)
+			result, err := executor.createClusterResourcePlacement(context.Background(), tt.args, cfg)
 
 			if tt.wantErr {
 				if err == nil {
@@ -550,7 +551,7 @@ func TestFleetExecutor_GetClusterResourcePlacement(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &config.ConfigData{}
 
-			_, err := executor.getClusterResourcePlacement(tt.args, cfg)
+			_, err := executor.getClusterResourcePlacement(context.Background(), tt.args, cfg)
 
 			if tt.wantErr {
 				if err == nil {
@@ -606,7 +607,7 @@ func TestFleetExecutor_DeleteClusterResourcePlacement(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &config.ConfigData{}
 
-			_, err := executor.deleteClusterResourcePlacement(tt.args, cfg)
+			_, err := executor.deleteClusterResourcePlacement(context.Background(), tt.args, cfg)
 
 			if tt.wantErr {
 				if err == nil {

@@ -1,6 +1,7 @@
 package diagnostics
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -19,7 +20,7 @@ func TestDiagnosticSettings_Integration(t *testing.T) {
 
 	// Test with invalid params to ensure delegation works
 	params := map[string]interface{}{}
-	_, err := HandleControlPlaneDiagnosticSettings(params, nil, cfg) // Pass nil Azure client for testing
+	_, err := HandleControlPlaneDiagnosticSettings(context.Background(), params, nil, cfg) // Pass nil Azure client for testing
 	if err == nil {
 		t.Error("Expected error for missing parameters, got nil")
 	}
@@ -38,7 +39,7 @@ func TestControlPlaneLogs_Integration(t *testing.T) {
 
 	// Test with invalid params to ensure delegation works
 	params := map[string]interface{}{}
-	_, err := HandleControlPlaneLogs(params, nil, cfg) // Pass nil Azure client for testing
+	_, err := HandleControlPlaneLogs(context.Background(), params, nil, cfg) // Pass nil Azure client for testing
 	if err == nil {
 		t.Error("Expected error for missing parameters, got nil")
 	}
@@ -62,7 +63,7 @@ func TestDiagnosticSettingsHandler_Integration(t *testing.T) {
 
 	// Test handler with invalid params to ensure it calls the underlying function
 	params := map[string]interface{}{}
-	_, err := handler.Handle(params, cfg)
+	_, err := handler.Handle(context.Background(), params, cfg)
 	if err == nil {
 		t.Error("Expected error for missing parameters, got nil")
 	}
@@ -86,7 +87,7 @@ func TestControlPlaneLogsHandler_Integration(t *testing.T) {
 
 	// Test handler with invalid params to ensure it calls the underlying function
 	params := map[string]interface{}{}
-	_, err := handler.Handle(params, cfg)
+	_, err := handler.Handle(context.Background(), params, cfg)
 	if err == nil {
 		t.Error("Expected error for missing parameters, got nil")
 	}

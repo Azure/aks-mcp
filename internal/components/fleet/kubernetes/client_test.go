@@ -1,6 +1,7 @@
 package kubernetes
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -44,7 +45,7 @@ func TestClient_ExecuteKubectl(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockExecutor := &MockExecutor{
-				ExecuteFunc: func(params map[string]any, cfg *config.ConfigData) (string, error) {
+				ExecuteFunc: func(ctx context.Context, params map[string]any, cfg *config.ConfigData) (string, error) {
 					// Verify the command parameter
 					if cmd, ok := params["command"].(string); ok {
 						if !strings.Contains(cmd, tt.command) {
@@ -60,7 +61,7 @@ func TestClient_ExecuteKubectl(t *testing.T) {
 			}
 
 			cfg := &config.ConfigData{}
-			result, err := client.ExecuteKubectl(tt.command, cfg)
+			result, err := client.ExecuteKubectl(context.Background(), tt.command, cfg)
 
 			if tt.wantErr {
 				if err == nil {
@@ -86,7 +87,7 @@ func TestClient_ExecuteKubectlWithNilExecutor(t *testing.T) {
 	}
 
 	cfg := &config.ConfigData{}
-	_, err := client.ExecuteKubectl("get pods", cfg)
+	_, err := client.ExecuteKubectl(context.Background(), "get pods", cfg)
 
 	if err == nil {
 		t.Error("ExecuteKubectl() with nil executor should return error")
@@ -100,7 +101,7 @@ func TestClient_ExecuteKubectlWithNilClient(t *testing.T) {
 	var client *Client = nil
 
 	cfg := &config.ConfigData{}
-	_, err := client.ExecuteKubectl("get pods", cfg)
+	_, err := client.ExecuteKubectl(context.Background(), "get pods", cfg)
 
 	if err == nil {
 		t.Error("ExecuteKubectl() with nil client should return error")

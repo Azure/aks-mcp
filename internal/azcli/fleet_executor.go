@@ -1,6 +1,7 @@
 package azcli
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -25,7 +26,7 @@ func NewFleetExecutor() *FleetExecutor {
 }
 
 // Execute processes structured fleet commands
-func (e *FleetExecutor) Execute(params map[string]interface{}, cfg *config.ConfigData) (string, error) {
+func (e *FleetExecutor) Execute(ctx context.Context, params map[string]interface{}, cfg *config.ConfigData) (string, error) {
 	// Extract structured parameters
 	operation, ok := params["operation"].(string)
 	if !ok {
@@ -48,7 +49,7 @@ func (e *FleetExecutor) Execute(params map[string]interface{}, cfg *config.Confi
 		if err := e.validateClusterResourcePlacementCombination(operation); err != nil {
 			return "", err
 		}
-		return e.executeKubernetesClusterResourcePlacement(operation, args, cfg)
+		return e.executeKubernetesClusterResourcePlacement(ctx, operation, args, cfg)
 	}
 
 	// Validate operation/resource combination for non-placement resources
@@ -85,7 +86,7 @@ func (e *FleetExecutor) Execute(params map[string]interface{}, cfg *config.Confi
 	}
 
 	// Execute using the base executor
-	return e.AzExecutor.Execute(execParams, cfg)
+	return e.AzExecutor.Execute(ctx, execParams, cfg)
 }
 
 // validateCombination validates if the operation/resource combination is valid
@@ -150,7 +151,7 @@ func (e *FleetExecutor) GetCommandForValidation(operation, resource, args string
 }
 
 // executeKubernetesClusterResourcePlacement handles clusterresourceplacement operations via Kubernetes API
-func (e *FleetExecutor) executeKubernetesClusterResourcePlacement(operation, args string, cfg *config.ConfigData) (string, error) {
+func (e *FleetExecutor) executeKubernetesClusterResourcePlacement(ctx context.Context, operation, args string, cfg *config.ConfigData) (string, error) {
 	// Check access level for clusterresourceplacement operations
 	if err := e.checkAccessLevel(operation, "clusterresourceplacement", cfg.AccessLevel); err != nil {
 		return "", err
@@ -188,13 +189,13 @@ func (e *FleetExecutor) executeKubernetesClusterResourcePlacement(operation, arg
 
 		switch operation {
 		case "create":
-			result, err = e.createClusterResourcePlacement(parsedArgs, cfg)
+			result, err = e.createClusterResourcePlacement(ctx, parsedArgs, cfg)
 		case "get", "show":
-			result, err = e.getClusterResourcePlacement(parsedArgs, cfg)
+			result, err = e.getClusterResourcePlacement(ctx, parsedArgs, cfg)
 		case "list":
-			result, err = e.placementOps.ListPlacements(cfg)
+			result, err = e.placementOps.ListPlacements(ctx, cfg)
 		case "delete":
-			result, err = e.deleteClusterResourcePlacement(parsedArgs, cfg)
+			result, err = e.deleteClusterResourcePlacement(ctx, parsedArgs, cfg)
 		default:
 			err = fmt.Errorf("unsupported clusterresourceplacement operation: %s", operation)
 		}
@@ -262,7 +263,7 @@ func (e *FleetExecutor) validateClusterResourcePlacementCombination(operation st
 }
 
 // createClusterResourcePlacement creates a clusterresourceplacement using placement operations
-func (e *FleetExecutor) createClusterResourcePlacement(args map[string]string, cfg *config.ConfigData) (string, error) {
+func (e *FleetExecutor) createClusterResourcePlacement(ctx context.Context, args map[string]string, cfg *config.ConfigData) (string, error) {
 	name, ok := args["name"]
 	if !ok || name == "" {
 		return "", fmt.Errorf("--name is required for create operation")
@@ -294,11 +295,11 @@ func (e *FleetExecutor) createClusterResourcePlacement(args map[string]string, c
 		return "", fmt.Errorf("clusterresourceplacement operations not initialized")
 	}
 
-	return e.placementOps.CreatePlacement(name, selector, policy, cfg)
+	return e.placementOps.CreatePlacement(ctx, name, selector, policy, cfg)
 }
 
 // getClusterResourcePlacement retrieves a clusterresourceplacement using placement operations
-func (e *FleetExecutor) getClusterResourcePlacement(args map[string]string, cfg *config.ConfigData) (string, error) {
+func (e *FleetExecutor) getClusterResourcePlacement(ctx context.Context, args map[string]string, cfg *config.ConfigData) (string, error) {
 	name, ok := args["name"]
 	if !ok || name == "" {
 		return "", fmt.Errorf("--name is required for get/show operation")
@@ -308,11 +309,11 @@ func (e *FleetExecutor) getClusterResourcePlacement(args map[string]string, cfg 
 		return "", fmt.Errorf("clusterresourceplacement operations not initialized")
 	}
 
-	return e.placementOps.GetPlacement(name, cfg)
+	return e.placementOps.GetPlacement(ctx, name, cfg)
 }
 
 // deleteClusterResourcePlacement deletes a clusterresourceplacement using placement operations
-func (e *FleetExecutor) deleteClusterResourcePlacement(args map[string]string, cfg *config.ConfigData) (string, error) {
+func (e *FleetExecutor) deleteClusterResourcePlacement(ctx context.Context, args map[string]string, cfg *config.ConfigData) (string, error) {
 	name, ok := args["name"]
 	if !ok || name == "" {
 		return "", fmt.Errorf("--name is required for delete operation")
@@ -322,5 +323,5 @@ func (e *FleetExecutor) deleteClusterResourcePlacement(args map[string]string, c
 		return "", fmt.Errorf("clusterresourceplacement operations not initialized")
 	}
 
-	return e.placementOps.DeletePlacement(name, cfg)
+	return e.placementOps.DeletePlacement(ctx, name, cfg)
 }

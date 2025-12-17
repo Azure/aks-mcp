@@ -1,6 +1,7 @@
 package k8s
 
 import (
+	"context"
 	"errors"
 	"reflect"
 	"testing"
@@ -43,7 +44,7 @@ type fakeExecutor struct {
 
 var _ k8stools.CommandExecutor = (*fakeExecutor)(nil)
 
-func (f *fakeExecutor) Execute(params map[string]interface{}, cfg *k8sconfig.ConfigData) (string, error) {
+func (f *fakeExecutor) Execute(ctx context.Context, params map[string]interface{}, cfg *k8sconfig.ConfigData) (string, error) {
 	f.lastParams = params
 	f.lastCfg = cfg
 	return f.out, f.err
@@ -166,7 +167,7 @@ func TestExecutorAdapter_DelegatesAndForwards(t *testing.T) {
 		AllowNamespaces:   "default",
 	}
 
-	got, err := adapter.Execute(params, inCfg)
+	got, err := adapter.Execute(context.Background(), params, inCfg)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -192,7 +193,7 @@ func TestExecutorAdapter_PropagatesError(t *testing.T) {
 	fe := &fakeExecutor{err: errors.New("boom")}
 	adapter := WrapK8sExecutor(fe)
 
-	_, err := adapter.Execute(map[string]interface{}{"x": 1}, &config.ConfigData{})
+	_, err := adapter.Execute(context.Background(), map[string]interface{}{"x": 1}, &config.ConfigData{})
 	if err == nil {
 		t.Fatalf("expected error, got nil")
 	}
@@ -210,7 +211,7 @@ func TestExecutorAdapter_PanicsOnNilConfig_CurrentBehavior(t *testing.T) {
 
 	fe := &fakeExecutor{}
 	adapter := WrapK8sExecutor(fe)
-	_, _ = adapter.Execute(map[string]interface{}{"x": 1}, nil)
+	_, _ = adapter.Execute(context.Background(), map[string]interface{}{"x": 1}, nil)
 }
 
 // BenchmarkConvertConfig tracks drift in allocation/time costs over time.

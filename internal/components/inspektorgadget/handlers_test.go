@@ -80,7 +80,7 @@ func TestInspektorGadgetHandler(t *testing.T) {
 			"action": "invalid_action",
 		}
 
-		_, err := handler.Handle(params, cfg)
+		_, err := handler.Handle(context.Background(), params, cfg)
 		if err == nil {
 			t.Error("expected error for invalid action, got nil")
 		} else {
@@ -106,7 +106,7 @@ func TestInspektorGadgetHandler(t *testing.T) {
 			},
 		}
 
-		result, err := handler.Handle(params, cfg)
+		result, err := handler.Handle(context.Background(), params, cfg)
 		if err != nil {
 			t.Errorf("expected no error, got %v", err)
 		}
@@ -122,7 +122,7 @@ func TestInspektorGadgetHandler(t *testing.T) {
 			},
 		}
 
-		result, err = handler.Handle(params, cfg)
+		result, err = handler.Handle(context.Background(), params, cfg)
 		if err != nil {
 			t.Errorf("expected no error, got %v", err)
 		}
@@ -138,7 +138,7 @@ func TestInspektorGadgetHandler(t *testing.T) {
 			},
 		}
 
-		result, err = handler.Handle(params, cfg)
+		result, err = handler.Handle(context.Background(), params, cfg)
 		if err != nil {
 			t.Errorf("expected no error, got %v", err)
 		}
@@ -167,7 +167,7 @@ func TestInspektorGadgetHandler(t *testing.T) {
 			},
 		}
 
-		result, err := handler.Handle(params, cfg)
+		result, err := handler.Handle(context.Background(), params, cfg)
 		if err != nil {
 			t.Errorf("expected no error, got %v", err)
 		}
@@ -198,7 +198,7 @@ func TestInspektorGadgetHandler(t *testing.T) {
 			"action": "list_gadgets",
 		}
 
-		result, err := handler.Handle(params, cfg)
+		result, err := handler.Handle(context.Background(), params, cfg)
 		if err != nil {
 			t.Errorf("expected no error, got %v", err)
 		}

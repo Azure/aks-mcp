@@ -20,15 +20,12 @@ import (
 
 // GetVNetInfoHandler returns a handler for the get_vnet_info command
 func GetVNetInfoHandler(client *azureclient.AzureClient, cfg *config.ConfigData) tools.ResourceHandler {
-	return tools.ResourceHandlerFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
+	return tools.ResourceHandlerFunc(func(ctx context.Context, params map[string]interface{}, _ *config.ConfigData) (string, error) {
 		// Extract parameters
 		subID, rg, clusterName, err := common.ExtractAKSParameters(params)
 		if err != nil {
 			return "", err
 		}
-
-		// Get the cluster details
-		ctx := context.Background()
 		cluster, err := common.GetClusterDetails(ctx, client, subID, rg, clusterName)
 		if err != nil {
 			return "", fmt.Errorf("failed to get cluster details: %v", err)
@@ -63,15 +60,12 @@ func GetVNetInfoHandler(client *azureclient.AzureClient, cfg *config.ConfigData)
 
 // GetNSGInfoHandler returns a handler for the get_nsg_info command
 func GetNSGInfoHandler(client *azureclient.AzureClient, cfg *config.ConfigData) tools.ResourceHandler {
-	return tools.ResourceHandlerFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
+	return tools.ResourceHandlerFunc(func(ctx context.Context, params map[string]interface{}, _ *config.ConfigData) (string, error) {
 		// Extract parameters
 		subID, rg, clusterName, err := common.ExtractAKSParameters(params)
 		if err != nil {
 			return "", err
 		}
-
-		// Get the cluster details
-		ctx := context.Background()
 		cluster, err := common.GetClusterDetails(ctx, client, subID, rg, clusterName)
 		if err != nil {
 			return "", fmt.Errorf("failed to get cluster details: %v", err)
@@ -106,15 +100,12 @@ func GetNSGInfoHandler(client *azureclient.AzureClient, cfg *config.ConfigData) 
 
 // GetRouteTableInfoHandler returns a handler for the get_route_table_info command
 func GetRouteTableInfoHandler(client *azureclient.AzureClient, cfg *config.ConfigData) tools.ResourceHandler {
-	return tools.ResourceHandlerFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
+	return tools.ResourceHandlerFunc(func(ctx context.Context, params map[string]interface{}, _ *config.ConfigData) (string, error) {
 		// Extract parameters
 		subID, rg, clusterName, err := common.ExtractAKSParameters(params)
 		if err != nil {
 			return "", err
 		}
-
-		// Get the cluster details
-		ctx := context.Background()
 		cluster, err := common.GetClusterDetails(ctx, client, subID, rg, clusterName)
 		if err != nil {
 			return "", fmt.Errorf("failed to get cluster details: %v", err)
@@ -163,15 +154,12 @@ func GetRouteTableInfoHandler(client *azureclient.AzureClient, cfg *config.Confi
 
 // GetSubnetInfoHandler returns a handler for the get_subnet_info command
 func GetSubnetInfoHandler(client *azureclient.AzureClient, cfg *config.ConfigData) tools.ResourceHandler {
-	return tools.ResourceHandlerFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
+	return tools.ResourceHandlerFunc(func(ctx context.Context, params map[string]interface{}, _ *config.ConfigData) (string, error) {
 		// Extract parameters
 		subID, rg, clusterName, err := common.ExtractAKSParameters(params)
 		if err != nil {
 			return "", err
 		}
-
-		// Get the cluster details
-		ctx := context.Background()
 		cluster, err := common.GetClusterDetails(ctx, client, subID, rg, clusterName)
 		if err != nil {
 			return "", fmt.Errorf("failed to get cluster details: %v", err)
@@ -206,15 +194,12 @@ func GetSubnetInfoHandler(client *azureclient.AzureClient, cfg *config.ConfigDat
 
 // GetLoadBalancersInfoHandler returns a handler for the get_load_balancers_info command
 func GetLoadBalancersInfoHandler(client *azureclient.AzureClient, cfg *config.ConfigData) tools.ResourceHandler {
-	return tools.ResourceHandlerFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
+	return tools.ResourceHandlerFunc(func(ctx context.Context, params map[string]interface{}, _ *config.ConfigData) (string, error) {
 		// Extract parameters
 		subID, rg, clusterName, err := common.ExtractAKSParameters(params)
 		if err != nil {
 			return "", err
 		}
-
-		// Get the cluster details
-		ctx := context.Background()
 		cluster, err := common.GetClusterDetails(ctx, client, subID, rg, clusterName)
 		if err != nil {
 			return "", fmt.Errorf("failed to get cluster details: %v", err)
@@ -282,7 +267,7 @@ func GetLoadBalancersInfoHandler(client *azureclient.AzureClient, cfg *config.Co
 
 // GetPrivateEndpointInfoHandler returns a handler for the get_private_endpoint_info command
 func GetPrivateEndpointInfoHandler(client *azureclient.AzureClient, cfg *config.ConfigData) tools.ResourceHandler {
-	return tools.ResourceHandlerFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
+	return tools.ResourceHandlerFunc(func(ctx context.Context, params map[string]interface{}, _ *config.ConfigData) (string, error) {
 		// Extract parameters using common helper
 		subID, rg, clusterName, err := common.ExtractAKSParameters(params)
 		if err != nil {
@@ -290,13 +275,13 @@ func GetPrivateEndpointInfoHandler(client *azureclient.AzureClient, cfg *config.
 		}
 
 		// Get the cluster details to verify it exists and get node resource group
-		cluster, err := client.GetAKSCluster(context.Background(), subID, rg, clusterName)
+		cluster, err := client.GetAKSCluster(ctx, subID, rg, clusterName)
 		if err != nil {
 			return "", fmt.Errorf("failed to get AKS cluster: %v", err)
 		}
 
 		// Check if cluster is private and get private endpoint info
-		privateEndpointID, err := resourcehelpers.GetPrivateEndpointIDFromAKS(context.Background(), cluster, client)
+		privateEndpointID, err := resourcehelpers.GetPrivateEndpointIDFromAKS(ctx, cluster, client)
 		if err != nil {
 			return "", fmt.Errorf("failed to get private endpoint info: %v", err)
 		}
@@ -315,7 +300,7 @@ func GetPrivateEndpointInfoHandler(client *azureclient.AzureClient, cfg *config.
 		}
 
 		// Get the private endpoint details using the resource ID
-		privateEndpoint, err := client.GetPrivateEndpointByID(context.Background(), privateEndpointID)
+		privateEndpoint, err := client.GetPrivateEndpointByID(ctx, privateEndpointID)
 		if err != nil {
 			return "", fmt.Errorf("failed to get private endpoint details: %v", err)
 		}
@@ -332,14 +317,14 @@ func GetPrivateEndpointInfoHandler(client *azureclient.AzureClient, cfg *config.
 
 // GetAzNetworkResourcesHandler returns a handler for the az_network_resources command
 func GetAzNetworkResourcesHandler(client *azureclient.AzureClient, cfg *config.ConfigData) tools.ResourceHandler {
-	return tools.ResourceHandlerFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
+	return tools.ResourceHandlerFunc(func(ctx context.Context, params map[string]interface{}, _ *config.ConfigData) (string, error) {
 		resourceType, subID, rg, clusterName, err := validateNetworkParams(params)
 		if err != nil {
 			return "", err
 		}
 
 		// Handle resource type
-		return handleNetworkResourceType(client, resourceType, subID, rg, clusterName)
+		return handleNetworkResourceType(ctx, client, resourceType, subID, rg, clusterName)
 	})
 }
 
@@ -367,22 +352,22 @@ func validateNetworkParams(params map[string]interface{}) (string, string, strin
 }
 
 // handleNetworkResourceType routes to the appropriate resource handler based on type
-func handleNetworkResourceType(client *azureclient.AzureClient, resourceType, subID, rg, clusterName string) (string, error) {
+func handleNetworkResourceType(ctx context.Context, client *azureclient.AzureClient, resourceType, subID, rg, clusterName string) (string, error) {
 	switch resourceType {
 	case string(ResourceTypeAll):
-		return handleAllNetworkResources(client, subID, rg, clusterName)
+		return handleAllNetworkResources(ctx, client, subID, rg, clusterName)
 	case string(ResourceTypeVNet):
-		return handleVNetResource(client, subID, rg, clusterName)
+		return handleVNetResource(ctx, client, subID, rg, clusterName)
 	case string(ResourceTypeNSG):
-		return handleNSGResource(client, subID, rg, clusterName)
+		return handleNSGResource(ctx, client, subID, rg, clusterName)
 	case string(ResourceTypeRouteTable):
-		return handleRouteTableResource(client, subID, rg, clusterName)
+		return handleRouteTableResource(ctx, client, subID, rg, clusterName)
 	case string(ResourceTypeSubnet):
-		return handleSubnetResource(client, subID, rg, clusterName)
+		return handleSubnetResource(ctx, client, subID, rg, clusterName)
 	case string(ResourceTypeLoadBalancer):
-		return handleLoadBalancerResource(client, subID, rg, clusterName)
+		return handleLoadBalancerResource(ctx, client, subID, rg, clusterName)
 	case string(ResourceTypePrivateEndpoint):
-		return handlePrivateEndpointResource(client, subID, rg, clusterName)
+		return handlePrivateEndpointResource(ctx, client, subID, rg, clusterName)
 	default:
 		return "", fmt.Errorf("resource type '%s' not implemented", resourceType)
 	}
@@ -390,11 +375,11 @@ func handleNetworkResourceType(client *azureclient.AzureClient, resourceType, su
 
 // Helper functions for different resource types
 
-func handleAllNetworkResources(client *azureclient.AzureClient, subID, rg, clusterName string) (string, error) {
+func handleAllNetworkResources(ctx context.Context, client *azureclient.AzureClient, subID, rg, clusterName string) (string, error) {
 	result := make(map[string]interface{})
 
 	// Collect results and errors for each resource type
-	resourceHandlers := map[string]func(*azureclient.AzureClient, string, string, string) (string, error){
+	resourceHandlers := map[string]func(context.Context, *azureclient.AzureClient, string, string, string) (string, error){
 		"vnet":             handleVNetResource,
 		"nsg":              handleNSGResource,
 		"route_table":      handleRouteTableResource,
@@ -405,7 +390,7 @@ func handleAllNetworkResources(client *azureclient.AzureClient, subID, rg, clust
 
 	// Process each resource type and preserve error context
 	for resourceType, handler := range resourceHandlers {
-		resourceResult, err := handler(client, subID, rg, clusterName)
+		resourceResult, err := handler(ctx, client, subID, rg, clusterName)
 		if err != nil {
 			// Preserve original error context and type for debugging
 			result[resourceType+"_error"] = map[string]interface{}{
@@ -425,7 +410,7 @@ func handleAllNetworkResources(client *azureclient.AzureClient, subID, rg, clust
 	return string(resultJSON), nil
 }
 
-func handleVNetResource(client *azureclient.AzureClient, subID, rg, clusterName string) (string, error) {
+func handleVNetResource(ctx context.Context, client *azureclient.AzureClient, subID, rg, clusterName string) (string, error) {
 	// Use the existing VNet handler logic
 	handler := GetVNetInfoHandler(client, nil)
 	params := map[string]interface{}{
@@ -433,10 +418,10 @@ func handleVNetResource(client *azureclient.AzureClient, subID, rg, clusterName 
 		"resource_group":  rg,
 		"cluster_name":    clusterName,
 	}
-	return handler.Handle(params, nil)
+	return handler.Handle(ctx, params, nil)
 }
 
-func handleNSGResource(client *azureclient.AzureClient, subID, rg, clusterName string) (string, error) {
+func handleNSGResource(ctx context.Context, client *azureclient.AzureClient, subID, rg, clusterName string) (string, error) {
 	// Use the existing NSG handler logic
 	handler := GetNSGInfoHandler(client, nil)
 	params := map[string]interface{}{
@@ -444,10 +429,10 @@ func handleNSGResource(client *azureclient.AzureClient, subID, rg, clusterName s
 		"resource_group":  rg,
 		"cluster_name":    clusterName,
 	}
-	return handler.Handle(params, nil)
+	return handler.Handle(ctx, params, nil)
 }
 
-func handleRouteTableResource(client *azureclient.AzureClient, subID, rg, clusterName string) (string, error) {
+func handleRouteTableResource(ctx context.Context, client *azureclient.AzureClient, subID, rg, clusterName string) (string, error) {
 	// Use the existing Route Table handler logic
 	handler := GetRouteTableInfoHandler(client, nil)
 	params := map[string]interface{}{
@@ -455,10 +440,10 @@ func handleRouteTableResource(client *azureclient.AzureClient, subID, rg, cluste
 		"resource_group":  rg,
 		"cluster_name":    clusterName,
 	}
-	return handler.Handle(params, nil)
+	return handler.Handle(ctx, params, nil)
 }
 
-func handleSubnetResource(client *azureclient.AzureClient, subID, rg, clusterName string) (string, error) {
+func handleSubnetResource(ctx context.Context, client *azureclient.AzureClient, subID, rg, clusterName string) (string, error) {
 	// Use the existing Subnet handler logic
 	handler := GetSubnetInfoHandler(client, nil)
 	params := map[string]interface{}{
@@ -466,10 +451,10 @@ func handleSubnetResource(client *azureclient.AzureClient, subID, rg, clusterNam
 		"resource_group":  rg,
 		"cluster_name":    clusterName,
 	}
-	return handler.Handle(params, nil)
+	return handler.Handle(ctx, params, nil)
 }
 
-func handleLoadBalancerResource(client *azureclient.AzureClient, subID, rg, clusterName string) (string, error) {
+func handleLoadBalancerResource(ctx context.Context, client *azureclient.AzureClient, subID, rg, clusterName string) (string, error) {
 	// Use the existing Load Balancer handler logic
 	handler := GetLoadBalancersInfoHandler(client, nil)
 	params := map[string]interface{}{
@@ -477,10 +462,10 @@ func handleLoadBalancerResource(client *azureclient.AzureClient, subID, rg, clus
 		"resource_group":  rg,
 		"cluster_name":    clusterName,
 	}
-	return handler.Handle(params, nil)
+	return handler.Handle(ctx, params, nil)
 }
 
-func handlePrivateEndpointResource(client *azureclient.AzureClient, subID, rg, clusterName string) (string, error) {
+func handlePrivateEndpointResource(ctx context.Context, client *azureclient.AzureClient, subID, rg, clusterName string) (string, error) {
 	// Use the existing Private Endpoint handler logic
 	handler := GetPrivateEndpointInfoHandler(client, nil)
 	params := map[string]interface{}{
@@ -488,5 +473,5 @@ func handlePrivateEndpointResource(client *azureclient.AzureClient, subID, rg, c
 		"resource_group":  rg,
 		"cluster_name":    clusterName,
 	}
-	return handler.Handle(params, nil)
+	return handler.Handle(ctx, params, nil)
 }

@@ -1,6 +1,7 @@
 package azcli
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -22,7 +23,7 @@ func NewExecutor() *AzExecutor {
 }
 
 // Execute handles general az command execution
-func (e *AzExecutor) Execute(params map[string]interface{}, cfg *config.ConfigData) (string, error) {
+func (e *AzExecutor) Execute(ctx context.Context, params map[string]interface{}, cfg *config.ConfigData) (string, error) {
 	azCmd, ok := params["command"].(string)
 	if !ok {
 		return "", fmt.Errorf("invalid command parameter")
@@ -61,7 +62,7 @@ func (e *AzExecutor) Execute(params map[string]interface{}, cfg *config.ConfigDa
 }
 
 // ExecuteSpecificCommand executes a specific az command with the given arguments
-func (e *AzExecutor) ExecuteSpecificCommand(cmd string, params map[string]interface{}, cfg *config.ConfigData) (string, error) {
+func (e *AzExecutor) ExecuteSpecificCommand(ctx context.Context, cmd string, params map[string]interface{}, cfg *config.ConfigData) (string, error) {
 	args, ok := params["args"].(string)
 	if !ok {
 		args = ""
@@ -106,9 +107,9 @@ func (e *AzExecutor) ExecuteSpecificCommand(cmd string, params map[string]interf
 
 // CreateCommandExecutorFunc creates a CommandExecutor for a specific az command
 func CreateCommandExecutorFunc(cmd string) tools.CommandExecutorFunc {
-	f := func(params map[string]interface{}, cfg *config.ConfigData) (string, error) {
+	f := func(ctx context.Context, params map[string]interface{}, cfg *config.ConfigData) (string, error) {
 		executor := NewExecutor()
-		return executor.ExecuteSpecificCommand(cmd, params, cfg)
+		return executor.ExecuteSpecificCommand(ctx, cmd, params, cfg)
 	}
 	return tools.CommandExecutorFunc(f)
 }

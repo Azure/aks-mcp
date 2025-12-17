@@ -21,8 +21,7 @@ var ErrNotDeployed = fmt.Errorf("inspektor gadget is not deployed, please deploy
 
 // InspektorGadgetHandler returns a handler to manage gadgets
 func InspektorGadgetHandler(mgr GadgetManager, cfg *config.ConfigData) tools.ResourceHandler {
-	return tools.ResourceHandlerFunc(func(params map[string]interface{}, _ *config.ConfigData) (string, error) {
-		ctx := context.Background()
+	return tools.ResourceHandlerFunc(func(ctx context.Context, params map[string]interface{}, _ *config.ConfigData) (string, error) {
 
 		// Validate action parameter
 		action, ok := params["action"].(string)
