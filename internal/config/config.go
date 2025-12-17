@@ -74,22 +74,28 @@ type ConfigData struct {
 	// Default is false (use new unified tools)
 	// This flag is provided for backward compatibility and may be removed in future versions
 	UseLegacyTools bool
+
+	// EnableMultiCluster enables multi-cluster mode for kubectl tools
+	// When enabled, kubectl commands are executed via Azure AKS RunCommand API
+	// When disabled (default), kubectl commands are executed locally via kubeconfig
+	EnableMultiCluster bool
 }
 
 // NewConfig creates and returns a new configuration instance
 func NewConfig() *ConfigData {
 	return &ConfigData{
-		Timeout:           60,
-		CacheTimeout:      1 * time.Minute,
-		SecurityConfig:    security.NewSecurityConfig(),
-		OAuthConfig:       auth.NewDefaultOAuthConfig(),
-		Transport:         "stdio",
-		Port:              8000,
-		AccessLevel:       "readonly",
-		EnabledComponents: []string{},
-		AllowNamespaces:   "",
-		LogLevel:          "info",
-		UseLegacyTools:    os.Getenv("USE_LEGACY_TOOLS") == "true",
+		Timeout:            60,
+		CacheTimeout:       1 * time.Minute,
+		SecurityConfig:     security.NewSecurityConfig(),
+		OAuthConfig:        auth.NewDefaultOAuthConfig(),
+		Transport:          "stdio",
+		Port:               8000,
+		AccessLevel:        "readonly",
+		EnabledComponents:  []string{},
+		AllowNamespaces:    "",
+		LogLevel:           "info",
+		UseLegacyTools:     os.Getenv("USE_LEGACY_TOOLS") == "true",
+		EnableMultiCluster: false,
 	}
 }
 
@@ -124,6 +130,10 @@ func (cfg *ConfigData) ParseFlags() {
 	// Kubernetes namespaces configuration
 	flag.StringVar(&cfg.AllowNamespaces, "allow-namespaces", "",
 		"Comma-separated list of allowed Kubernetes namespaces (empty means all namespaces)")
+
+	// Multi-cluster configuration
+	flag.BoolVar(&cfg.EnableMultiCluster, "enable-multi-cluster", false,
+		"Enable multi-cluster mode for kubectl (uses Azure AKS RunCommand API instead of local kubeconfig)")
 
 	// Logging settings
 	flag.StringVar(&cfg.LogLevel, "log-level", "info", "Log level (debug, info, warn, error)")
@@ -266,6 +276,11 @@ func (cfg *ConfigData) ValidateConfig() error {
 	// Validate OAuth + transport compatibility
 	if cfg.OAuthConfig.Enabled && cfg.Transport == "stdio" {
 		return fmt.Errorf("OAuth authentication is not supported with stdio transport per MCP specification")
+	}
+
+	// Validate multi-cluster + legacy tools compatibility
+	if cfg.EnableMultiCluster && cfg.UseLegacyTools {
+		return fmt.Errorf("multi-cluster mode (--enable-multi-cluster) requires unified tools and is not compatible with legacy tools (USE_LEGACY_TOOLS=true)")
 	}
 
 	return nil
