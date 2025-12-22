@@ -20,10 +20,43 @@ func NewRunCommandExecutor() *RunCommandExecutor {
 }
 
 type RequestContext struct {
-	AzureToken     string `json:"azure_token"`
-	SubscriptionID string `json:"subscription_id"`
-	ResourceGroup  string `json:"resource_group"`
-	ClusterName    string `json:"cluster_name"`
+	AzureToken    string `json:"azure_token"`
+	AKSResourceID string `json:"aks_resource_id"`
+}
+
+type ParsedResourceID struct {
+	SubscriptionID string
+	ResourceGroup  string
+	ClusterName    string
+}
+
+func parseAKSResourceID(resourceID string) (*ParsedResourceID, error) {
+	parts := strings.Split(strings.TrimPrefix(resourceID, "/"), "/")
+	if len(parts) < 8 {
+		return nil, fmt.Errorf("invalid AKS resource ID format: %s", resourceID)
+	}
+
+	var subscriptionID, resourceGroup, clusterName string
+	for i := 0; i < len(parts)-1; i++ {
+		switch parts[i] {
+		case "subscriptions":
+			subscriptionID = parts[i+1]
+		case "resourceGroups":
+			resourceGroup = parts[i+1]
+		case "managedClusters":
+			clusterName = parts[i+1]
+		}
+	}
+
+	if subscriptionID == "" || resourceGroup == "" || clusterName == "" {
+		return nil, fmt.Errorf("failed to parse AKS resource ID: missing required fields in %s", resourceID)
+	}
+
+	return &ParsedResourceID{
+		SubscriptionID: subscriptionID,
+		ResourceGroup:  resourceGroup,
+		ClusterName:    clusterName,
+	}, nil
 }
 
 func extractRequestContext(ctx context.Context) (*RequestContext, error) {
@@ -40,14 +73,8 @@ func extractRequestContext(ctx context.Context) (*RequestContext, error) {
 	if reqCtx.AzureToken == "" {
 		return nil, fmt.Errorf("azure_token is required in request_context")
 	}
-	if reqCtx.SubscriptionID == "" {
-		return nil, fmt.Errorf("subscription_id is required in request_context")
-	}
-	if reqCtx.ResourceGroup == "" {
-		return nil, fmt.Errorf("resource_group is required in request_context")
-	}
-	if reqCtx.ClusterName == "" {
-		return nil, fmt.Errorf("cluster_name is required in request_context")
+	if reqCtx.AKSResourceID == "" {
+		return nil, fmt.Errorf("aks_resource_id is required in request_context")
 	}
 
 	return &reqCtx, nil
@@ -61,7 +88,12 @@ func (e *RunCommandExecutor) Execute(ctx context.Context, params map[string]inte
 		return "", fmt.Errorf("failed to extract request context: %w", err)
 	}
 
-	logger.Debugf("RunCommandExecutor: Using cluster %s in resource group %s", reqCtx.ClusterName, reqCtx.ResourceGroup)
+	parsedID, err := parseAKSResourceID(reqCtx.AKSResourceID)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse AKS resource ID: %w", err)
+	}
+
+	logger.Debugf("RunCommandExecutor: Using cluster %s in resource group %s", parsedID.ClusterName, parsedID.ResourceGroup)
 
 	command, err := e.buildCommand(params)
 	if err != nil {
@@ -72,9 +104,9 @@ func (e *RunCommandExecutor) Execute(ctx context.Context, params map[string]inte
 
 	cred := azureclient.NewStaticTokenCredential(reqCtx.AzureToken)
 
-	clientFactory, err := armcontainerservice.NewClientFactory(reqCtx.SubscriptionID, cred, &arm.ClientOptions{})
+	clientFactory, err := armcontainerservice.NewClientFactory(parsedID.SubscriptionID, cred, &arm.ClientOptions{})
 	if err != nil {
-		return "", fmt.Errorf("failed to create Azure client for cluster %s/%s, command '%s': %w", reqCtx.ResourceGroup, reqCtx.ClusterName, command, err)
+		return "", fmt.Errorf("failed to create Azure client for cluster %s/%s, command '%s': %w", parsedID.ResourceGroup, parsedID.ClusterName, command, err)
 	}
 
 	managedClustersClient := clientFactory.NewManagedClustersClient()
@@ -83,19 +115,19 @@ func (e *RunCommandExecutor) Execute(ctx context.Context, params map[string]inte
 		Command: &command,
 	}
 
-	poller, err := managedClustersClient.BeginRunCommand(ctx, reqCtx.ResourceGroup, reqCtx.ClusterName, runCommandRequest, nil)
+	poller, err := managedClustersClient.BeginRunCommand(ctx, parsedID.ResourceGroup, parsedID.ClusterName, runCommandRequest, nil)
 	if err != nil {
-		return "", fmt.Errorf("failed to start run command '%s' on cluster %s/%s: %w", command, reqCtx.ResourceGroup, reqCtx.ClusterName, err)
+		return "", fmt.Errorf("failed to start run command '%s' on cluster %s/%s: %w", command, parsedID.ResourceGroup, parsedID.ClusterName, err)
 	}
 
 	logger.Debugf("RunCommandExecutor: Waiting for command to complete...")
 	resp, err := poller.PollUntilDone(ctx, nil)
 	if err != nil {
-		return "", fmt.Errorf("failed to execute command '%s' on cluster %s/%s: %w", command, reqCtx.ResourceGroup, reqCtx.ClusterName, err)
+		return "", fmt.Errorf("failed to execute command '%s' on cluster %s/%s: %w", command, parsedID.ResourceGroup, parsedID.ClusterName, err)
 	}
 
 	if resp.Properties == nil {
-		return "", fmt.Errorf("run command '%s' on cluster %s/%s returned nil properties", command, reqCtx.ResourceGroup, reqCtx.ClusterName)
+		return "", fmt.Errorf("run command '%s' on cluster %s/%s returned nil properties", command, parsedID.ResourceGroup, parsedID.ClusterName)
 	}
 
 	var output strings.Builder
@@ -105,7 +137,7 @@ func (e *RunCommandExecutor) Execute(ctx context.Context, params map[string]inte
 
 	// Check if command execution failed
 	if resp.Properties.ExitCode != nil && *resp.Properties.ExitCode != 0 {
-		return output.String(), fmt.Errorf("command '%s' on cluster %s/%s failed with exit code %d", command, reqCtx.ResourceGroup, reqCtx.ClusterName, *resp.Properties.ExitCode)
+		return output.String(), fmt.Errorf("command '%s' on cluster %s/%s failed with exit code %d", command, parsedID.ResourceGroup, parsedID.ClusterName, *resp.Properties.ExitCode)
 	}
 
 	logger.Debugf("RunCommandExecutor: Command completed successfully")

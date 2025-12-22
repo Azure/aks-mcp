@@ -56,6 +56,33 @@ func WithAzCliProcFactory(f func(timeout int) azcli.Proc) ServiceOption {
 	return func(s *Service) { s.azcliProcFactory = f }
 }
 
+// extractRequestContext extracts request_context from X-Tool-Context header and adds it to the context.
+// It handles request_context as either a JSON string or a map[string]any.
+func extractRequestContext(ctx context.Context, r *http.Request) context.Context {
+	toolContext := r.Header.Get("X-Tool-Context")
+	if toolContext == "" {
+		return ctx
+	}
+
+	var data map[string]any
+	if err := json.Unmarshal([]byte(toolContext), &data); err != nil {
+		return ctx
+	}
+
+	// Handle request_context as either string or map
+	if requestContextMap, ok := data["request_context"].(map[string]any); ok {
+		// If it's a map, serialize it to JSON string
+		if jsonBytes, err := json.Marshal(requestContextMap); err == nil {
+			ctx = context.WithValue(ctx, "request_context", string(jsonBytes))
+		}
+	} else if requestContextStr, ok := data["request_context"].(string); ok && requestContextStr != "" {
+		// If it's already a string, use it directly
+		ctx = context.WithValue(ctx, "request_context", requestContextStr)
+	}
+
+	return ctx
+}
+
 // NewService creates a new AKS MCP service with the provided configuration and options.
 // Options can be used to inject dependencies like azcli execution factories.
 func NewService(cfg *config.ConfigData, opts ...ServiceOption) *Service {
@@ -372,13 +399,7 @@ func (s *Service) Run() error {
 		// Create SSE server with context function to extract Azure token from headers
 		sse := server.NewSSEServer(
 			s.mcpServer,
-			server.WithSSEContextFunc(func(ctx context.Context, r *http.Request) context.Context {
-				// Extract request context from X-Request-Context header and add to context
-				if requestContext := r.Header.Get("X-Request-Context"); requestContext != "" {
-					ctx = context.WithValue(ctx, "request_context", requestContext)
-				}
-				return ctx
-			}),
+			server.WithSSEContextFunc(extractRequestContext),
 		)
 
 		// Create custom HTTP server with helpful 404 responses
@@ -404,13 +425,7 @@ func (s *Service) Run() error {
 		streamableServer := server.NewStreamableHTTPServer(
 			s.mcpServer,
 			server.WithStreamableHTTPServer(customServer),
-			server.WithHTTPContextFunc(func(ctx context.Context, r *http.Request) context.Context {
-				// Extract request context from X-Request-Context header and add to context
-				if requestContext := r.Header.Get("X-Request-Context"); requestContext != "" {
-					ctx = context.WithValue(ctx, "request_context", requestContext)
-				}
-				return ctx
-			}),
+			server.WithHTTPContextFunc(extractRequestContext),
 		)
 
 		// Update the mux to use the actual streamable server as the MCP handler
