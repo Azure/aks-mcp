@@ -64,8 +64,6 @@ func logToolResult(toolName string, result string, err error) {
 // CreateToolHandler creates an adapter that converts CommandExecutor to the format expected by MCP server
 func CreateToolHandler(executor CommandExecutor, cfg *config.ConfigData) func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		logToolCall(req.Params.Name, req.Params.Arguments)
-
 		args, ok := req.Params.Arguments.(map[string]interface{})
 		if !ok {
 			err := fmt.Errorf("arguments must be a map[string]interface{}, got %T", req.Params.Arguments)
@@ -78,6 +76,9 @@ func CreateToolHandler(executor CommandExecutor, cfg *config.ConfigData) func(ct
 
 		// Extract and apply _tool_context from arguments
 		ctx = extractToolContext(ctx, args)
+
+		// Log tool call after extracting context to avoid logging sensitive information
+		logToolCall(req.Params.Name, args)
 
 		result, err := executor.Execute(ctx, args, cfg)
 		if cfg.TelemetryService != nil {
@@ -101,8 +102,6 @@ func CreateToolHandler(executor CommandExecutor, cfg *config.ConfigData) func(ct
 // CreateResourceHandler creates an adapter that converts ResourceHandler to the format expected by MCP server
 func CreateResourceHandler(handler ResourceHandler, cfg *config.ConfigData) func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		logToolCall(req.Params.Name, req.Params.Arguments)
-
 		args, ok := req.Params.Arguments.(map[string]interface{})
 		if !ok {
 			err := fmt.Errorf("arguments must be a map[string]interface{}, got %T", req.Params.Arguments)
@@ -115,6 +114,9 @@ func CreateResourceHandler(handler ResourceHandler, cfg *config.ConfigData) func
 
 		// Extract and apply _tool_context from arguments
 		ctx = extractToolContext(ctx, args)
+
+		// Log tool call after extracting context to avoid logging sensitive information
+		logToolCall(req.Params.Name, args)
 
 		result, err := handler.Handle(ctx, args, cfg)
 
