@@ -10,6 +10,36 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
+// extractToolContext extracts _tool_context from arguments and adds to context.
+// It removes _tool_context from args to avoid passing it to the actual tool.
+// This supports passing context via arguments for all transport modes (stdio/SSE/streamable-http).
+func extractToolContext(ctx context.Context, args map[string]interface{}) context.Context {
+	toolContextRaw, exists := args["_tool_context"]
+	if !exists {
+		return ctx
+	}
+
+	// Remove from arguments so tools don't see it
+	delete(args, "_tool_context")
+
+	// Extract context data
+	toolContextMap, ok := toolContextRaw.(map[string]interface{})
+	if !ok {
+		return ctx
+	}
+
+	// Handle request_context as either string or map
+	if requestContextMap, ok := toolContextMap["request_context"].(map[string]interface{}); ok {
+		if jsonBytes, err := json.Marshal(requestContextMap); err == nil {
+			ctx = context.WithValue(ctx, "request_context", string(jsonBytes))
+		}
+	} else if requestContextStr, ok := toolContextMap["request_context"].(string); ok && requestContextStr != "" {
+		ctx = context.WithValue(ctx, "request_context", requestContextStr)
+	}
+
+	return ctx
+}
+
 // logToolCall logs the start of a tool call
 func logToolCall(toolName string, arguments interface{}) {
 	// Try to format as JSON for better readability
@@ -46,6 +76,9 @@ func CreateToolHandler(executor CommandExecutor, cfg *config.ConfigData) func(ct
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 
+		// Extract and apply _tool_context from arguments
+		ctx = extractToolContext(ctx, args)
+
 		result, err := executor.Execute(ctx, args, cfg)
 		if cfg.TelemetryService != nil {
 			cfg.TelemetryService.TrackToolInvocation(ctx, req.Params.Name, getOperationValue(args), err == nil)
@@ -79,6 +112,9 @@ func CreateResourceHandler(handler ResourceHandler, cfg *config.ConfigData) func
 			}
 			return mcp.NewToolResultError(err.Error()), nil
 		}
+
+		// Extract and apply _tool_context from arguments
+		ctx = extractToolContext(ctx, args)
 
 		result, err := handler.Handle(ctx, args, cfg)
 
