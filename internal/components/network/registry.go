@@ -39,6 +39,8 @@ Examples:
 
 	return mcp.NewTool("az_network_resources",
 		mcp.WithDescription(description),
+		mcp.WithTitleAnnotation("Azure Network Resources"),
+		mcp.WithReadOnlyHintAnnotation(true),
 		mcp.WithString("resource_type",
 			mcp.Required(),
 			mcp.Description("The type of network resource to query"),

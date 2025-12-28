@@ -11,6 +11,8 @@ func RegisterAdvisorRecommendationTool() mcp.Tool {
 	return mcp.NewTool(
 		"az_advisor_recommendation",
 		mcp.WithDescription("Retrieve and manage Azure Advisor recommendations for AKS clusters"),
+		mcp.WithTitleAnnotation("Azure Advisor Recommendations"),
+		mcp.WithReadOnlyHintAnnotation(true),
 		mcp.WithString("operation",
 			mcp.Description("Operation to perform: list or report"),
 			mcp.Required(),
