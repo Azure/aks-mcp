@@ -32,7 +32,6 @@ import (
 	"github.com/Azure/mcp-kubernetes/pkg/helm"
 	"github.com/Azure/mcp-kubernetes/pkg/hubble"
 	"github.com/Azure/mcp-kubernetes/pkg/kubectl"
-	k8stools "github.com/Azure/mcp-kubernetes/pkg/tools"
 	"github.com/mark3labs/mcp-go/server"
 )
 
@@ -369,8 +368,10 @@ func (s *Service) Run() error {
 	case "sse":
 		addr := fmt.Sprintf("%s:%d", s.cfg.Host, s.cfg.Port)
 
-		// Create SSE server first
-		sse := server.NewSSEServer(s.mcpServer)
+		// Create SSE server
+		sse := server.NewSSEServer(
+			s.mcpServer,
+		)
 
 		// Create custom HTTP server with helpful 404 responses
 		customServer := s.createCustomSSEServerWithHelp404(sse, addr)
@@ -509,14 +510,17 @@ func (s *Service) registerKubectlComponent() {
 	// Create a kubectl executor
 	kubectlExecutor := kubectl.NewKubectlToolExecutor()
 
-	// Convert aks-mcp config to k8s config
-	k8sCfg := k8s.ConvertConfig(s.cfg)
+	// Wrap the executor with multi-cluster support if enabled
+	wrappedExecutor := k8s.WrapK8sExecutor(kubectlExecutor, s.cfg.EnableMultiCluster)
+	if s.cfg.EnableMultiCluster {
+		logger.Infof("Multi-cluster mode enabled: kubectl commands will use Azure AKS RunCommand API")
+	}
 
 	// Register each kubectl tool
 	for _, tool := range kubectlTools {
 		logger.Debugf("Registering kubectl tool: %s", tool.Name)
-		// Create a handler that injects the tool name into params
-		handler := k8stools.CreateToolHandlerWithName(kubectlExecutor, k8sCfg, tool.Name)
+		// Create a handler that uses our wrapped executor
+		handler := tools.CreateToolHandler(wrappedExecutor, s.cfg)
 		s.mcpServer.AddTool(tool, handler)
 	}
 }
@@ -640,7 +644,7 @@ func (s *Service) registerDetectorComponent() {
 func (s *Service) registerHelmComponent() {
 	logger.Debugf("Registering Kubernetes tool: helm")
 	helmTool := helm.RegisterHelm()
-	helmExecutor := k8s.WrapK8sExecutor(helm.NewExecutor())
+	helmExecutor := k8s.WrapK8sExecutor(helm.NewExecutor(), s.cfg.EnableMultiCluster)
 	s.mcpServer.AddTool(helmTool, tools.CreateToolHandler(helmExecutor, s.cfg))
 }
 
@@ -648,7 +652,7 @@ func (s *Service) registerHelmComponent() {
 func (s *Service) registerCiliumComponent() {
 	logger.Debugf("Registering Kubernetes tool: cilium")
 	ciliumTool := cilium.RegisterCilium()
-	ciliumExecutor := k8s.WrapK8sExecutor(cilium.NewExecutor())
+	ciliumExecutor := k8s.WrapK8sExecutor(cilium.NewExecutor(), s.cfg.EnableMultiCluster)
 	s.mcpServer.AddTool(ciliumTool, tools.CreateToolHandler(ciliumExecutor, s.cfg))
 }
 
@@ -656,7 +660,7 @@ func (s *Service) registerCiliumComponent() {
 func (s *Service) registerHubbleComponent() {
 	logger.Debugf("Registering Kubernetes tool: hubble")
 	hubbleTool := hubble.RegisterHubble()
-	hubbleExecutor := k8s.WrapK8sExecutor(hubble.NewExecutor())
+	hubbleExecutor := k8s.WrapK8sExecutor(hubble.NewExecutor(), s.cfg.EnableMultiCluster)
 	s.mcpServer.AddTool(hubbleTool, tools.CreateToolHandler(hubbleExecutor, s.cfg))
 }
 
