@@ -33,6 +33,8 @@ Examples:
 
 	return mcp.NewTool("az_fleet",
 		mcp.WithDescription(description),
+		mcp.WithTitleAnnotation("Azure Fleet"),
+		mcp.WithDestructiveHintAnnotation(true),
 		mcp.WithString("operation",
 			mcp.Required(),
 			mcp.Description("The operation to perform. Valid values: list, show, create, update, delete, start, stop, get-credentials"),

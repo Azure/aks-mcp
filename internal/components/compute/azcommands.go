@@ -84,6 +84,8 @@ func RegisterAzComputeOperations(cfg *config.ConfigData) mcp.Tool {
 
 	return mcp.NewTool("az_compute_operations",
 		mcp.WithDescription(description),
+		mcp.WithTitleAnnotation("Azure Compute Operations"),
+		mcp.WithDestructiveHintAnnotation(true),
 		mcp.WithString("operation",
 			mcp.Required(),
 			mcp.Description("Operation to perform. Common operations: list, show, start, stop, restart, deallocate, scale, etc."),

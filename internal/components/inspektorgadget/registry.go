@@ -28,6 +28,8 @@ func RegisterInspektorGadgetTool() mcp.Tool {
 			"namespace, pod, container, selector,"+strings.Join(getGadgetParamsKeys(), ", ")+". "+
 			"Example: "+
 			"{'action': 'run', 'filter_params': {'namespace': 'default', 'selector': 'app=myapp', 'observe_dns.unsuccessful_only': true}}"),
+		mcp.WithTitleAnnotation("Inspektor Gadget Observability"),
+		mcp.WithDestructiveHintAnnotation(true),
 		mcp.WithString("action",
 			mcp.Required(),
 			mcp.Description("Action to perform on the gadget: "+

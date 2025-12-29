@@ -100,6 +100,8 @@ control_plane_logs:
 
 	return mcp.NewTool("az_monitoring",
 		mcp.WithDescription(description),
+		mcp.WithTitleAnnotation("Azure Monitoring"),
+		mcp.WithReadOnlyHintAnnotation(true),
 		mcp.WithString("operation",
 			mcp.Required(),
 			mcp.Description("The monitoring operation to perform: 'metrics' (CPU/memory/network), 'resource_health' (cluster availability), 'app_insights' (telemetry analysis), 'diagnostics' (logging config), 'control_plane_logs' (Kubernetes logs like kube-apiserver, kube-audit, guard, etc.)"),

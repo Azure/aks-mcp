@@ -102,6 +102,8 @@ func RegisterAzAksOperations(cfg *config.ConfigData) mcp.Tool {
 
 	return mcp.NewTool("az_aks_operations",
 		mcp.WithDescription(description),
+		mcp.WithTitleAnnotation("AKS Operations"),
+		mcp.WithDestructiveHintAnnotation(true),
 		mcp.WithString("operation",
 			mcp.Required(),
 			mcp.Description("The operation to perform"),

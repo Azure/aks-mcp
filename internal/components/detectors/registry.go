@@ -11,6 +11,8 @@ func RegisterListDetectorsTool() mcp.Tool {
 	return mcp.NewTool(
 		"list_detectors",
 		mcp.WithDescription("List all available AKS cluster detectors"),
+		mcp.WithTitleAnnotation("List Detectors"),
+		mcp.WithReadOnlyHintAnnotation(true),
 		mcp.WithString("cluster_resource_id",
 			mcp.Description("AKS cluster resource ID"),
 			mcp.Required(),
@@ -23,6 +25,8 @@ func RegisterRunDetectorTool() mcp.Tool {
 	return mcp.NewTool(
 		"run_detector",
 		mcp.WithDescription("Run a specific AKS detector"),
+		mcp.WithTitleAnnotation("Run Detector"),
+		mcp.WithReadOnlyHintAnnotation(true),
 		mcp.WithString("cluster_resource_id",
 			mcp.Description("AKS cluster resource ID"),
 			mcp.Required(),
@@ -47,6 +51,8 @@ func RegisterRunDetectorsByCategoryTool() mcp.Tool {
 	return mcp.NewTool(
 		"run_detectors_by_category",
 		mcp.WithDescription("Run all detectors in a specific category"),
+		mcp.WithTitleAnnotation("Run Detectors By Category"),
+		mcp.WithReadOnlyHintAnnotation(true),
 		mcp.WithString("cluster_resource_id",
 			mcp.Description("AKS cluster resource ID"),
 			mcp.Required(),
