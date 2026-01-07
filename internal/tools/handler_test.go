@@ -322,3 +322,159 @@ func TestGetOperationValueHandlesMissingKeys(t *testing.T) {
 		t.Fatalf("expected empty string, got %q", got)
 	}
 }
+
+func TestExtractToolContext_WithRequestContextAsMap(t *testing.T) {
+	cfg := config.NewConfig()
+
+	exec := CommandExecutorFunc(func(ctx context.Context, params map[string]interface{}, _ *config.ConfigData) (string, error) {
+		// Verify request_context is in context
+		requestContext, ok := ctx.Value("request_context").(string)
+		if !ok || requestContext == "" {
+			return "", errors.New("request_context not found in context")
+		}
+		// Verify _tool_context was removed from params
+		if _, exists := params["_tool_context"]; exists {
+			return "", errors.New("_tool_context should be removed from params")
+		}
+		return requestContext, nil
+	})
+
+	handler := CreateToolHandler(exec, cfg)
+
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Name: "test_tool",
+			Arguments: map[string]any{
+				"operation": "test",
+				"_tool_context": map[string]any{
+					"request_context": map[string]any{
+						"alert_id": "test-123",
+						"source":   "prometheus",
+					},
+				},
+			},
+		},
+	}
+
+	res, err := handler(context.Background(), req)
+	if err != nil {
+		t.Fatalf("handler returned error: %v", err)
+	}
+	if res == nil || res.IsError {
+		t.Fatalf("expected success result, got: %+v", res)
+	}
+
+	text := firstText(res)
+	if !strings.Contains(text, "alert_id") || !strings.Contains(text, "test-123") {
+		t.Fatalf("expected request_context in result, got: %q", text)
+	}
+}
+
+func TestExtractToolContext_WithRequestContextAsString(t *testing.T) {
+	cfg := config.NewConfig()
+
+	exec := CommandExecutorFunc(func(ctx context.Context, params map[string]interface{}, _ *config.ConfigData) (string, error) {
+		requestContext, ok := ctx.Value("request_context").(string)
+		if !ok || requestContext != "test-context-string" {
+			return "", errors.New("request_context not found or incorrect in context")
+		}
+		return "success", nil
+	})
+
+	handler := CreateToolHandler(exec, cfg)
+
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Name: "test_tool",
+			Arguments: map[string]any{
+				"operation": "test",
+				"_tool_context": map[string]any{
+					"request_context": "test-context-string",
+				},
+			},
+		},
+	}
+
+	res, err := handler(context.Background(), req)
+	if err != nil {
+		t.Fatalf("handler returned error: %v", err)
+	}
+	if res == nil || res.IsError {
+		t.Fatalf("expected success result, got: %+v", res)
+	}
+}
+
+func TestExtractToolContext_WithoutToolContext(t *testing.T) {
+	cfg := config.NewConfig()
+
+	exec := CommandExecutorFunc(func(ctx context.Context, params map[string]interface{}, _ *config.ConfigData) (string, error) {
+		// Verify request_context is not in context
+		if requestContext := ctx.Value("request_context"); requestContext != nil {
+			return "", errors.New("request_context should not be in context")
+		}
+		return "success", nil
+	})
+
+	handler := CreateToolHandler(exec, cfg)
+
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Name: "test_tool",
+			Arguments: map[string]any{
+				"operation": "test",
+			},
+		},
+	}
+
+	res, err := handler(context.Background(), req)
+	if err != nil {
+		t.Fatalf("handler returned error: %v", err)
+	}
+	if res == nil || res.IsError {
+		t.Fatalf("expected success result, got: %+v", res)
+	}
+}
+
+func TestExtractToolContext_ResourceHandler(t *testing.T) {
+	cfg := config.NewConfig()
+
+	rh := ResourceHandlerFunc(func(ctx context.Context, params map[string]interface{}, _ *config.ConfigData) (string, error) {
+		requestContext, ok := ctx.Value("request_context").(string)
+		if !ok || requestContext == "" {
+			return "", errors.New("request_context not found in context")
+		}
+		if _, exists := params["_tool_context"]; exists {
+			return "", errors.New("_tool_context should be removed from params")
+		}
+		return requestContext, nil
+	})
+
+	handler := CreateResourceHandler(rh, cfg)
+
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Name: "test_resource",
+			Arguments: map[string]any{
+				"operation": "test",
+				"_tool_context": map[string]any{
+					"request_context": map[string]any{
+						"cluster": "aks-prod",
+					},
+				},
+			},
+		},
+	}
+
+	res, err := handler(context.Background(), req)
+	if err != nil {
+		t.Fatalf("handler returned error: %v", err)
+	}
+	if res == nil || res.IsError {
+		t.Fatalf("expected success result, got: %+v", res)
+	}
+
+	text := firstText(res)
+	if !strings.Contains(text, "cluster") || !strings.Contains(text, "aks-prod") {
+		t.Fatalf("expected request_context in result, got: %q", text)
+	}
+}
