@@ -99,6 +99,9 @@ EXPOSE 8000
 # Switch to non-root user
 USER mcp
 
+# Install Azure CLI extensions as mcp user
+RUN az extension add --name costmanagement --allow-preview true
+
 # Set environment variables
 ENV HOME=/home/mcp \
     KUBECONFIG=/home/mcp/.kube/config
