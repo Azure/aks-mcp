@@ -21,7 +21,7 @@ func NewClient() (*Client, error) {
 	k8sExecutor := kubectl.NewExecutor()
 
 	// Wrap it using the adapter to work with aks-mcp config
-	// Fleet operations don't use multi-cluster mode (always use local kubeconfig)
+	// Fleet operations don't use multi-cluster mode for now (always use local kubeconfig)
 	wrappedExecutor := k8s.WrapK8sExecutor(k8sExecutor, false)
 
 	return &Client{

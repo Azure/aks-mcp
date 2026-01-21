@@ -61,16 +61,10 @@ func ConvertConfig(cfg *config.ConfigData) *k8sconfig.ConfigData {
 // WrapK8sExecutor makes an mcp-kubernetes CommandExecutor
 // compatible with the aks-mcp tools.CommandExecutor interface.
 func WrapK8sExecutor(k8sExecutor k8stools.CommandExecutor, enableMultiCluster bool) tools.CommandExecutor {
-	if enableMultiCluster {
-		return &executorAdapter{
-			k8sExecutor:        k8sExecutor,
-			runCommandExecutor: NewRunCommandExecutor(),
-			enableMultiCluster: true,
-		}
-	}
 	return &executorAdapter{
 		k8sExecutor:        k8sExecutor,
-		enableMultiCluster: false,
+		runCommandExecutor: NewRunCommandExecutor(),
+		enableMultiCluster: enableMultiCluster,
 	}
 }
 

@@ -23,6 +23,7 @@ import (
 	"github.com/Azure/aks-mcp/internal/components/monitor"
 	"github.com/Azure/aks-mcp/internal/components/network"
 	"github.com/Azure/aks-mcp/internal/config"
+	"github.com/Azure/aks-mcp/internal/ctx"
 	"github.com/Azure/aks-mcp/internal/k8s"
 	"github.com/Azure/aks-mcp/internal/logger"
 	"github.com/Azure/aks-mcp/internal/prompts"
@@ -171,14 +172,18 @@ func (s *Service) registerAllComponents() {
 		logger.Infof("All components enabled by default")
 	}
 
-	// Azure Components
-	s.registerAzureComponents()
-
 	// Kubernetes Components
 	s.registerKubernetesComponents()
 
-	// Prompts
-	s.registerPrompts()
+	if s.cfg.EnableMultiCluster {
+		logger.Infof("Multi-cluster mode enabled - skipping Azure component registration because they are not yet supported in multi-cluster mode")
+	} else {
+		// Azure Components
+		s.registerAzureComponents()
+
+		// Prompts
+		s.registerPrompts()
+	}
 }
 
 // registerPrompts registers all available prompts
@@ -372,12 +377,11 @@ func (s *Service) Run() error {
 		// Create SSE server with context function to extract Azure token from headers
 		sse := server.NewSSEServer(
 			s.mcpServer,
-			server.WithSSEContextFunc(func(ctx context.Context, r *http.Request) context.Context {
-				// Extract request context from X-Request-Context header and add to context
-				if requestContext := r.Header.Get("X-Request-Context"); requestContext != "" {
-					ctx = context.WithValue(ctx, "request_context", requestContext)
+			server.WithSSEContextFunc(func(c context.Context, r *http.Request) context.Context {
+				if token := r.Header.Get("X-Azure-Token"); token != "" {
+					c = context.WithValue(c, ctx.AzureTokenKey, token)
 				}
-				return ctx
+				return c
 			}),
 		)
 
@@ -404,12 +408,12 @@ func (s *Service) Run() error {
 		streamableServer := server.NewStreamableHTTPServer(
 			s.mcpServer,
 			server.WithStreamableHTTPServer(customServer),
-			server.WithHTTPContextFunc(func(ctx context.Context, r *http.Request) context.Context {
-				// Extract request context from X-Request-Context header and add to context
-				if requestContext := r.Header.Get("X-Request-Context"); requestContext != "" {
-					ctx = context.WithValue(ctx, "request_context", requestContext)
+			server.WithHTTPContextFunc(func(c context.Context, r *http.Request) context.Context {
+				// Extract request context from X-Azure-Token header and add to context
+				if token := r.Header.Get("X-Azure-Token"); token != "" {
+					c = context.WithValue(c, ctx.AzureTokenKey, token)
 				}
-				return ctx
+				return c
 			}),
 		)
 
@@ -501,8 +505,13 @@ func (s *Service) registerKubernetesComponents() {
 	// Core Kubernetes Component (kubectl)
 	s.registerKubectlComponent()
 
-	// Optional Kubernetes Components (based on configuration)
-	s.registerOptionalKubernetesComponents()
+	// Do not register optional components in multi-cluster mode, they are not supported yet.
+	if s.cfg.EnableMultiCluster {
+		logger.Infof("Multi-cluster mode enabled - skipping optional Kubernetes component registration because they are not yet supported in multi-cluster mode")
+	} else {
+		// Optional Kubernetes Components (based on configuration)
+		s.registerOptionalKubernetesComponents()
+	}
 
 	logger.Infof("Kubernetes Components registered successfully")
 }
@@ -520,7 +529,7 @@ func (s *Service) registerKubectlComponent() {
 	}
 
 	// Get kubectl tools filtered by access level and tool type
-	kubectlTools := kubectl.RegisterKubectlTools(s.cfg.AccessLevel, useUnifiedTool)
+	kubectlTools := k8s.RegisterKubectlTools(s.cfg.AccessLevel, useUnifiedTool, s.cfg.EnableMultiCluster)
 
 	// Create a kubectl executor
 	kubectlExecutor := kubectl.NewKubectlToolExecutor()
@@ -659,7 +668,7 @@ func (s *Service) registerDetectorComponent() {
 func (s *Service) registerHelmComponent() {
 	logger.Debugf("Registering Kubernetes tool: helm")
 	helmTool := helm.RegisterHelm()
-	helmExecutor := k8s.WrapK8sExecutor(helm.NewExecutor(), s.cfg.EnableMultiCluster)
+	helmExecutor := k8s.WrapK8sExecutor(helm.NewExecutor(), false)
 	s.mcpServer.AddTool(helmTool, tools.CreateToolHandler(helmExecutor, s.cfg))
 }
 
@@ -667,7 +676,7 @@ func (s *Service) registerHelmComponent() {
 func (s *Service) registerCiliumComponent() {
 	logger.Debugf("Registering Kubernetes tool: cilium")
 	ciliumTool := cilium.RegisterCilium()
-	ciliumExecutor := k8s.WrapK8sExecutor(cilium.NewExecutor(), s.cfg.EnableMultiCluster)
+	ciliumExecutor := k8s.WrapK8sExecutor(cilium.NewExecutor(), false)
 	s.mcpServer.AddTool(ciliumTool, tools.CreateToolHandler(ciliumExecutor, s.cfg))
 }
 
@@ -675,7 +684,7 @@ func (s *Service) registerCiliumComponent() {
 func (s *Service) registerHubbleComponent() {
 	logger.Debugf("Registering Kubernetes tool: hubble")
 	hubbleTool := hubble.RegisterHubble()
-	hubbleExecutor := k8s.WrapK8sExecutor(hubble.NewExecutor(), s.cfg.EnableMultiCluster)
+	hubbleExecutor := k8s.WrapK8sExecutor(hubble.NewExecutor(), false)
 	s.mcpServer.AddTool(hubbleTool, tools.CreateToolHandler(hubbleExecutor, s.cfg))
 }
 
