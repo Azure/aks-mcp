@@ -278,6 +278,11 @@ func (cfg *ConfigData) ValidateConfig() error {
 		return fmt.Errorf("OAuth authentication is not supported with stdio transport per MCP specification")
 	}
 
+	// Validate multi-cluster + stdio transport compatibility
+	if cfg.EnableMultiCluster && cfg.Transport == "stdio" {
+		return fmt.Errorf("multi-cluster mode (--enable-multi-cluster) is not supported with stdio transport, use sse or streamable-http instead")
+	}
+
 	// Validate multi-cluster + legacy tools compatibility
 	if cfg.EnableMultiCluster && cfg.UseLegacyTools {
 		return fmt.Errorf("multi-cluster mode (--enable-multi-cluster) requires unified tools and is not compatible with legacy tools (USE_LEGACY_TOOLS=true)")

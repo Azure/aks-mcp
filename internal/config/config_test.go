@@ -336,3 +336,259 @@ func setEnv(t *testing.T, key, value string) {
 func unsetEnv(t *testing.T, key string) {
 	t.Setenv(key, "")
 }
+
+func TestValidateConfig_OAuthWithStdio(t *testing.T) {
+	cfg := NewConfig()
+	cfg.OAuthConfig.Enabled = true
+	cfg.Transport = "stdio"
+
+	err := cfg.ValidateConfig()
+	if err == nil {
+		t.Fatal("Expected error when OAuth is enabled with stdio transport, got nil")
+	}
+
+	expectedMsg := "OAuth authentication is not supported with stdio transport per MCP specification"
+	if err.Error() != expectedMsg {
+		t.Errorf("Expected error '%s', got '%s'", expectedMsg, err.Error())
+	}
+}
+
+func TestValidateConfig_OAuthWithSSE(t *testing.T) {
+	cfg := NewConfig()
+	cfg.OAuthConfig.Enabled = true
+	cfg.Transport = "sse"
+
+	err := cfg.ValidateConfig()
+	if err != nil {
+		t.Errorf("Expected no error for OAuth with SSE transport, got: %v", err)
+	}
+}
+
+func TestValidateConfig_OAuthWithStreamableHTTP(t *testing.T) {
+	cfg := NewConfig()
+	cfg.OAuthConfig.Enabled = true
+	cfg.Transport = "streamable-http"
+
+	err := cfg.ValidateConfig()
+	if err != nil {
+		t.Errorf("Expected no error for OAuth with streamable-http transport, got: %v", err)
+	}
+}
+
+func TestValidateConfig_MultiClusterWithLegacyTools(t *testing.T) {
+	cfg := NewConfig()
+	cfg.EnableMultiCluster = true
+	cfg.UseLegacyTools = true
+	cfg.Transport = "sse"
+
+	err := cfg.ValidateConfig()
+	if err == nil {
+		t.Fatal("Expected error when multi-cluster is enabled with legacy tools, got nil")
+	}
+
+	expectedMsg := "multi-cluster mode (--enable-multi-cluster) requires unified tools and is not compatible with legacy tools (USE_LEGACY_TOOLS=true)"
+	if err.Error() != expectedMsg {
+		t.Errorf("Expected error '%s', got '%s'", expectedMsg, err.Error())
+	}
+}
+
+func TestValidateConfig_MultiClusterWithStdio(t *testing.T) {
+	cfg := NewConfig()
+	cfg.EnableMultiCluster = true
+	cfg.Transport = "stdio"
+
+	err := cfg.ValidateConfig()
+	if err == nil {
+		t.Fatal("Expected error when multi-cluster is enabled with stdio transport, got nil")
+	}
+
+	expectedMsg := "multi-cluster mode (--enable-multi-cluster) is not supported with stdio transport, use sse or streamable-http instead"
+	if err.Error() != expectedMsg {
+		t.Errorf("Expected error '%s', got '%s'", expectedMsg, err.Error())
+	}
+}
+
+func TestValidateConfig_MultiClusterWithSSE(t *testing.T) {
+	cfg := NewConfig()
+	cfg.EnableMultiCluster = true
+	cfg.Transport = "sse"
+	cfg.UseLegacyTools = false
+
+	err := cfg.ValidateConfig()
+	if err != nil {
+		t.Errorf("Expected no error for multi-cluster with SSE transport, got: %v", err)
+	}
+}
+
+func TestValidateConfig_MultiClusterWithStreamableHTTP(t *testing.T) {
+	cfg := NewConfig()
+	cfg.EnableMultiCluster = true
+	cfg.Transport = "streamable-http"
+	cfg.UseLegacyTools = false
+
+	err := cfg.ValidateConfig()
+	if err != nil {
+		t.Errorf("Expected no error for multi-cluster with streamable-http transport, got: %v", err)
+	}
+}
+
+func TestValidateConfig_MultiClusterWithUnifiedTools(t *testing.T) {
+	cfg := NewConfig()
+	cfg.EnableMultiCluster = true
+	cfg.UseLegacyTools = false
+	cfg.Transport = "sse"
+
+	err := cfg.ValidateConfig()
+	if err != nil {
+		t.Errorf("Expected no error for multi-cluster with unified tools, got: %v", err)
+	}
+}
+
+func TestValidateConfig_LegacyToolsWithoutMultiCluster(t *testing.T) {
+	cfg := NewConfig()
+	cfg.EnableMultiCluster = false
+	cfg.UseLegacyTools = true
+
+	err := cfg.ValidateConfig()
+	if err != nil {
+		t.Errorf("Expected no error for legacy tools without multi-cluster, got: %v", err)
+	}
+}
+
+func TestValidateConfig_ValidCombinations(t *testing.T) {
+	tests := []struct {
+		name               string
+		oauthEnabled       bool
+		transport          string
+		enableMultiCluster bool
+		useLegacyTools     bool
+		wantErr            bool
+	}{
+		{
+			name:               "OAuth disabled with stdio",
+			oauthEnabled:       false,
+			transport:          "stdio",
+			enableMultiCluster: false,
+			useLegacyTools:     false,
+			wantErr:            false,
+		},
+		{
+			name:               "OAuth enabled with SSE",
+			oauthEnabled:       true,
+			transport:          "sse",
+			enableMultiCluster: false,
+			useLegacyTools:     false,
+			wantErr:            false,
+		},
+		{
+			name:               "OAuth enabled with streamable-http",
+			oauthEnabled:       true,
+			transport:          "streamable-http",
+			enableMultiCluster: false,
+			useLegacyTools:     false,
+			wantErr:            false,
+		},
+		{
+			name:               "Multi-cluster with unified tools",
+			oauthEnabled:       false,
+			transport:          "sse",
+			enableMultiCluster: true,
+			useLegacyTools:     false,
+			wantErr:            false,
+		},
+		{
+			name:               "Single cluster with legacy tools",
+			oauthEnabled:       false,
+			transport:          "stdio",
+			enableMultiCluster: false,
+			useLegacyTools:     true,
+			wantErr:            false,
+		},
+		{
+			name:               "All features compatible",
+			oauthEnabled:       true,
+			transport:          "sse",
+			enableMultiCluster: true,
+			useLegacyTools:     false,
+			wantErr:            false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := NewConfig()
+			cfg.OAuthConfig.Enabled = tt.oauthEnabled
+			cfg.Transport = tt.transport
+			cfg.EnableMultiCluster = tt.enableMultiCluster
+			cfg.UseLegacyTools = tt.useLegacyTools
+
+			err := cfg.ValidateConfig()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidateConfig() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestValidateConfig_InvalidCombinations(t *testing.T) {
+	tests := []struct {
+		name               string
+		oauthEnabled       bool
+		transport          string
+		enableMultiCluster bool
+		useLegacyTools     bool
+		expectedErrMsg     string
+	}{
+		{
+			name:               "OAuth with stdio",
+			oauthEnabled:       true,
+			transport:          "stdio",
+			enableMultiCluster: false,
+			useLegacyTools:     false,
+			expectedErrMsg:     "OAuth authentication is not supported with stdio transport",
+		},
+		{
+			name:               "Multi-cluster with stdio",
+			oauthEnabled:       false,
+			transport:          "stdio",
+			enableMultiCluster: true,
+			useLegacyTools:     false,
+			expectedErrMsg:     "multi-cluster mode (--enable-multi-cluster) is not supported with stdio transport",
+		},
+		{
+			name:               "Multi-cluster with legacy tools",
+			oauthEnabled:       false,
+			transport:          "sse",
+			enableMultiCluster: true,
+			useLegacyTools:     true,
+			expectedErrMsg:     "multi-cluster mode (--enable-multi-cluster) requires unified tools",
+		},
+		{
+			name:               "All invalid combinations",
+			oauthEnabled:       true,
+			transport:          "stdio",
+			enableMultiCluster: true,
+			useLegacyTools:     true,
+			expectedErrMsg:     "OAuth authentication is not supported with stdio transport",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := NewConfig()
+			cfg.OAuthConfig.Enabled = tt.oauthEnabled
+			cfg.Transport = tt.transport
+			cfg.EnableMultiCluster = tt.enableMultiCluster
+			cfg.UseLegacyTools = tt.useLegacyTools
+
+			err := cfg.ValidateConfig()
+			if err == nil {
+				t.Fatal("Expected error, got nil")
+			}
+
+			if !contains(err.Error(), tt.expectedErrMsg) {
+				t.Errorf("Expected error containing '%s', got '%s'", tt.expectedErrMsg, err.Error())
+			}
+		})
+	}
+}
