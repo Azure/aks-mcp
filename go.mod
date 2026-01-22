@@ -12,7 +12,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2 v2.4.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor v0.11.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v2 v2.2.1
-	github.com/Azure/mcp-kubernetes v0.0.11
+	github.com/Azure/mcp-kubernetes v0.0.12
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/gopacket/gopacket v1.5.0
