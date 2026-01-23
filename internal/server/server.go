@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -22,6 +23,7 @@ import (
 	"github.com/Azure/aks-mcp/internal/components/monitor"
 	"github.com/Azure/aks-mcp/internal/components/network"
 	"github.com/Azure/aks-mcp/internal/config"
+	"github.com/Azure/aks-mcp/internal/ctx"
 	"github.com/Azure/aks-mcp/internal/k8s"
 	"github.com/Azure/aks-mcp/internal/logger"
 	"github.com/Azure/aks-mcp/internal/prompts"
@@ -32,7 +34,6 @@ import (
 	"github.com/Azure/mcp-kubernetes/pkg/helm"
 	"github.com/Azure/mcp-kubernetes/pkg/hubble"
 	"github.com/Azure/mcp-kubernetes/pkg/kubectl"
-	k8stools "github.com/Azure/mcp-kubernetes/pkg/tools"
 	"github.com/mark3labs/mcp-go/server"
 )
 
@@ -171,14 +172,18 @@ func (s *Service) registerAllComponents() {
 		logger.Infof("All components enabled by default")
 	}
 
-	// Azure Components
-	s.registerAzureComponents()
-
 	// Kubernetes Components
 	s.registerKubernetesComponents()
 
-	// Prompts
-	s.registerPrompts()
+	if s.cfg.TokenAuthOnly {
+		logger.Infof("Token-only authentication mode enabled - skipping Azure component registration because they are not yet supported in token-only authentication mode")
+	} else {
+		// Azure Components
+		s.registerAzureComponents()
+
+		// Prompts
+		s.registerPrompts()
+	}
 }
 
 // registerPrompts registers all available prompts
@@ -369,8 +374,16 @@ func (s *Service) Run() error {
 	case "sse":
 		addr := fmt.Sprintf("%s:%d", s.cfg.Host, s.cfg.Port)
 
-		// Create SSE server first
-		sse := server.NewSSEServer(s.mcpServer)
+		// Create SSE server with context function to extract Azure token from headers
+		sse := server.NewSSEServer(
+			s.mcpServer,
+			server.WithSSEContextFunc(func(c context.Context, r *http.Request) context.Context {
+				if token := r.Header.Get("X-Azure-Token"); token != "" {
+					c = context.WithValue(c, ctx.AzureTokenKey, token)
+				}
+				return c
+			}),
+		)
 
 		// Create custom HTTP server with helpful 404 responses
 		customServer := s.createCustomSSEServerWithHelp404(sse, addr)
@@ -395,6 +408,13 @@ func (s *Service) Run() error {
 		streamableServer := server.NewStreamableHTTPServer(
 			s.mcpServer,
 			server.WithStreamableHTTPServer(customServer),
+			server.WithHTTPContextFunc(func(c context.Context, r *http.Request) context.Context {
+				// Extract request context from X-Azure-Token header and add to context
+				if token := r.Header.Get("X-Azure-Token"); token != "" {
+					c = context.WithValue(c, ctx.AzureTokenKey, token)
+				}
+				return c
+			}),
 		)
 
 		// Update the mux to use the actual streamable server as the MCP handler
@@ -485,8 +505,13 @@ func (s *Service) registerKubernetesComponents() {
 	// Core Kubernetes Component (kubectl)
 	s.registerKubectlComponent()
 
-	// Optional Kubernetes Components (based on configuration)
-	s.registerOptionalKubernetesComponents()
+	// Do not register optional components in token-only authentication mode, they are not supported yet.
+	if s.cfg.TokenAuthOnly {
+		logger.Infof("Token-only authentication mode enabled - skipping optional Kubernetes component registration because they are not yet supported in token-only authentication mode")
+	} else {
+		// Optional Kubernetes Components (based on configuration)
+		s.registerOptionalKubernetesComponents()
+	}
 
 	logger.Infof("Kubernetes Components registered successfully")
 }
@@ -504,19 +529,22 @@ func (s *Service) registerKubectlComponent() {
 	}
 
 	// Get kubectl tools filtered by access level and tool type
-	kubectlTools := kubectl.RegisterKubectlTools(s.cfg.AccessLevel, useUnifiedTool)
+	kubectlTools := k8s.RegisterKubectlTools(s.cfg.AccessLevel, useUnifiedTool, s.cfg.TokenAuthOnly)
 
 	// Create a kubectl executor
 	kubectlExecutor := kubectl.NewKubectlToolExecutor()
 
-	// Convert aks-mcp config to k8s config
-	k8sCfg := k8s.ConvertConfig(s.cfg)
+	// Wrap the executor with token-only authentication support if enabled
+	wrappedExecutor := k8s.WrapK8sExecutor(kubectlExecutor, s.cfg.TokenAuthOnly)
+	if s.cfg.TokenAuthOnly {
+		logger.Infof("Token-only authentication mode enabled: supported tools will use Azure AKS RunCommand API with user-provided tokens")
+	}
 
 	// Register each kubectl tool
 	for _, tool := range kubectlTools {
 		logger.Debugf("Registering kubectl tool: %s", tool.Name)
-		// Create a handler that injects the tool name into params
-		handler := k8stools.CreateToolHandlerWithName(kubectlExecutor, k8sCfg, tool.Name)
+		// Create a handler that uses our wrapped executor
+		handler := tools.CreateToolHandler(wrappedExecutor, s.cfg)
 		s.mcpServer.AddTool(tool, handler)
 	}
 }
@@ -640,7 +668,7 @@ func (s *Service) registerDetectorComponent() {
 func (s *Service) registerHelmComponent() {
 	logger.Debugf("Registering Kubernetes tool: helm")
 	helmTool := helm.RegisterHelm()
-	helmExecutor := k8s.WrapK8sExecutor(helm.NewExecutor())
+	helmExecutor := k8s.WrapK8sExecutor(helm.NewExecutor(), false)
 	s.mcpServer.AddTool(helmTool, tools.CreateToolHandler(helmExecutor, s.cfg))
 }
 
@@ -648,7 +676,7 @@ func (s *Service) registerHelmComponent() {
 func (s *Service) registerCiliumComponent() {
 	logger.Debugf("Registering Kubernetes tool: cilium")
 	ciliumTool := cilium.RegisterCilium()
-	ciliumExecutor := k8s.WrapK8sExecutor(cilium.NewExecutor())
+	ciliumExecutor := k8s.WrapK8sExecutor(cilium.NewExecutor(), false)
 	s.mcpServer.AddTool(ciliumTool, tools.CreateToolHandler(ciliumExecutor, s.cfg))
 }
 
@@ -656,7 +684,7 @@ func (s *Service) registerCiliumComponent() {
 func (s *Service) registerHubbleComponent() {
 	logger.Debugf("Registering Kubernetes tool: hubble")
 	hubbleTool := hubble.RegisterHubble()
-	hubbleExecutor := k8s.WrapK8sExecutor(hubble.NewExecutor())
+	hubbleExecutor := k8s.WrapK8sExecutor(hubble.NewExecutor(), false)
 	s.mcpServer.AddTool(hubbleTool, tools.CreateToolHandler(hubbleExecutor, s.cfg))
 }
 
