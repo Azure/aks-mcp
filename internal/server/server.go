@@ -175,8 +175,8 @@ func (s *Service) registerAllComponents() {
 	// Kubernetes Components
 	s.registerKubernetesComponents()
 
-	if s.cfg.EnableMultiCluster {
-		logger.Infof("Multi-cluster mode enabled - skipping Azure component registration because they are not yet supported in multi-cluster mode")
+	if s.cfg.TokenAuthOnly {
+		logger.Infof("Token-only authentication mode enabled - skipping Azure component registration because they are not yet supported in token-only authentication mode")
 	} else {
 		// Azure Components
 		s.registerAzureComponents()
@@ -505,9 +505,9 @@ func (s *Service) registerKubernetesComponents() {
 	// Core Kubernetes Component (kubectl)
 	s.registerKubectlComponent()
 
-	// Do not register optional components in multi-cluster mode, they are not supported yet.
-	if s.cfg.EnableMultiCluster {
-		logger.Infof("Multi-cluster mode enabled - skipping optional Kubernetes component registration because they are not yet supported in multi-cluster mode")
+	// Do not register optional components in token-only authentication mode, they are not supported yet.
+	if s.cfg.TokenAuthOnly {
+		logger.Infof("Token-only authentication mode enabled - skipping optional Kubernetes component registration because they are not yet supported in token-only authentication mode")
 	} else {
 		// Optional Kubernetes Components (based on configuration)
 		s.registerOptionalKubernetesComponents()
@@ -529,15 +529,15 @@ func (s *Service) registerKubectlComponent() {
 	}
 
 	// Get kubectl tools filtered by access level and tool type
-	kubectlTools := k8s.RegisterKubectlTools(s.cfg.AccessLevel, useUnifiedTool, s.cfg.EnableMultiCluster)
+	kubectlTools := k8s.RegisterKubectlTools(s.cfg.AccessLevel, useUnifiedTool, s.cfg.TokenAuthOnly)
 
 	// Create a kubectl executor
 	kubectlExecutor := kubectl.NewKubectlToolExecutor()
 
-	// Wrap the executor with multi-cluster support if enabled
-	wrappedExecutor := k8s.WrapK8sExecutor(kubectlExecutor, s.cfg.EnableMultiCluster)
-	if s.cfg.EnableMultiCluster {
-		logger.Infof("Multi-cluster mode enabled: kubectl commands will use Azure AKS RunCommand API")
+	// Wrap the executor with token-only authentication support if enabled
+	wrappedExecutor := k8s.WrapK8sExecutor(kubectlExecutor, s.cfg.TokenAuthOnly)
+	if s.cfg.TokenAuthOnly {
+		logger.Infof("Token-only authentication mode enabled: supported tools will use Azure AKS RunCommand API with user-provided tokens")
 	}
 
 	// Register each kubectl tool

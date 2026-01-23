@@ -75,27 +75,27 @@ type ConfigData struct {
 	// This flag is provided for backward compatibility and may be removed in future versions
 	UseLegacyTools bool
 
-	// EnableMultiCluster enables multi-cluster mode for kubectl tools
-	// When enabled, kubectl commands are executed via Azure AKS RunCommand API
-	// When disabled (default), kubectl commands are executed locally via kubeconfig
-	EnableMultiCluster bool
+	// TokenAuthOnly enables token-only authentication mode for tools that support it
+	// When enabled, supported tools (e.g., kubectl) are executed via Azure AKS RunCommand API using user-provided tokens
+	// When disabled (default), tools are executed locally with default authentication (e.g., kubeconfig for Kubernetes tools)
+	TokenAuthOnly bool
 }
 
 // NewConfig creates and returns a new configuration instance
 func NewConfig() *ConfigData {
 	return &ConfigData{
-		Timeout:            60,
-		CacheTimeout:       1 * time.Minute,
-		SecurityConfig:     security.NewSecurityConfig(),
-		OAuthConfig:        auth.NewDefaultOAuthConfig(),
-		Transport:          "stdio",
-		Port:               8000,
-		AccessLevel:        "readonly",
-		EnabledComponents:  []string{},
-		AllowNamespaces:    "",
-		LogLevel:           "info",
-		UseLegacyTools:     os.Getenv("USE_LEGACY_TOOLS") == "true",
-		EnableMultiCluster: false,
+		Timeout:           60,
+		CacheTimeout:      1 * time.Minute,
+		SecurityConfig:    security.NewSecurityConfig(),
+		OAuthConfig:       auth.NewDefaultOAuthConfig(),
+		Transport:         "stdio",
+		Port:              8000,
+		AccessLevel:       "readonly",
+		EnabledComponents: []string{},
+		AllowNamespaces:   "",
+		LogLevel:          "info",
+		UseLegacyTools:    os.Getenv("USE_LEGACY_TOOLS") == "true",
+		TokenAuthOnly:     false,
 	}
 }
 
@@ -131,9 +131,9 @@ func (cfg *ConfigData) ParseFlags() {
 	flag.StringVar(&cfg.AllowNamespaces, "allow-namespaces", "",
 		"Comma-separated list of allowed Kubernetes namespaces (empty means all namespaces)")
 
-	// Multi-cluster configuration
-	flag.BoolVar(&cfg.EnableMultiCluster, "enable-multi-cluster", false,
-		"Enable multi-cluster mode for kubectl (uses Azure AKS RunCommand API instead of local kubeconfig)")
+	// Token-only authentication configuration
+	flag.BoolVar(&cfg.TokenAuthOnly, "token-auth-only", false,
+		"Enable token-only authentication mode for supported tools (e.g., kubectl uses Azure AKS RunCommand API with user-provided tokens instead of local kubeconfig)")
 
 	// Logging settings
 	flag.StringVar(&cfg.LogLevel, "log-level", "info", "Log level (debug, info, warn, error)")
@@ -278,14 +278,14 @@ func (cfg *ConfigData) ValidateConfig() error {
 		return fmt.Errorf("OAuth authentication is not supported with stdio transport per MCP specification")
 	}
 
-	// Validate multi-cluster + stdio transport compatibility
-	if cfg.EnableMultiCluster && cfg.Transport == "stdio" {
-		return fmt.Errorf("multi-cluster mode (--enable-multi-cluster) is not supported with stdio transport, use sse or streamable-http instead")
+	// Validate token-only authentication + stdio transport compatibility
+	if cfg.TokenAuthOnly && cfg.Transport == "stdio" {
+		return fmt.Errorf("token-only authentication mode (--token-auth-only) is not supported with stdio transport, use sse or streamable-http instead")
 	}
 
-	// Validate multi-cluster + legacy tools compatibility
-	if cfg.EnableMultiCluster && cfg.UseLegacyTools {
-		return fmt.Errorf("multi-cluster mode (--enable-multi-cluster) requires unified tools and is not compatible with legacy tools (USE_LEGACY_TOOLS=true)")
+	// Validate token-only authentication + legacy tools compatibility
+	if cfg.TokenAuthOnly && cfg.UseLegacyTools {
+		return fmt.Errorf("token-only authentication mode (--token-auth-only) requires unified tools and is not compatible with legacy tools (USE_LEGACY_TOOLS=true)")
 	}
 
 	return nil

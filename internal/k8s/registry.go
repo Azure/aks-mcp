@@ -83,8 +83,8 @@ Examples:
 	)
 }
 
-func RegisterKubectlTools(accessLevel string, useUnifiedTool bool, enableMultiCluster bool) []mcp.Tool {
-	if enableMultiCluster {
+func RegisterKubectlTools(accessLevel string, useUnifiedTool bool, tokenAuthOnly bool) []mcp.Tool {
+	if tokenAuthOnly {
 		return []mcp.Tool{
 			createCallKubectlTool(accessLevel),
 		}
