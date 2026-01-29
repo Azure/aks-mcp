@@ -300,19 +300,19 @@ Unified tool for executing kubectl commands directly. This tool provides a flexi
 
 ### Helm
 
-**Tool:** `helm`
+**Tool:** `call_helm`
 
 Helm package manager for Kubernetes.
 
 ### Cilium
 
-**Tool:** `cilium`
+**Tool:** `call_cilium`
 
 Cilium CLI for eBPF-based networking and security.
 
 ### Hubble
 
-**Tool:** `hubble`
+**Tool:** `call_hubble`
 
 Hubble network observability for Cilium.
 
