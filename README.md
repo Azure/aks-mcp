@@ -560,7 +560,7 @@ For a persistent configuration that works across all your VS Code workspaces, ad
 <details>
 <summary>Docker and Custom Client Installation</summary>
 
-For other MCP-compatible AI clients like [Claude Desktop](https://claude.ai/), configure the server in your MCP configuration:
+For other MCP-compatible AI clients like [Claude Desktop](https://claude.ai/) or [GitHub Copilot CLI](https://docs.github.com/en/copilot/concepts/agents/about-copilot-cli), configure the server in your MCP configuration:
 
 ```json
 {
