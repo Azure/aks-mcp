@@ -51,7 +51,8 @@ func RegisterCollectAKSNodeLogsTool() mcp.Tool {
 			mcp.Required(),
 		),
 		mcp.WithString("log_type",
-			mcp.Description("Type of logs to collect: kubelet, containerd, kernel, syslog (default: kubelet)"),
+			mcp.Description("Type of logs to collect: kubelet, containerd, kernel, syslog"),
+			mcp.Required(),
 		),
 		mcp.WithNumber("lines",
 			mcp.Description("Number of most recent log lines to return (default: 500, max: 2000)"),
@@ -61,6 +62,9 @@ func RegisterCollectAKSNodeLogsTool() mcp.Tool {
 		),
 		mcp.WithString("level",
 			mcp.Description("Log level filter: ERROR, WARN, INFO (default: INFO shows all logs)"),
+		),
+		mcp.WithString("filter",
+			mcp.Description("Filter logs by keyword (case-insensitive text match, not regex)"),
 		),
 	)
 }
