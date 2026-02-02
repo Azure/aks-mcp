@@ -648,20 +648,10 @@ func (s *Service) registerComputeComponent() {
 func (s *Service) registerDetectorComponent() {
 	logger.Debugf("Registering Detector Resources Component")
 
-	// Register list detectors tool
-	logger.Debugf("Registering detector tool: list_detectors")
-	listTool := detectors.RegisterListDetectorsTool()
-	s.mcpServer.AddTool(listTool, tools.CreateResourceHandler(detectors.GetListDetectorsHandler(s.azClient, s.cfg), s.cfg))
-
-	// Register run detector tool
-	logger.Debugf("Registering detector tool: run_detector")
-	runTool := detectors.RegisterRunDetectorTool()
-	s.mcpServer.AddTool(runTool, tools.CreateResourceHandler(detectors.GetRunDetectorHandler(s.azClient, s.cfg), s.cfg))
-
-	// Register run detectors by category tool
-	logger.Debugf("Registering detector tool: run_detectors_by_category")
-	categoryTool := detectors.RegisterRunDetectorsByCategoryTool()
-	s.mcpServer.AddTool(categoryTool, tools.CreateResourceHandler(detectors.GetRunDetectorsByCategoryHandler(s.azClient, s.cfg), s.cfg))
+	// Register unified detector tool
+	logger.Debugf("Registering detector tool: aks_detector")
+	aksDetectorTool := detectors.RegisterAksDetectorTool()
+	s.mcpServer.AddTool(aksDetectorTool, tools.CreateResourceHandler(detectors.GetAksDetectorHandler(s.azClient, s.cfg), s.cfg))
 }
 
 // registerHelmComponent registers helm tools if enabled
