@@ -62,7 +62,7 @@ The current AKS-MCP server registers approximately 40+ individual tools, which c
 - Maintains access control through operation validation
 - Cleaner interface for users
 
-### 2. `az_network_resources` - Unified Network Resource Query Tool
+### 2. `aks_network_resources` - Unified Network Resource Query Tool
 
 **Combines:**
 - VNet info
@@ -88,7 +88,7 @@ The current AKS-MCP server registers approximately 40+ individual tools, which c
 - Can fetch all network resources or specific types
 - More efficient for comprehensive network diagnostics
 
-### 3. `az_monitoring` - Unified Monitoring and Diagnostics Tool
+### 3. `aks_monitoring` - Unified Monitoring and Diagnostics Tool
 
 **Combines:**
 - Metrics operations

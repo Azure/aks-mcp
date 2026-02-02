@@ -2,7 +2,7 @@
 
 Implement Azure Advisor recommendation capabilities for AKS clusters and related resources.
 
-## Tool: `az_advisor_recommendation`
+## Tool: `aks_advisor_recommendation`
 
 **Purpose**: Retrieve and manage Azure Advisor recommendations for AKS clusters
 
@@ -60,7 +60,7 @@ internal/azure/advisor/
 ### Tool Registration
 ```go
 func (s *Server) registerAdvisorTools() {
-    s.registerTool("az_advisor_recommendation", s.handleAdvisorRecommendation)
+    s.registerTool("aks_advisor_recommendation", s.handleAdvisorRecommendation)
 }
 ```
 

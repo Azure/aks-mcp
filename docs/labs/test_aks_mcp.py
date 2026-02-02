@@ -128,8 +128,8 @@ Your capabilities include:
 - run_detector: Execute specific diagnostic checks
 - kubectl_*: Execute kubectl commands on clusters
 - az_fleet: Manage Azure Kubernetes Fleet
-- az_advisor_recommendation: Get Azure Advisor recommendations
-- az_monitoring: Monitor cluster health
+- aks_advisor_recommendation: Get Azure Advisor recommendations
+- aks_monitoring: Monitor cluster health
 
 When asked about clusters, detectors, or recommendations:
 1. FIRST use az_aks_operations to discover available clusters and their details
@@ -171,7 +171,7 @@ Never ask users for cluster names, resource groups, or subscription IDs - discov
             {
                 "name": "Advisory Recommendations Analysis",
                 "question": "Find Azure Advisor recommendations for my environment. Use the tools to discover my current subscription and resource details first.",
-                "expected": "Should use az_aks_operations then az_advisor_recommendation"
+                "expected": "Should use az_aks_operations then aks_advisor_recommendation"
             }
         ]
         

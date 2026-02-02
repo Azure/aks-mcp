@@ -142,7 +142,7 @@ Unified tool for managing Azure Kubernetes Service (AKS) clusters and related op
 <details>
 <summary>Network Resource Management</summary>
 
-**Tool:** `az_network_resources`
+**Tool:** `aks_network_resources`
 
 Unified tool for getting Azure network resource information used by AKS clusters.
 
@@ -161,7 +161,7 @@ Unified tool for getting Azure network resource information used by AKS clusters
 <details>
 <summary>Monitoring and Diagnostics</summary>
 
-**Tool:** `az_monitoring`
+**Tool:** `aks_monitoring`
 
 Unified tool for Azure monitoring and diagnostics operations for AKS clusters.
 
@@ -244,7 +244,7 @@ CRD operations.
 <details>
 <summary>Azure Advisor</summary>
 
-**Tool:** `az_advisor_recommendation`
+**Tool:** `aks_advisor_recommendation`
 
 Retrieve and manage Azure Advisor recommendations for AKS clusters.
 

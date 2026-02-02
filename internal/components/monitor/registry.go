@@ -15,8 +15,8 @@ const (
 	OpControlPlaneLogs MonitoringOperationType = "control_plane_logs"
 )
 
-// RegisterAzMonitoring registers the monitoring tool
-func RegisterAzMonitoring() mcp.Tool {
+// RegisterAksMonitoring registers the monitoring tool
+func RegisterAksMonitoring() mcp.Tool {
 	description := `Unified tool for Azure monitoring and diagnostics operations for AKS clusters.
 
 Supported Operations:
@@ -98,7 +98,7 @@ control_plane_logs:
 - Analyze audit events: operation="control_plane_logs", subscription_id="<subscription-id>", resource_group="<resource-group>", cluster_name="<cluster-name>", parameters="{\"log_category\":\"kube-audit\", \"log_level\":\"error\", \"start_time\":\"<start-time>\", \"end_time\":\"<end-time>\", \"max_records\":\"50\"}"
 `
 
-	return mcp.NewTool("az_monitoring",
+	return mcp.NewTool("aks_monitoring",
 		mcp.WithDescription(description),
 		mcp.WithTitleAnnotation("Azure Monitoring"),
 		mcp.WithReadOnlyHintAnnotation(true),
