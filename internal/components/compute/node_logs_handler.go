@@ -246,10 +246,11 @@ func buildJournalctlCommand(unit string, lines int, since string, level string, 
 	// instead of syslog priority, as kubelet uses its own log format (E0202, W0202, I0202)
 	cmd := strings.Join(parts, " ")
 
-	if level == LogLevelError {
+	switch level {
+	case LogLevelError:
 		// Filter for error patterns: lines starting with E (kubelet format) or containing "error"/"Error"/"ERROR"
 		cmd += " | grep -iE '^[A-Z][a-z]+ [0-9]+ [0-9:]+ .* E[0-9]+|error'"
-	} else if level == LogLevelWarn {
+	case LogLevelWarn:
 		// Filter for warning and error patterns
 		cmd += " | grep -iE '^[A-Z][a-z]+ [0-9]+ [0-9:]+ .* [EW][0-9]+|error|warn'"
 	}
@@ -273,9 +274,10 @@ func buildDmesgCommand(lines int, level string, filter string) string {
 	parts = append(parts, "dmesg -T")
 
 	// Add level filter
-	if level == LogLevelError {
+	switch level {
+	case LogLevelError:
 		parts = append(parts, "-l err,crit,alert,emerg")
-	} else if level == LogLevelWarn {
+	case LogLevelWarn:
 		parts = append(parts, "-l warn,err,crit,alert,emerg")
 	}
 
@@ -309,9 +311,10 @@ func buildSyslogCommand(lines int, since string, level string, filter string) st
 	}
 
 	// Add priority filter
-	if level == LogLevelError {
+	switch level {
+	case LogLevelError:
 		parts = append(parts, "-p err")
-	} else if level == LogLevelWarn {
+	case LogLevelWarn:
 		parts = append(parts, "-p warning")
 	}
 
@@ -375,7 +378,7 @@ func validateVMSSSupport(
 	if vmss.Properties != nil && vmss.Properties.VirtualMachineProfile != nil &&
 		vmss.Properties.VirtualMachineProfile.OSProfile != nil &&
 		vmss.Properties.VirtualMachineProfile.OSProfile.WindowsConfiguration != nil {
-		return fmt.Errorf("Windows nodes are not supported yet. This tool only supports Linux VMSS nodes")
+		return fmt.Errorf("windows nodes are not supported yet, this tool only supports Linux VMSS nodes")
 	}
 
 	return nil
