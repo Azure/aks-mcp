@@ -636,6 +636,11 @@ func (s *Service) registerComputeComponent() {
 	vmssInfoTool := compute.RegisterAKSVMSSInfoTool()
 	s.mcpServer.AddTool(vmssInfoTool, tools.CreateResourceHandler(compute.GetAKSVMSSInfoHandler(s.azClient, s.cfg), s.cfg))
 
+	// Register AKS node logs collection tool
+	logger.Debugf("Registering compute tool: collect_aks_node_logs")
+	nodeLogsTool := compute.RegisterCollectAKSNodeLogsTool()
+	s.mcpServer.AddTool(nodeLogsTool, tools.CreateResourceHandler(compute.CollectAKSNodeLogsHandler(s.azClient, s.cfg), s.cfg))
+
 	// Register unified compute operations tool (only if using legacy tools)
 	if s.cfg.UseLegacyTools {
 		logger.Debugf("Registering compute tool: az_compute_operations")
