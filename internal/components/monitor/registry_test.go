@@ -4,12 +4,12 @@ import (
 	"testing"
 )
 
-func TestRegisterAzMonitoring_Tool(t *testing.T) {
+func TestRegisterAksMonitoring_Tool(t *testing.T) {
 	// Test that the monitoring tool is registered correctly
-	tool := RegisterAzMonitoring()
+	tool := RegisterAksMonitoring()
 
-	if tool.Name != "az_monitoring" {
-		t.Errorf("Expected tool name 'az_monitoring', got '%s'", tool.Name)
+	if tool.Name != "aks_monitoring" {
+		t.Errorf("Expected tool name 'aks_monitoring', got '%s'", tool.Name)
 	}
 
 	if tool.Description == "" {

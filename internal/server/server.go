@@ -598,9 +598,9 @@ func (s *Service) registerAksOpsComponent() {
 
 // registerMonitoringComponent registers Azure monitoring tools
 func (s *Service) registerMonitoringComponent() {
-	logger.Debugf("Registering monitoring tool: az_monitoring")
-	monitoringTool := monitor.RegisterAzMonitoring()
-	s.mcpServer.AddTool(monitoringTool, tools.CreateResourceHandler(monitor.GetAzMonitoringHandler(s.azClient, s.cfg), s.cfg))
+	logger.Debugf("Registering monitoring tool: aks_monitoring")
+	monitoringTool := monitor.RegisterAksMonitoring()
+	s.mcpServer.AddTool(monitoringTool, tools.CreateResourceHandler(monitor.GetAksMonitoringHandler(s.azClient, s.cfg), s.cfg))
 }
 
 // registerFleetComponent registers Azure fleet management tools
@@ -622,9 +622,9 @@ func (s *Service) registerNetworkComponent() {
 	logger.Debugf("Registering Network Resources Component")
 
 	// Register network resources tool
-	logger.Debugf("Registering network tool: az_network_resources")
-	networkTool := network.RegisterAzNetworkResources()
-	s.mcpServer.AddTool(networkTool, tools.CreateResourceHandler(network.GetAzNetworkResourcesHandler(s.azClient, s.cfg), s.cfg))
+	logger.Debugf("Registering network tool: aks_network_resources")
+	networkTool := network.RegisterAksNetworkResources()
+	s.mcpServer.AddTool(networkTool, tools.CreateResourceHandler(network.GetAksNetworkResourcesHandler(s.azClient, s.cfg), s.cfg))
 }
 
 // registerComputeComponent registers compute-related Azure resource tools (VMSS/VM)

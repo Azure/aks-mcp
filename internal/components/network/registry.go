@@ -19,8 +19,8 @@ const (
 	ResourceTypePrivateEndpoint NetworkResourceType = "private_endpoint"
 )
 
-// RegisterAzNetworkResources registers the network resources tool
-func RegisterAzNetworkResources() mcp.Tool {
+// RegisterAksNetworkResources registers the network resources tool
+func RegisterAksNetworkResources() mcp.Tool {
 	description := `Unified tool for getting Azure network resource information used by AKS clusters.
 
 Supported resource types:
@@ -37,7 +37,7 @@ Examples:
 - Get VNet info: resource_type="vnet"
 - Get NSG info: resource_type="nsg"`
 
-	return mcp.NewTool("az_network_resources",
+	return mcp.NewTool("aks_network_resources",
 		mcp.WithDescription(description),
 		mcp.WithTitleAnnotation("Azure Network Resources"),
 		mcp.WithReadOnlyHintAnnotation(true),

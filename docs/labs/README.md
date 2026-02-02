@@ -85,7 +85,7 @@ Add `--verbose` or `-v` to any server command to see detailed tool call informat
 >>> [az_aks_operations] {"args":"","operation":"list"}
     Result: 20291 bytes (truncated): [{"aadProfile":{"enableAzureRbac":true...
 
->>> [az_monitoring] {"cluster_name":"hub","operation":"resource_health","parameters":{"start_time":"2025-01-01T00:00:00Z"}}
+>>> [aks_monitoring] {"cluster_name":"hub","operation":"resource_health","parameters":{"start_time":"2025-01-01T00:00:00Z"}}
     ERROR: missing or invalid start_time parameter
 ```
 

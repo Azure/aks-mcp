@@ -200,9 +200,9 @@ func TestComponentToolCounts(t *testing.T) {
 			description string
 		}{
 			{"AKS Operations", 1, "az_aks_operations tool"},
-			{"Monitoring", 1, "az_monitoring tool"},
+			{"Monitoring", 1, "aks_monitoring tool"},
 			{"Fleet", 1, "az_fleet tool"},
-			{"Network", 1, "az_network_resources tool"},
+			{"Network", 1, "aks_network_resources tool"},
 			{"Advisor", 1, "az_advisor_recommendation tool"},
 			{"Detectors", 3, "list_detectors, run_detector, run_detectors_by_category"},
 			{"Inspektor Gadget", 1, "inspektor_gadget_observability tool"},

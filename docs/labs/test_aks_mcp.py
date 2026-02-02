@@ -129,7 +129,7 @@ Your capabilities include:
 - kubectl_*: Execute kubectl commands on clusters
 - az_fleet: Manage Azure Kubernetes Fleet
 - az_advisor_recommendation: Get Azure Advisor recommendations
-- az_monitoring: Monitor cluster health
+- aks_monitoring: Monitor cluster health
 
 When asked about clusters, detectors, or recommendations:
 1. FIRST use az_aks_operations to discover available clusters and their details

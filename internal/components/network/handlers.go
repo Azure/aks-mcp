@@ -315,8 +315,8 @@ func GetPrivateEndpointInfoHandler(client *azureclient.AzureClient, cfg *config.
 	})
 }
 
-// GetAzNetworkResourcesHandler returns a handler for the az_network_resources command
-func GetAzNetworkResourcesHandler(client *azureclient.AzureClient, cfg *config.ConfigData) tools.ResourceHandler {
+// GetAksNetworkResourcesHandler returns a handler for the aks_network_resources command
+func GetAksNetworkResourcesHandler(client *azureclient.AzureClient, cfg *config.ConfigData) tools.ResourceHandler {
 	return tools.ResourceHandlerFunc(func(ctx context.Context, params map[string]interface{}, _ *config.ConfigData) (string, error) {
 		resourceType, subID, rg, clusterName, err := validateNetworkParams(params)
 		if err != nil {

@@ -38,7 +38,7 @@ Invoke az_aks_operations tool:
 Match the control plane FQDN from Step 1 with the cluster list to determine subscription ID, resource group, and cluster name. Extract the full AKS resource ID for subsequent steps.
 
 ### 3. Check Azure Resource Health Status
-Invoke az_monitoring tool:
+Invoke aks_monitoring tool:
 {
   "operation": "resource_health",
   "subscription_id": "<SUBSCRIPTION_ID>",

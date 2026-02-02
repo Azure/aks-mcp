@@ -275,8 +275,8 @@ func GetAppInsightsHandler(cfg *config.ConfigData) tools.ResourceHandler {
 	})
 }
 
-// GetAzMonitoringHandler returns a ResourceHandler for the monitoring tool
-func GetAzMonitoringHandler(azClient *azureclient.AzureClient, cfg *config.ConfigData) tools.ResourceHandler {
+// GetAksMonitoringHandler returns a ResourceHandler for the monitoring tool
+func GetAksMonitoringHandler(azClient *azureclient.AzureClient, cfg *config.ConfigData) tools.ResourceHandler {
 	return tools.ResourceHandlerFunc(func(ctx context.Context, params map[string]interface{}, _ *config.ConfigData) (string, error) {
 		// Extract operation parameter
 		operation, ok := params["operation"].(string)
