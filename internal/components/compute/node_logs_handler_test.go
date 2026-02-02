@@ -63,6 +63,7 @@ func TestBuildJournalctlCommand(t *testing.T) {
 		lines    int
 		since    string
 		level    string
+		filter   string
 		expected string
 	}{
 		{
@@ -71,7 +72,8 @@ func TestBuildJournalctlCommand(t *testing.T) {
 			lines:    500,
 			since:    "",
 			level:    LogLevelInfo,
-			expected: "journalctl -u kubelet --no-pager -n 500",
+			filter:   "",
+			expected: "journalctl -u kubelet --no-pager | tail -n 500",
 		},
 		{
 			name:     "kubelet with since 1h",
@@ -79,7 +81,8 @@ func TestBuildJournalctlCommand(t *testing.T) {
 			lines:    500,
 			since:    "1h",
 			level:    LogLevelInfo,
-			expected: "journalctl -u kubelet --no-pager --since '1 hour ago'",
+			filter:   "",
+			expected: "journalctl -u kubelet --no-pager --since '1 hour ago' | tail -n 500",
 		},
 		{
 			name:     "kubelet with since 30m",
@@ -87,7 +90,8 @@ func TestBuildJournalctlCommand(t *testing.T) {
 			lines:    500,
 			since:    "30m",
 			level:    LogLevelInfo,
-			expected: "journalctl -u kubelet --no-pager --since '30 minutes ago'",
+			filter:   "",
+			expected: "journalctl -u kubelet --no-pager --since '30 minutes ago' | tail -n 500",
 		},
 		{
 			name:     "kubelet with ERROR level",
@@ -95,7 +99,8 @@ func TestBuildJournalctlCommand(t *testing.T) {
 			lines:    500,
 			since:    "",
 			level:    LogLevelError,
-			expected: "journalctl -u kubelet --no-pager -n 500 | grep -iE '^[A-Z][a-z]+ [0-9]+ [0-9:]+ .* E[0-9]+|error'",
+			filter:   "",
+			expected: "journalctl -u kubelet --no-pager | grep -iE '^[A-Z][a-z]+ [0-9]+ [0-9:]+ .* E[0-9]+|error' | tail -n 500",
 		},
 		{
 			name:     "kubelet with WARN level",
@@ -103,7 +108,8 @@ func TestBuildJournalctlCommand(t *testing.T) {
 			lines:    500,
 			since:    "",
 			level:    LogLevelWarn,
-			expected: "journalctl -u kubelet --no-pager -n 500 | grep -iE '^[A-Z][a-z]+ [0-9]+ [0-9:]+ .* [EW][0-9]+|error|warn'",
+			filter:   "",
+			expected: "journalctl -u kubelet --no-pager | grep -iE '^[A-Z][a-z]+ [0-9]+ [0-9:]+ .* [EW][0-9]+|error|warn' | tail -n 500",
 		},
 		{
 			name:     "containerd with since and ERROR",
@@ -111,13 +117,41 @@ func TestBuildJournalctlCommand(t *testing.T) {
 			lines:    1000,
 			since:    "2h",
 			level:    LogLevelError,
-			expected: "journalctl -u containerd --no-pager --since '2 hours ago' | grep -iE '^[A-Z][a-z]+ [0-9]+ [0-9:]+ .* E[0-9]+|error'",
+			filter:   "",
+			expected: "journalctl -u containerd --no-pager --since '2 hours ago' | grep -iE '^[A-Z][a-z]+ [0-9]+ [0-9:]+ .* E[0-9]+|error' | tail -n 1000",
+		},
+		{
+			name:     "kubelet with filter",
+			unit:     "kubelet",
+			lines:    500,
+			since:    "",
+			level:    LogLevelInfo,
+			filter:   "ImagePullBackOff",
+			expected: "journalctl -u kubelet --no-pager | grep -iF 'ImagePullBackOff' | tail -n 500",
+		},
+		{
+			name:     "kubelet with ERROR level and filter",
+			unit:     "kubelet",
+			lines:    500,
+			since:    "1h",
+			level:    LogLevelError,
+			filter:   "pod-name",
+			expected: "journalctl -u kubelet --no-pager --since '1 hour ago' | grep -iE '^[A-Z][a-z]+ [0-9]+ [0-9:]+ .* E[0-9]+|error' | grep -iF 'pod-name' | tail -n 500",
+		},
+		{
+			name:     "kubelet with filter containing single quote",
+			unit:     "kubelet",
+			lines:    500,
+			since:    "",
+			level:    LogLevelInfo,
+			filter:   "customer's pod",
+			expected: "journalctl -u kubelet --no-pager | grep -iF 'customer'\\''s pod' | tail -n 500",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := buildJournalctlCommand(tt.unit, tt.lines, tt.since, tt.level)
+			result := buildJournalctlCommand(tt.unit, tt.lines, tt.since, tt.level, tt.filter)
 			if result != tt.expected {
 				t.Errorf("buildJournalctlCommand() = %q, want %q", result, tt.expected)
 			}
@@ -131,31 +165,49 @@ func TestBuildDmesgCommand(t *testing.T) {
 		name     string
 		lines    int
 		level    string
+		filter   string
 		expected string
 	}{
 		{
 			name:     "basic dmesg",
 			lines:    500,
 			level:    LogLevelInfo,
+			filter:   "",
 			expected: "dmesg -T | tail -n 500",
 		},
 		{
 			name:     "dmesg with ERROR level",
 			lines:    500,
 			level:    LogLevelError,
+			filter:   "",
 			expected: "dmesg -T -l err,crit,alert,emerg | tail -n 500",
 		},
 		{
 			name:     "dmesg with WARN level",
 			lines:    1000,
 			level:    LogLevelWarn,
+			filter:   "",
 			expected: "dmesg -T -l warn,err,crit,alert,emerg | tail -n 1000",
+		},
+		{
+			name:     "dmesg with filter",
+			lines:    500,
+			level:    LogLevelInfo,
+			filter:   "OOM",
+			expected: "dmesg -T | grep -iF 'OOM' | tail -n 500",
+		},
+		{
+			name:     "dmesg with ERROR level and filter",
+			lines:    500,
+			level:    LogLevelError,
+			filter:   "kernel panic",
+			expected: "dmesg -T -l err,crit,alert,emerg | grep -iF 'kernel panic' | tail -n 500",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := buildDmesgCommand(tt.lines, tt.level)
+			result := buildDmesgCommand(tt.lines, tt.level, tt.filter)
 			if result != tt.expected {
 				t.Errorf("buildDmesgCommand() = %q, want %q", result, tt.expected)
 			}
@@ -170,6 +222,7 @@ func TestBuildSyslogCommand(t *testing.T) {
 		lines    int
 		since    string
 		level    string
+		filter   string
 		expected string
 	}{
 		{
@@ -177,34 +230,54 @@ func TestBuildSyslogCommand(t *testing.T) {
 			lines:    500,
 			since:    "",
 			level:    LogLevelInfo,
-			expected: "journalctl --no-pager -n 500",
+			filter:   "",
+			expected: "journalctl --no-pager | tail -n 500",
 		},
 		{
 			name:     "syslog with since 1h",
 			lines:    500,
 			since:    "1h",
 			level:    LogLevelInfo,
-			expected: "journalctl --no-pager --since '1 hour ago'",
+			filter:   "",
+			expected: "journalctl --no-pager --since '1 hour ago' | tail -n 500",
 		},
 		{
 			name:     "syslog with ERROR level",
 			lines:    500,
 			since:    "",
 			level:    LogLevelError,
-			expected: "journalctl --no-pager -n 500 -p err",
+			filter:   "",
+			expected: "journalctl --no-pager -p err | tail -n 500",
 		},
 		{
 			name:     "syslog with WARN level and since",
 			lines:    1000,
 			since:    "30m",
 			level:    LogLevelWarn,
-			expected: "journalctl --no-pager --since '30 minutes ago' -p warning",
+			filter:   "",
+			expected: "journalctl --no-pager --since '30 minutes ago' -p warning | tail -n 1000",
+		},
+		{
+			name:     "syslog with filter",
+			lines:    500,
+			since:    "",
+			level:    LogLevelInfo,
+			filter:   "systemd",
+			expected: "journalctl --no-pager | grep -iF 'systemd' | tail -n 500",
+		},
+		{
+			name:     "syslog with ERROR level and filter",
+			lines:    500,
+			since:    "1h",
+			level:    LogLevelError,
+			filter:   "failed",
+			expected: "journalctl --no-pager --since '1 hour ago' -p err | grep -iF 'failed' | tail -n 500",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := buildSyslogCommand(tt.lines, tt.since, tt.level)
+			result := buildSyslogCommand(tt.lines, tt.since, tt.level, tt.filter)
 			if result != tt.expected {
 				t.Errorf("buildSyslogCommand() = %q, want %q", result, tt.expected)
 			}
@@ -220,6 +293,7 @@ func TestBuildLogCommand(t *testing.T) {
 		lines       int
 		since       string
 		level       string
+		filter      string
 		expected    string
 		expectError bool
 	}{
@@ -229,7 +303,8 @@ func TestBuildLogCommand(t *testing.T) {
 			lines:       500,
 			since:       "",
 			level:       LogLevelInfo,
-			expected:    "journalctl -u kubelet --no-pager -n 500",
+			filter:      "",
+			expected:    "journalctl -u kubelet --no-pager | tail -n 500",
 			expectError: false,
 		},
 		{
@@ -238,7 +313,8 @@ func TestBuildLogCommand(t *testing.T) {
 			lines:       500,
 			since:       "",
 			level:       LogLevelError,
-			expected:    "journalctl -u containerd --no-pager -n 500 | grep -iE '^[A-Z][a-z]+ [0-9]+ [0-9:]+ .* E[0-9]+|error'",
+			filter:      "",
+			expected:    "journalctl -u containerd --no-pager | grep -iE '^[A-Z][a-z]+ [0-9]+ [0-9:]+ .* E[0-9]+|error' | tail -n 500",
 			expectError: false,
 		},
 		{
@@ -247,6 +323,7 @@ func TestBuildLogCommand(t *testing.T) {
 			lines:       500,
 			since:       "",
 			level:       LogLevelInfo,
+			filter:      "",
 			expected:    "dmesg -T | tail -n 500",
 			expectError: false,
 		},
@@ -256,7 +333,28 @@ func TestBuildLogCommand(t *testing.T) {
 			lines:       500,
 			since:       "1h",
 			level:       LogLevelInfo,
-			expected:    "journalctl --no-pager --since '1 hour ago'",
+			filter:      "",
+			expected:    "journalctl --no-pager --since '1 hour ago' | tail -n 500",
+			expectError: false,
+		},
+		{
+			name:        "kubelet log with filter",
+			logType:     LogTypeKubelet,
+			lines:       500,
+			since:       "",
+			level:       LogLevelInfo,
+			filter:      "ImagePullBackOff",
+			expected:    "journalctl -u kubelet --no-pager | grep -iF 'ImagePullBackOff' | tail -n 500",
+			expectError: false,
+		},
+		{
+			name:        "containerd log with ERROR and filter",
+			logType:     LogTypeContainerd,
+			lines:       500,
+			since:       "1h",
+			level:       LogLevelError,
+			filter:      "pod-name",
+			expected:    "journalctl -u containerd --no-pager --since '1 hour ago' | grep -iE '^[A-Z][a-z]+ [0-9]+ [0-9:]+ .* E[0-9]+|error' | grep -iF 'pod-name' | tail -n 500",
 			expectError: false,
 		},
 		{
@@ -265,6 +363,7 @@ func TestBuildLogCommand(t *testing.T) {
 			lines:       500,
 			since:       "",
 			level:       LogLevelInfo,
+			filter:      "",
 			expected:    "",
 			expectError: true,
 		},
@@ -272,7 +371,7 @@ func TestBuildLogCommand(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := buildLogCommand(tt.logType, tt.lines, tt.since, tt.level)
+			result, err := buildLogCommand(tt.logType, tt.lines, tt.since, tt.level, tt.filter)
 			if tt.expectError {
 				if err == nil {
 					t.Errorf("buildLogCommand() expected error, got nil")

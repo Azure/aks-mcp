@@ -61,10 +61,15 @@ func CollectAKSNodeLogsHandler(client *azureclient.AzureClient, cfg *config.Conf
 			return "", fmt.Errorf("instance_id is required")
 		}
 
+		// Validate that the VMSS is Linux-based
+		if err := validateVMSSSupport(ctx, client, subID, nodeResourceGroup, vmssName); err != nil {
+			return "", err
+		}
+
 		// Extract log collection parameters
-		logType := LogTypeKubelet
-		if lt, ok := params["log_type"].(string); ok && lt != "" {
-			logType = lt
+		logType, ok := params["log_type"].(string)
+		if !ok || logType == "" {
+			return "", fmt.Errorf("log_type is required")
 		}
 
 		// Validate log type
@@ -101,14 +106,20 @@ func CollectAKSNodeLogsHandler(client *azureclient.AzureClient, cfg *config.Conf
 			return "", fmt.Errorf("invalid level: %s (must be one of: ERROR, WARN, INFO)", level)
 		}
 
+		// Extract filter parameter (optional)
+		filter := ""
+		if f, ok := params["filter"].(string); ok && f != "" {
+			filter = f
+		}
+
 		// Build the command
-		command, err := buildLogCommand(logType, lines, since, level)
+		command, err := buildLogCommand(logType, lines, since, level, filter)
 		if err != nil {
 			return "", fmt.Errorf("failed to build log command: %w", err)
 		}
 
-		logger.Debugf("CollectAKSNodeLogs: cluster=%s/%s, nodeRG=%s, vmss=%s, instance=%s, type=%s, lines=%d, since=%s, level=%s",
-			rg, clusterName, nodeResourceGroup, vmssName, instanceID, logType, lines, since, level)
+		logger.Debugf("CollectAKSNodeLogs: cluster=%s/%s, nodeRG=%s, vmss=%s, instance=%s, type=%s, lines=%d, since=%s, level=%s, filter=%s",
+			rg, clusterName, nodeResourceGroup, vmssName, instanceID, logType, lines, since, level, filter)
 		logger.Debugf("CollectAKSNodeLogs: command=%s", command)
 
 		// Execute the command on VMSS instance (using node resource group)
@@ -146,18 +157,18 @@ func isValidLogLevel(level string) bool {
 }
 
 // buildLogCommand builds the shell command to collect logs
-func buildLogCommand(logType string, lines int, since string, level string) (string, error) {
+func buildLogCommand(logType string, lines int, since string, level string, filter string) (string, error) {
 	var cmd string
 
 	switch logType {
 	case LogTypeKubelet:
-		cmd = buildJournalctlCommand("kubelet", lines, since, level)
+		cmd = buildJournalctlCommand("kubelet", lines, since, level, filter)
 	case LogTypeContainerd:
-		cmd = buildJournalctlCommand("containerd", lines, since, level)
+		cmd = buildJournalctlCommand("containerd", lines, since, level, filter)
 	case LogTypeKernel:
-		cmd = buildDmesgCommand(lines, level)
+		cmd = buildDmesgCommand(lines, level, filter)
 	case LogTypeSyslog:
-		cmd = buildSyslogCommand(lines, since, level)
+		cmd = buildSyslogCommand(lines, since, level, filter)
 	default:
 		return "", fmt.Errorf("unsupported log type: %s", logType)
 	}
@@ -218,19 +229,17 @@ func formatSinceParameter(since string) string {
 }
 
 // buildJournalctlCommand builds journalctl command for systemd services
-func buildJournalctlCommand(unit string, lines int, since string, level string) string {
+func buildJournalctlCommand(unit string, lines int, since string, level string, filter string) string {
 	var parts []string
 	parts = append(parts, "journalctl")
 	parts = append(parts, fmt.Sprintf("-u %s", unit))
 	parts = append(parts, "--no-pager")
 
-	// Use since if provided, otherwise use lines
+	// Add time range filter if provided
 	if since != "" {
 		// Convert time format for journalctl
 		sinceFormatted := formatSinceParameter(since)
 		parts = append(parts, fmt.Sprintf("--since '%s'", sinceFormatted))
-	} else {
-		parts = append(parts, fmt.Sprintf("-n %d", lines))
 	}
 
 	// For kubelet and containerd, use grep to filter by log level patterns
@@ -245,11 +254,21 @@ func buildJournalctlCommand(unit string, lines int, since string, level string) 
 		cmd += " | grep -iE '^[A-Z][a-z]+ [0-9]+ [0-9:]+ .* [EW][0-9]+|error|warn'"
 	}
 
+	// Add text filter (case insensitive, fixed string match)
+	if filter != "" {
+		// Escape single quotes in the filter text
+		escapedFilter := strings.ReplaceAll(filter, "'", "'\\''")
+		cmd += fmt.Sprintf(" | grep -iF '%s'", escapedFilter)
+	}
+
+	// Add line limit at the end (after all filters)
+	cmd += fmt.Sprintf(" | tail -n %d", lines)
+
 	return cmd
 }
 
 // buildDmesgCommand builds dmesg command for kernel logs
-func buildDmesgCommand(lines int, level string) string {
+func buildDmesgCommand(lines int, level string, filter string) string {
 	var parts []string
 	parts = append(parts, "dmesg -T")
 
@@ -260,25 +279,33 @@ func buildDmesgCommand(lines int, level string) string {
 		parts = append(parts, "-l warn,err,crit,alert,emerg")
 	}
 
-	// Add tail to limit output
-	parts = append(parts, fmt.Sprintf("| tail -n %d", lines))
+	// Build command
+	cmd := strings.Join(parts, " ")
 
-	return strings.Join(parts, " ")
+	// Add text filter (case insensitive, fixed string match)
+	if filter != "" {
+		// Escape single quotes in the filter text
+		escapedFilter := strings.ReplaceAll(filter, "'", "'\\''")
+		cmd += fmt.Sprintf(" | grep -iF '%s'", escapedFilter)
+	}
+
+	// Add tail to limit output at the end (after all filters)
+	cmd += fmt.Sprintf(" | tail -n %d", lines)
+
+	return cmd
 }
 
 // buildSyslogCommand builds journalctl command for system logs
-func buildSyslogCommand(lines int, since string, level string) string {
+func buildSyslogCommand(lines int, since string, level string, filter string) string {
 	var parts []string
 	parts = append(parts, "journalctl")
 	parts = append(parts, "--no-pager")
 
-	// Use since if provided, otherwise use lines
+	// Add time range filter if provided
 	if since != "" {
 		// Convert time format for journalctl
 		sinceFormatted := formatSinceParameter(since)
 		parts = append(parts, fmt.Sprintf("--since '%s'", sinceFormatted))
-	} else {
-		parts = append(parts, fmt.Sprintf("-n %d", lines))
 	}
 
 	// Add priority filter
@@ -288,7 +315,19 @@ func buildSyslogCommand(lines int, since string, level string) string {
 		parts = append(parts, "-p warning")
 	}
 
-	return strings.Join(parts, " ")
+	cmd := strings.Join(parts, " ")
+
+	// Add text filter (case insensitive, fixed string match)
+	if filter != "" {
+		// Escape single quotes in the filter text
+		escapedFilter := strings.ReplaceAll(filter, "'", "'\\''")
+		cmd += fmt.Sprintf(" | grep -iF '%s'", escapedFilter)
+	}
+
+	// Add line limit at the end (after all filters)
+	cmd += fmt.Sprintf(" | tail -n %d", lines)
+
+	return cmd
 }
 
 // formatLogOutput formats the log output with metadata header
@@ -308,4 +347,36 @@ func formatLogOutput(clusterName, rg, vmssName, instanceID, logType, output stri
 	result.WriteString(output)
 
 	return result.String()
+}
+
+// validateVMSSSupport validates that the node is a Linux VMSS
+// Currently only Linux VMSS are supported (not standalone VMs or Windows nodes)
+func validateVMSSSupport(
+	ctx context.Context,
+	client *azureclient.AzureClient,
+	subscriptionID string,
+	nodeResourceGroup string,
+	vmssName string,
+) error {
+	// Get VMSS client for the subscription
+	clients, err := client.GetOrCreateClientsForSubscription(subscriptionID)
+	if err != nil {
+		return fmt.Errorf("failed to get clients for subscription: %w", err)
+	}
+
+	// Try to get VMSS to verify it exists (and is not a standalone VM)
+	vmss, err := clients.VMSSClient.Get(ctx, nodeResourceGroup, vmssName, nil)
+	if err != nil {
+		// If VMSS not found, it's likely a standalone VM
+		return fmt.Errorf("VMSS '%s' not found. This tool currently only supports VMSS-based nodes. Standalone VMs are not supported yet", vmssName)
+	}
+
+	// Check if it's a Windows VMSS
+	if vmss.Properties != nil && vmss.Properties.VirtualMachineProfile != nil &&
+		vmss.Properties.VirtualMachineProfile.OSProfile != nil &&
+		vmss.Properties.VirtualMachineProfile.OSProfile.WindowsConfiguration != nil {
+		return fmt.Errorf("Windows nodes are not supported yet. This tool only supports Linux VMSS nodes")
+	}
+
+	return nil
 }
