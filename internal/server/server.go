@@ -612,7 +612,7 @@ func (s *Service) registerFleetComponent() {
 
 // registerAdvisorComponent registers Azure advisor tools
 func (s *Service) registerAdvisorComponent() {
-	logger.Debugf("Registering advisor tool: az_advisor_recommendation")
+	logger.Debugf("Registering advisor tool: aks_advisor_recommendation")
 	advisorTool := advisor.RegisterAdvisorRecommendationTool()
 	s.mcpServer.AddTool(advisorTool, tools.CreateResourceHandler(advisor.GetAdvisorRecommendationHandler(s.cfg), s.cfg))
 }

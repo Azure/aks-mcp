@@ -244,7 +244,7 @@ CRD operations.
 <details>
 <summary>Azure Advisor</summary>
 
-**Tool:** `az_advisor_recommendation`
+**Tool:** `aks_advisor_recommendation`
 
 Retrieve and manage Azure Advisor recommendations for AKS clusters.
 
