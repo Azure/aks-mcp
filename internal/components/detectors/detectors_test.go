@@ -1,6 +1,7 @@
 package detectors
 
 import (
+	"context"
 	"testing"
 	"time"
 )
@@ -104,6 +105,84 @@ func TestValidateCategory(t *testing.T) {
 			err := validateCategory(tt.category)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("validateCategory() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestHandleAksDetector_OperationValidation(t *testing.T) {
+	ctx := context.Background()
+
+	tests := []struct {
+		name      string
+		params    map[string]interface{}
+		wantErr   bool
+		errString string
+	}{
+		{
+			name: "missing operation parameter",
+			params: map[string]interface{}{
+				"aks_resource_id": "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/cluster",
+			},
+			wantErr:   true,
+			errString: "missing or invalid operation parameter",
+		},
+		{
+			name: "invalid operation parameter",
+			params: map[string]interface{}{
+				"operation":       "invalid_op",
+				"aks_resource_id": "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/cluster",
+			},
+			wantErr:   true,
+			errString: "invalid operation 'invalid_op', must be one of: list, run, run_by_category",
+		},
+		{
+			name: "list operation - missing aks_resource_id",
+			params: map[string]interface{}{
+				"operation": "list",
+			},
+			wantErr:   true,
+			errString: "missing or invalid aks_resource_id parameter",
+		},
+		{
+			name: "run operation - missing detector_name",
+			params: map[string]interface{}{
+				"operation":       "run",
+				"aks_resource_id": "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/cluster",
+			},
+			wantErr:   true,
+			errString: "missing or invalid detector_name parameter",
+		},
+		{
+			name: "run operation - missing start_time",
+			params: map[string]interface{}{
+				"operation":       "run",
+				"aks_resource_id": "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/cluster",
+				"detector_name":   "test-detector",
+			},
+			wantErr:   true,
+			errString: "missing or invalid start_time parameter",
+		},
+		{
+			name: "run_by_category operation - missing category",
+			params: map[string]interface{}{
+				"operation":       "run_by_category",
+				"aks_resource_id": "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/cluster",
+			},
+			wantErr:   true,
+			errString: "missing or invalid category parameter",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := HandleAksDetector(ctx, tt.params, nil)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("HandleAksDetector() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if err != nil && tt.errString != "" && err.Error() != tt.errString {
+				t.Errorf("HandleAksDetector() error = %v, want error containing %v", err, tt.errString)
 			}
 		})
 	}
