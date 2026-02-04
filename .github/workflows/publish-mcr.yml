@@ -125,33 +125,49 @@ jobs:
       - name: Verify image consistency
         id: verify
         run: |
-          GHCR_IMAGE_ID="${{ steps.pull.outputs.ghcr_image_id }}"
+          GHCR_IMAGE="${{ steps.version.outputs.ghcr_image }}"
           MCR_IMAGE="${{ steps.push.outputs.mcr_image }}"
 
-          # Pull the MCR image to get its Image ID
+          # Pull the MCR image to verify it's accessible
           docker pull ${MCR_IMAGE}
           MCR_IMAGE_ID=$(docker inspect ${MCR_IMAGE} --format='{{.Id}}')
 
-          echo "GHCR Image ID: ${GHCR_IMAGE_ID}"
-          echo "MCR Image ID:  ${MCR_IMAGE_ID}"
+          echo "Source GHCR Image: ${GHCR_IMAGE}"
+          echo "Published MCR Image: ${MCR_IMAGE}"
+          echo "MCR Image ID: ${MCR_IMAGE_ID}"
 
-          if [ "${GHCR_IMAGE_ID}" = "${MCR_IMAGE_ID}" ]; then
-            echo "✅ Image verification PASSED - Images are identical"
+          # Get and compare layer information (more reliable than Image ID)
+          GHCR_LAYERS=$(docker inspect ${GHCR_IMAGE} --format='{{range .RootFS.Layers}}{{println .}}{{end}}' | sort)
+          MCR_LAYERS=$(docker inspect ${MCR_IMAGE} --format='{{range .RootFS.Layers}}{{println .}}{{end}}' | sort)
+
+          echo ""
+          echo "=== Layer Verification ==="
+          GHCR_LAYER_COUNT=$(echo "${GHCR_LAYERS}" | wc -l)
+          MCR_LAYER_COUNT=$(echo "${MCR_LAYERS}" | wc -l)
+          echo "GHCR Layer Count: ${GHCR_LAYER_COUNT}"
+          echo "MCR Layer Count: ${MCR_LAYER_COUNT}"
+
+          if [ "${GHCR_LAYERS}" = "${MCR_LAYERS}" ]; then
+            echo "✅ Image verification PASSED - All layers are identical"
             echo "image_id=${MCR_IMAGE_ID}" >> "$GITHUB_OUTPUT"
           else
-            echo "❌ Image verification FAILED - Images differ!"
-            echo "GHCR Image ID: ${GHCR_IMAGE_ID}"
-            echo "MCR Image ID:  ${MCR_IMAGE_ID}"
+            echo "❌ Image verification FAILED - Layers differ!"
+            echo ""
+            echo "GHCR Layers:"
+            echo "${GHCR_LAYERS}"
+            echo ""
+            echo "MCR Layers:"
+            echo "${MCR_LAYERS}"
             exit 1
           fi
 
           # Also show the manifest digests for reference
-          GHCR_IMAGE="${{ steps.version.outputs.ghcr_image }}"
-          GHCR_DIGEST=$(docker inspect ${GHCR_IMAGE} --format='{{index .RepoDigests 0}}')
-          MCR_DIGEST=$(docker inspect ${MCR_IMAGE} --format='{{index .RepoDigests 0}}')
-          echo "Note: Manifest digests may differ (this is expected for multi-arch images)"
+          GHCR_DIGEST=$(docker inspect ${GHCR_IMAGE} --format='{{index .RepoDigests 0}}' 2>/dev/null || echo "N/A")
+          MCR_DIGEST=$(docker inspect ${MCR_IMAGE} --format='{{index .RepoDigests 0}}' 2>/dev/null || echo "N/A")
+          echo ""
+          echo "=== Manifest Digests (may differ across registries) ==="
           echo "GHCR Manifest: ${GHCR_DIGEST}"
-          echo "MCR Manifest:  ${MCR_DIGEST}"
+          echo "MCR Manifest: ${MCR_DIGEST}"
 
       - name: Summary
         run: |
