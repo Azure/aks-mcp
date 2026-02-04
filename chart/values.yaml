@@ -26,6 +26,10 @@ app:
   logLevel: "info"
   # Enable cache for better performance
   cache: true
+  # Enable token-only authentication mode for supported tools
+  # When enabled, tools like kubectl use Azure AKS RunCommand API with user tokens
+  # Requires transport to be sse or streamable-http (not compatible with stdio)
+  tokenAuthOnly: false
 
 # Azure authentication configuration
 azure:
