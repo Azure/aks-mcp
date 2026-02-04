@@ -90,6 +90,10 @@ spec:
             - "--otlp-endpoint"
             - {{ .Values.telemetry.otlpEndpoint | quote }}
             {{- end }}
+            {{- if .Values.app.tokenAuthOnly }}
+            - "--token-auth-only"
+            - "true"
+            {{- end }}
           env:
             {{- if .Values.azure.subscriptionId }}
             - name: AZURE_SUBSCRIPTION_ID
