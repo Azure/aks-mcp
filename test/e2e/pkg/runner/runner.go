@@ -2,8 +2,11 @@ package runner
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
+
+	"github.com/mark3labs/mcp-go/mcp"
 
 	mcpclient "github.com/Azure/aks-mcp/test/e2e/pkg/client"
 	"github.com/Azure/aks-mcp/test/e2e/pkg/tests"
@@ -11,24 +14,28 @@ import (
 
 // TestRunner executes E2E tests
 type TestRunner struct {
-	client *mcpclient.MCPClient
-	tests  []tests.ToolTest
+	client  *mcpclient.MCPClient
+	tests   []tests.ToolTest
+	verbose bool
 }
 
 // TestResult holds the result of a single test
 type TestResult struct {
-	TestName  string
-	Passed    bool
-	Error     error
-	Duration  time.Duration
-	ToolError bool // true if error was from tool call, false if from validation
+	TestName   string
+	Passed     bool
+	Error      error
+	Duration   time.Duration
+	ToolError  bool // true if error was from tool call, false if from validation
+	ToolParams map[string]interface{}
+	ToolResult string
 }
 
 // NewTestRunner creates a new test runner
-func NewTestRunner(client *mcpclient.MCPClient) *TestRunner {
+func NewTestRunner(client *mcpclient.MCPClient, verbose bool) *TestRunner {
 	return &TestRunner{
-		client: client,
-		tests:  []tests.ToolTest{},
+		client:  client,
+		tests:   []tests.ToolTest{},
+		verbose: verbose,
 	}
 }
 
@@ -52,8 +59,9 @@ func (r *TestRunner) RunAll(ctx context.Context) ([]TestResult, error) {
 // runSingleTest executes a single test and returns the result
 func (r *TestRunner) runSingleTest(ctx context.Context, test tests.ToolTest) TestResult {
 	result := TestResult{
-		TestName: test.Name(),
-		Passed:   false,
+		TestName:   test.Name(),
+		Passed:     false,
+		ToolParams: test.GetParams(),
 	}
 
 	start := time.Now()
@@ -68,6 +76,16 @@ func (r *TestRunner) runSingleTest(ctx context.Context, test tests.ToolTest) Tes
 		return result
 	}
 
+	// Extract text content for verbose output
+	if toolResult != nil && len(toolResult.Content) > 0 {
+		for _, content := range toolResult.Content {
+			if tc, ok := content.(mcp.TextContent); ok {
+				result.ToolResult = tc.Text
+				break
+			}
+		}
+	}
+
 	// Validate the result
 	if err := test.Validate(toolResult); err != nil {
 		result.Error = fmt.Errorf("validation failed: %w", err)
@@ -80,7 +98,7 @@ func (r *TestRunner) runSingleTest(ctx context.Context, test tests.ToolTest) Tes
 }
 
 // PrintResults prints test results in a human-readable format
-func PrintResults(results []TestResult) {
+func PrintResults(results []TestResult, verbose bool) {
 	passed := 0
 	failed := 0
 	totalDuration := time.Duration(0)
@@ -93,9 +111,34 @@ func PrintResults(results []TestResult) {
 		fmt.Printf("\n[%d/%d] %s\n", i+1, len(results), result.TestName)
 		fmt.Printf("    Duration: %s\n", result.Duration)
 
+		// Print parameters in verbose mode
+		if verbose && result.ToolParams != nil {
+			fmt.Println("    Parameters:")
+			paramsJSON, _ := json.MarshalIndent(result.ToolParams, "      ", "  ")
+			fmt.Printf("      %s\n", string(paramsJSON))
+		}
+
 		if result.Passed {
 			fmt.Printf("    Status: ✅ PASS\n")
 			passed++
+
+			// Print result in verbose mode
+			if verbose && result.ToolResult != "" {
+				fmt.Println("    Result:")
+				// Try to pretty-print JSON
+				var jsonData interface{}
+				if err := json.Unmarshal([]byte(result.ToolResult), &jsonData); err == nil {
+					prettyJSON, _ := json.MarshalIndent(jsonData, "      ", "  ")
+					fmt.Printf("      %s\n", string(prettyJSON))
+				} else {
+					// Not JSON, print as-is (truncate if too long)
+					if len(result.ToolResult) > 500 {
+						fmt.Printf("      %s...(truncated)\n", result.ToolResult[:500])
+					} else {
+						fmt.Printf("      %s\n", result.ToolResult)
+					}
+				}
+			}
 		} else {
 			fmt.Printf("    Status: ❌ FAIL\n")
 			if result.ToolError {
@@ -104,6 +147,16 @@ func PrintResults(results []TestResult) {
 				fmt.Printf("    Error Type: Validation error\n")
 			}
 			fmt.Printf("    Error: %v\n", result.Error)
+
+			// Print result even on failure in verbose mode
+			if verbose && result.ToolResult != "" {
+				fmt.Println("    Partial Result:")
+				if len(result.ToolResult) > 500 {
+					fmt.Printf("      %s...(truncated)\n", result.ToolResult[:500])
+				} else {
+					fmt.Printf("      %s\n", result.ToolResult)
+				}
+			}
 			failed++
 		}
 

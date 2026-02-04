@@ -4,7 +4,7 @@ set -e
 # Configuration
 RESOURCE_GROUP="${RESOURCE_GROUP:-aks-mcp-e2e-test-rg}"
 CLUSTER_NAME="${CLUSTER_NAME:-aks-mcp-e2e-test}"
-APP_NAME="${APP_NAME:-aks-mcp-e2e-identity}"
+IDENTITY_NAME="${IDENTITY_NAME:-aks-mcp-e2e-identity}"
 SKIP_CLEANUP="${SKIP_CLEANUP:-false}"
 
 echo "=================================================="
@@ -12,7 +12,7 @@ echo "Cleaning up E2E Test Resources"
 echo "=================================================="
 echo "Resource Group: $RESOURCE_GROUP"
 echo "Cluster Name:   $CLUSTER_NAME"
-echo "App Name:       $APP_NAME"
+echo "Identity Name:  $IDENTITY_NAME"
 echo "=================================================="
 echo ""
 
@@ -49,22 +49,32 @@ else
 fi
 echo ""
 
-# Delete Azure AD Application and Service Principal
-echo "🗑️  Deleting Azure AD Application..."
-if az ad app show --id "https://$APP_NAME" &> /dev/null; then
-    CLIENT_ID=$(az ad app show --id "https://$APP_NAME" --query appId -o tsv)
+# Delete Azure Managed Identity
+echo "🗑️  Deleting Azure Managed Identity..."
+if az identity show --resource-group "$RESOURCE_GROUP" --name "$IDENTITY_NAME" &> /dev/null; then
+    PRINCIPAL_ID=$(az identity show \
+        --resource-group "$RESOURCE_GROUP" \
+        --name "$IDENTITY_NAME" \
+        --query "principalId" \
+        --output tsv)
 
-    # Delete service principal
-    if az ad sp show --id "$CLIENT_ID" &> /dev/null; then
-        az ad sp delete --id "$CLIENT_ID" --output none
-        echo "   ✅ Service principal deleted"
-    fi
+    SUBSCRIPTION_ID=$(az account show --query id -o tsv)
 
-    # Delete app
-    az ad app delete --id "$CLIENT_ID" --output none
-    echo "   ✅ Application deleted"
+    # Delete role assignments first
+    echo "   - Deleting role assignments..."
+    az role assignment delete \
+        --assignee "$PRINCIPAL_ID" \
+        --scope "/subscriptions/$SUBSCRIPTION_ID" \
+        --output none 2>/dev/null || true
+
+    # Delete the managed identity
+    az identity delete \
+        --resource-group "$RESOURCE_GROUP" \
+        --name "$IDENTITY_NAME" \
+        --output none
+    echo "   ✅ Managed Identity deleted"
 else
-    echo "   ⏭️  Application not found, skipping"
+    echo "   ⏭️  Managed Identity not found, skipping"
 fi
 echo ""
 
@@ -92,7 +102,7 @@ echo "To check deletion status:"
 echo "  az group show --name $RESOURCE_GROUP"
 echo "  (Should return 'ResourceGroupNotFound' when complete)"
 echo ""
-echo "To verify AD app deletion:"
-echo "  az ad app show --id https://$APP_NAME"
+echo "To verify managed identity deletion:"
+echo "  az identity show --resource-group $RESOURCE_GROUP --name $IDENTITY_NAME"
 echo "  (Should return 'not found' when complete)"
 echo "=================================================="

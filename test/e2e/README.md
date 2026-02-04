@@ -58,7 +58,7 @@ export OIDC_ISSUER=<oidc-issuer-url>
 ```
 
 This will:
-- Create an Azure AD application
+- Create an Azure Managed Identity
 - Create a federated credential for the service account
 - Assign Azure RBAC roles (Reader on subscription and node resource group)
 
@@ -82,7 +82,7 @@ helm install aks-mcp ./chart \
   --set app.transport=streamable-http \
   --set app.accessLevel=readonly \
   --set app.logLevel=debug \
-  --set config.enabledComponents={compute,az_cli,kubectl}
+  --set-json 'config.enabledComponents=["compute","az_cli","kubectl"]'
 ```
 
 Wait for the pod to be ready:
@@ -100,9 +100,55 @@ curl http://localhost:8000/health
 
 ### Step 4: Run E2E Tests
 
-#### Option A: Run in Kubernetes (Recommended)
+#### Option A: Run Locally with Port-Forward
 
-Build and push the test client image (or use local registry):
+Build and run the test client on your local machine:
+
+```bash
+cd test/e2e
+
+# Build the test client
+go build -o e2e-test ./cmd/e2e-test
+
+# Start port-forward
+kubectl port-forward svc/aks-mcp 8000:8000 &
+PF_PID=$!
+
+# Wait for port-forward to be ready
+sleep 3
+
+# Set environment variables
+export MCP_SERVER_URL=http://localhost:8000
+export AZURE_SUBSCRIPTION_ID=<your-subscription-id>
+export RESOURCE_GROUP=<your-resource-group>
+export CLUSTER_NAME=<your-cluster-name>
+
+# Run tests (with verbose output to see parameters and results)
+./e2e-test --verbose
+
+# Or run without verbose
+./e2e-test
+
+# Stop port-forward when done
+kill $PF_PID
+```
+
+**Verbose Mode:**
+
+Use `--verbose` or `-v` flag to see detailed tool call parameters and results:
+
+```bash
+./e2e-test --verbose
+```
+
+This will display:
+- Tool call parameters (JSON formatted)
+- Full tool response (pretty-printed JSON)
+- Useful for debugging and understanding what the tools return
+
+#### Option B: Run in Kubernetes (Advanced)
+
+For testing the full containerized deployment:
 
 ```bash
 cd test/e2e
@@ -158,9 +204,9 @@ SKIP_CLEANUP=true ./cleanup.sh
 
 ## Test Cases
 
-### get_vmss_info
+### get_aks_vmss_info
 
-Tests the `get_vmss_info` tool which retrieves Virtual Machine Scale Set information for AKS node pools.
+Tests the `get_aks_vmss_info` tool which retrieves Virtual Machine Scale Set information for AKS node pools.
 
 **Test Scenarios:**
 1. Get VMSS info for all node pools (no `node_pool_name` specified)
@@ -215,7 +261,7 @@ test/e2e/
 - `LOCATION`: Azure region (default: `eastus`)
 - `NODE_COUNT`: Number of nodes (default: `2`)
 - `NODE_VM_SIZE`: VM size for nodes (default: `Standard_DS2_v2`)
-- `APP_NAME`: Azure AD app name (default: `aks-mcp-e2e-identity`)
+- `IDENTITY_NAME`: Azure Managed Identity name (default: `aks-mcp-e2e-identity`)
 - `SKIP_CLEANUP`: Set to `true` to preserve resources (default: `false`)
 
 ## Debugging
@@ -340,64 +386,3 @@ testRunner.AddTest(&tests.MyNewTest{
 ```bash
 go run ./cmd/e2e-test/main.go
 ```
-
-## CI/CD Integration (Future)
-
-The E2E tests are currently manual-only. To integrate with GitHub Actions:
-
-1. Create `.github/workflows/e2e-manual.yml`
-2. Use `workflow_dispatch` for manual triggering
-3. Set up Azure credentials as GitHub secrets
-4. Run infrastructure scripts in workflow
-5. Deploy MCP server via Helm
-6. Run test client as Kubernetes Job
-7. Collect logs and cleanup resources
-
-See the design document for full GitHub Actions workflow specification.
-
-## Troubleshooting
-
-### Test fails with "connection refused"
-
-**Cause**: MCP server is not running or not accessible
-
-**Solutions**:
-- Check if MCP server pod is running: `kubectl get pods`
-- Check MCP server logs: `kubectl logs -l app.kubernetes.io/name=aks-mcp`
-- Verify service exists: `kubectl get svc aks-mcp`
-- Test connectivity: `kubectl run -it --rm test-curl --image=curlimages/curl -- curl http://aks-mcp.default.svc.cluster.local:8000/health`
-
-### Test fails with "authentication failed" or "unauthorized"
-
-**Cause**: Workload Identity not configured correctly
-
-**Solutions**:
-- Verify federated credential exists: `az ad app federated-credential list --id <client-id>`
-- Check service account has correct annotations: `kubectl get sa aks-mcp -o yaml`
-- Verify RBAC role assignments: `az role assignment list --assignee <client-id>`
-- Check MCP server pod has correct environment variables: `kubectl get pod <pod-name> -o yaml | grep AZURE`
-
-### Test fails with "tool not found"
-
-**Cause**: Tool is not enabled in MCP server configuration
-
-**Solutions**:
-- Check enabled components: `helm get values aks-mcp`
-- Redeploy with correct components: `helm upgrade aks-mcp ./chart --set config.enabledComponents={compute,...}`
-- List available tools from server: Use `client.ListTools()` in test
-
-### Cleanup script fails
-
-**Cause**: Resources are locked or still in use
-
-**Solutions**:
-- Wait for AKS deletion to complete (5-10 minutes)
-- Manually delete stuck resources via Azure Portal
-- Check for resource locks: `az lock list --resource-group <rg-name>`
-
-## References
-
-- [MCP Protocol Specification](https://spec.modelcontextprotocol.io/)
-- [Azure Workload Identity Documentation](https://azure.github.io/azure-workload-identity/)
-- [AKS-MCP Project Documentation](../../README.md)
-- [E2E Test Design Document](../../design/e2e-test-design.md)

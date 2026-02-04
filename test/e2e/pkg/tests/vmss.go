@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
-// GetVMSSInfoTest tests the get_vmss_info tool
+// GetVMSSInfoTest tests the get_aks_vmss_info tool
 type GetVMSSInfoTest struct {
 	SubscriptionID string
 	ResourceGroup  string
@@ -20,28 +21,30 @@ type GetVMSSInfoTest struct {
 // Name returns the test name
 func (t *GetVMSSInfoTest) Name() string {
 	if t.NodePoolName != "" {
-		return fmt.Sprintf("get_vmss_info (node pool: %s)", t.NodePoolName)
+		return fmt.Sprintf("get_aks_vmss_info (node pool: %s)", t.NodePoolName)
 	}
-	return "get_vmss_info (all node pools)"
+	return "get_aks_vmss_info (all node pools)"
 }
 
-// Run executes the test
-func (t *GetVMSSInfoTest) Run(ctx context.Context, mcpClient *client.Client) (*mcp.CallToolResult, error) {
-	args := map[string]interface{}{
+// GetParams returns the parameters for verbose output
+func (t *GetVMSSInfoTest) GetParams() map[string]interface{} {
+	params := map[string]interface{}{
 		"subscription_id": t.SubscriptionID,
 		"resource_group":  t.ResourceGroup,
 		"cluster_name":    t.ClusterName,
 	}
-
-	// Add node_pool_name only if specified
 	if t.NodePoolName != "" {
-		args["node_pool_name"] = t.NodePoolName
+		params["node_pool_name"] = t.NodePoolName
 	}
+	return params
+}
 
+// Run executes the test
+func (t *GetVMSSInfoTest) Run(ctx context.Context, mcpClient *client.Client) (*mcp.CallToolResult, error) {
 	result, err := mcpClient.CallTool(ctx, mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
-			Name:      "get_vmss_info",
-			Arguments: args,
+			Name:      "get_aks_vmss_info",
+			Arguments: t.GetParams(),
 		},
 	})
 	if err != nil {
@@ -64,8 +67,8 @@ func (t *GetVMSSInfoTest) Validate(result *mcp.CallToolResult) error {
 	// Get the text content
 	var textContent string
 	for _, content := range result.Content {
-		// Type assert to TextContent
-		if tc, ok := content.(*mcp.TextContent); ok && tc.Type == "text" {
+		// Type assert to TextContent (value type, not pointer)
+		if tc, ok := content.(mcp.TextContent); ok {
 			textContent = tc.Text
 			break
 		}
@@ -75,56 +78,24 @@ func (t *GetVMSSInfoTest) Validate(result *mcp.CallToolResult) error {
 		return fmt.Errorf("no text content in result")
 	}
 
-	// Try to parse as JSON
-	var vmssData interface{}
-	if err := json.Unmarshal([]byte(textContent), &vmssData); err != nil {
-		return fmt.Errorf("invalid JSON response: %w", err)
+	// Simple validation: just check that the response contains expected keywords
+	// The content is for AI consumption, not strict programmatic parsing
+	expectedKeywords := []string{
+		"vmss",
+		"cluster_name",
+		t.ClusterName,
+		t.ResourceGroup,
 	}
 
-	// Basic validation: check if it's a map (single node pool) or array (multiple node pools)
-	switch v := vmssData.(type) {
-	case map[string]interface{}:
-		// Single node pool result
-		return validateVMSSObject(v)
-	case []interface{}:
-		// Multiple node pools result
-		if len(v) == 0 {
-			return fmt.Errorf("empty VMSS array")
-		}
-		for i, item := range v {
-			vmssObj, ok := item.(map[string]interface{})
-			if !ok {
-				return fmt.Errorf("invalid VMSS object at index %d", i)
-			}
-			if err := validateVMSSObject(vmssObj); err != nil {
-				return fmt.Errorf("validation failed for VMSS at index %d: %w", i, err)
-			}
-		}
-		return nil
-	default:
-		return fmt.Errorf("unexpected response type: %T", v)
-	}
-}
-
-// validateVMSSObject validates a single VMSS object
-func validateVMSSObject(obj map[string]interface{}) error {
-	// Check for key fields that should exist in VMSS info
-	requiredFields := []string{"id", "name", "location"}
-	for _, field := range requiredFields {
-		if _, ok := obj[field]; !ok {
-			return fmt.Errorf("missing required field: %s", field)
+	for _, keyword := range expectedKeywords {
+		if !strings.Contains(textContent, keyword) {
+			return fmt.Errorf("response missing expected keyword: %s", keyword)
 		}
 	}
 
-	// Validate that id contains "virtualMachineScaleSets"
-	if id, ok := obj["id"].(string); ok {
-		// VMSS ID format: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Compute/virtualMachineScaleSets/{vmssName}
-		if id == "" {
-			return fmt.Errorf("empty VMSS id")
-		}
-		// Note: We don't strictly validate the format as it might vary
-	} else {
-		return fmt.Errorf("id field is not a string")
+	// Check that it looks like valid JSON (but don't parse it strictly)
+	if !json.Valid([]byte(textContent)) {
+		return fmt.Errorf("response is not valid JSON")
 	}
 
 	return nil

@@ -4,9 +4,9 @@ set -e
 # Configuration
 RESOURCE_GROUP="${RESOURCE_GROUP:-aks-mcp-e2e-test-rg}"
 CLUSTER_NAME="${CLUSTER_NAME:-aks-mcp-e2e-test}"
-LOCATION="${LOCATION:-eastus}"
+LOCATION="${LOCATION:-eastus2}"
 NODE_COUNT="${NODE_COUNT:-2}"
-NODE_VM_SIZE="${NODE_VM_SIZE:-Standard_DS2_v2}"
+NODE_VM_SIZE="${NODE_VM_SIZE:-Standard_D4ads_v6}"
 
 echo "=================================================="
 echo "Creating AKS Cluster for E2E Testing"

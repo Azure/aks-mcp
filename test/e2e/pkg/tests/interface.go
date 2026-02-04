@@ -17,6 +17,9 @@ type ToolTest interface {
 
 	// Validate verifies the tool call result
 	Validate(result *mcp.CallToolResult) error
+
+	// GetParams returns the parameters that will be passed to the tool (for verbose output)
+	GetParams() map[string]interface{}
 }
 
 // TestConfig holds configuration for test execution
@@ -28,4 +31,7 @@ type TestConfig struct {
 	SubscriptionID string
 	ResourceGroup  string
 	ClusterName    string
+
+	// Verbose output
+	Verbose bool
 }
