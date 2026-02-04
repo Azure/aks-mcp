@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/Azure/aks-mcp/internal/azureclient"
 	"github.com/Azure/aks-mcp/internal/ctx"
 	"github.com/Azure/aks-mcp/internal/logger"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2"
 	k8sconfig "github.com/Azure/mcp-kubernetes/pkg/config"
 )
@@ -99,7 +101,11 @@ func (e *RunCommandExecutor) Execute(ctx context.Context, params map[string]inte
 		return "", fmt.Errorf("failed to start run command '%s' on cluster %s/%s: %w", command, reqCtx.ResourceGroup, reqCtx.ClusterName, err)
 	}
 
-	resp, err := poller.PollUntilDone(ctx, nil)
+	// Poll every 2 seconds instead of the default 30 seconds for faster response
+	pollOptions := &runtime.PollUntilDoneOptions{
+		Frequency: 2 * time.Second,
+	}
+	resp, err := poller.PollUntilDone(ctx, pollOptions)
 	if err != nil {
 		return "", fmt.Errorf("failed to execute command '%s' on cluster %s/%s: %w", command, reqCtx.ResourceGroup, reqCtx.ClusterName, err)
 	}
