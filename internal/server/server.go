@@ -544,7 +544,8 @@ func (s *Service) registerKubectlComponent() {
 	for _, tool := range kubectlTools {
 		logger.Debugf("Registering kubectl tool: %s", tool.Name)
 		// Create a handler that uses our wrapped executor
-		handler := tools.CreateToolHandler(wrappedExecutor, s.cfg)
+		// Use CreateToolHandlerWithName to inject the tool name for KubectlToolExecutor
+		handler := tools.CreateToolHandlerWithName(wrappedExecutor, s.cfg, tool.Name)
 		s.mcpServer.AddTool(tool, handler)
 	}
 }
