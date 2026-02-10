@@ -6,6 +6,7 @@ import (
 
 	"github.com/Azure/aks-mcp/internal/ctx"
 	k8sconfig "github.com/Azure/mcp-kubernetes/pkg/config"
+	k8ssecurity "github.com/Azure/mcp-kubernetes/pkg/security"
 )
 
 func TestExtractRequestContext_Success(t *testing.T) {
@@ -278,4 +279,299 @@ func TestExecute_InvalidParams(t *testing.T) {
 
 func containsError(actual, expected string) bool {
 	return len(actual) >= len(expected) && actual[:len(expected)] == expected
+}
+
+// Test validateCommand with different access levels
+func TestValidateCommand_AccessLevels(t *testing.T) {
+	executor := &RunCommandExecutor{}
+
+	testCases := []struct {
+		name        string
+		command     string
+		accessLevel k8ssecurity.AccessLevel
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name:        "readonly allows get command",
+			command:     "kubectl get pods",
+			accessLevel: k8ssecurity.AccessLevelReadOnly,
+			expectError: false,
+		},
+		{
+			name:        "readonly allows describe command",
+			command:     "kubectl describe pod mypod",
+			accessLevel: k8ssecurity.AccessLevelReadOnly,
+			expectError: false,
+		},
+		{
+			name:        "readonly rejects delete command",
+			command:     "kubectl delete pod mypod",
+			accessLevel: k8ssecurity.AccessLevelReadOnly,
+			expectError: true,
+			errorMsg:    "security validation failed",
+		},
+		{
+			name:        "readonly rejects apply command",
+			command:     "kubectl apply -f deployment.yaml",
+			accessLevel: k8ssecurity.AccessLevelReadOnly,
+			expectError: true,
+			errorMsg:    "security validation failed",
+		},
+		{
+			name:        "readwrite allows get command",
+			command:     "kubectl get pods",
+			accessLevel: k8ssecurity.AccessLevelReadWrite,
+			expectError: false,
+		},
+		{
+			name:        "readwrite allows delete command",
+			command:     "kubectl delete pod mypod",
+			accessLevel: k8ssecurity.AccessLevelReadWrite,
+			expectError: false,
+		},
+		{
+			name:        "readwrite allows apply command",
+			command:     "kubectl apply -f deployment.yaml",
+			accessLevel: k8ssecurity.AccessLevelReadWrite,
+			expectError: false,
+		},
+		{
+			name:        "readwrite rejects drain command",
+			command:     "kubectl drain node1",
+			accessLevel: k8ssecurity.AccessLevelReadWrite,
+			expectError: true,
+			errorMsg:    "security validation failed",
+		},
+		{
+			name:        "readwrite rejects cordon command",
+			command:     "kubectl cordon node1",
+			accessLevel: k8ssecurity.AccessLevelReadWrite,
+			expectError: true,
+			errorMsg:    "security validation failed",
+		},
+		{
+			name:        "admin allows get command",
+			command:     "kubectl get pods",
+			accessLevel: k8ssecurity.AccessLevelAdmin,
+			expectError: false,
+		},
+		{
+			name:        "admin allows delete command",
+			command:     "kubectl delete pod mypod",
+			accessLevel: k8ssecurity.AccessLevelAdmin,
+			expectError: false,
+		},
+		{
+			name:        "admin allows drain command",
+			command:     "kubectl drain node1",
+			accessLevel: k8ssecurity.AccessLevelAdmin,
+			expectError: false,
+		},
+		{
+			name:        "admin allows cordon command",
+			command:     "kubectl cordon node1",
+			accessLevel: k8ssecurity.AccessLevelAdmin,
+			expectError: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			secConfig := k8ssecurity.NewSecurityConfig()
+			secConfig.AccessLevel = tc.accessLevel
+			cfg := &k8sconfig.ConfigData{
+				SecurityConfig: secConfig,
+			}
+
+			err := executor.validateCommand(tc.command, cfg)
+
+			if tc.expectError {
+				if err == nil {
+					t.Errorf("Expected error containing '%s', got nil", tc.errorMsg)
+				} else if !containsError(err.Error(), tc.errorMsg) {
+					t.Errorf("Expected error containing '%s', got '%s'", tc.errorMsg, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Expected no error, got: %v", err)
+				}
+			}
+		})
+	}
+}
+
+// Test validateCommand with namespace restrictions
+func TestValidateCommand_NamespaceRestrictions(t *testing.T) {
+	executor := &RunCommandExecutor{}
+
+	testCases := []struct {
+		name              string
+		command           string
+		allowedNamespaces string
+		expectError       bool
+		errorMsg          string
+	}{
+		{
+			name:              "no namespace restriction allows any namespace",
+			command:           "kubectl get pods -n kube-system",
+			allowedNamespaces: "",
+			expectError:       false,
+		},
+		{
+			name:              "namespace restriction allows specified namespace",
+			command:           "kubectl get pods -n default",
+			allowedNamespaces: "default,kube-system",
+			expectError:       false,
+		},
+		{
+			name:              "namespace restriction rejects non-allowed namespace",
+			command:           "kubectl get pods -n forbidden",
+			allowedNamespaces: "default,kube-system",
+			expectError:       true,
+			errorMsg:          "security validation failed",
+		},
+		{
+			name:              "namespace restriction allows all listed namespaces",
+			command:           "kubectl get pods -n kube-system",
+			allowedNamespaces: "default,kube-system",
+			expectError:       false,
+		},
+		{
+			name:              "namespace restriction with --namespace flag",
+			command:           "kubectl get pods --namespace=production",
+			allowedNamespaces: "default,production",
+			expectError:       false,
+		},
+		{
+			name:              "namespace restriction rejects --all-namespaces",
+			command:           "kubectl get pods --all-namespaces",
+			allowedNamespaces: "default",
+			expectError:       true,
+			errorMsg:          "security validation failed",
+		},
+		{
+			name:              "namespace restriction rejects -A flag",
+			command:           "kubectl get pods -A",
+			allowedNamespaces: "default",
+			expectError:       true,
+			errorMsg:          "security validation failed",
+		},
+		{
+			name:              "no restriction allows --all-namespaces",
+			command:           "kubectl get pods --all-namespaces",
+			allowedNamespaces: "",
+			expectError:       false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			secConfig := k8ssecurity.NewSecurityConfig()
+			secConfig.AccessLevel = k8ssecurity.AccessLevelReadOnly
+			secConfig.SetAllowedNamespaces(tc.allowedNamespaces)
+			cfg := &k8sconfig.ConfigData{
+				SecurityConfig: secConfig,
+			}
+
+			err := executor.validateCommand(tc.command, cfg)
+
+			if tc.expectError {
+				if err == nil {
+					t.Errorf("Expected error containing '%s', got nil", tc.errorMsg)
+				} else if !containsError(err.Error(), tc.errorMsg) {
+					t.Errorf("Expected error containing '%s', got '%s'", tc.errorMsg, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Expected no error, got: %v", err)
+				}
+			}
+		})
+	}
+}
+
+// Test validateCommand with combined access level and namespace restrictions
+func TestValidateCommand_Combined(t *testing.T) {
+	executor := &RunCommandExecutor{}
+
+	testCases := []struct {
+		name              string
+		command           string
+		accessLevel       k8ssecurity.AccessLevel
+		allowedNamespaces string
+		expectError       bool
+		errorMsg          string
+	}{
+		{
+			name:              "readonly with namespace restriction allows allowed read operation",
+			command:           "kubectl get pods -n default",
+			accessLevel:       k8ssecurity.AccessLevelReadOnly,
+			allowedNamespaces: "default",
+			expectError:       false,
+		},
+		{
+			name:              "readonly with namespace restriction rejects write in allowed namespace",
+			command:           "kubectl delete pod mypod -n default",
+			accessLevel:       k8ssecurity.AccessLevelReadOnly,
+			allowedNamespaces: "default",
+			expectError:       true,
+			errorMsg:          "security validation failed",
+		},
+		{
+			name:              "readonly with namespace restriction rejects read in forbidden namespace",
+			command:           "kubectl get pods -n kube-system",
+			accessLevel:       k8ssecurity.AccessLevelReadOnly,
+			allowedNamespaces: "default",
+			expectError:       true,
+			errorMsg:          "security validation failed",
+		},
+		{
+			name:              "readwrite with namespace restriction allows write in allowed namespace",
+			command:           "kubectl delete pod mypod -n production",
+			accessLevel:       k8ssecurity.AccessLevelReadWrite,
+			allowedNamespaces: "production,staging",
+			expectError:       false,
+		},
+		{
+			name:              "readwrite with namespace restriction rejects write in forbidden namespace",
+			command:           "kubectl delete pod mypod -n forbidden",
+			accessLevel:       k8ssecurity.AccessLevelReadWrite,
+			allowedNamespaces: "production,staging",
+			expectError:       true,
+			errorMsg:          "security validation failed",
+		},
+		{
+			name:              "admin with namespace restriction allows admin operation in allowed namespace",
+			command:           "kubectl drain node1",
+			accessLevel:       k8ssecurity.AccessLevelAdmin,
+			allowedNamespaces: "default",
+			expectError:       false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			secConfig := k8ssecurity.NewSecurityConfig()
+			secConfig.AccessLevel = tc.accessLevel
+			secConfig.SetAllowedNamespaces(tc.allowedNamespaces)
+			cfg := &k8sconfig.ConfigData{
+				SecurityConfig: secConfig,
+			}
+
+			err := executor.validateCommand(tc.command, cfg)
+
+			if tc.expectError {
+				if err == nil {
+					t.Errorf("Expected error containing '%s', got nil", tc.errorMsg)
+				} else if !containsError(err.Error(), tc.errorMsg) {
+					t.Errorf("Expected error containing '%s', got '%s'", tc.errorMsg, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Expected no error, got: %v", err)
+				}
+			}
+		})
+	}
 }
