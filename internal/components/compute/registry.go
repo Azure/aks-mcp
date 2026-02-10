@@ -39,7 +39,7 @@ func RegisterCollectAKSNodeLogsTool() mcp.Tool {
 			"Collect kubelet, containerd, kernel (dmesg), or syslog logs from AKS node using VMSS run command. "+
 				"Useful for debugging node-level issues. Supports filtering by time range and log level. "+
 				"IMPORTANT: Only ONE run command can execute at a time per VMSS instance - wait for completion before running another command on the same instance. "+
-				"To get vmss_name and instance_id from kubectl: use 'kubectl get nodes -o json' and parse spec.providerID "+
+				"To get vmss_name and instance_id for a specific node A, use 'kubectl get node A -o json' and parse .spec.providerID "+
 				"(format: azure:///.../virtualMachineScaleSets/{vmss_name}/virtualMachines/{instance_id}).",
 		),
 		mcp.WithTitleAnnotation("Collect AKS Node Logs"),
