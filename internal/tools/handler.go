@@ -65,6 +65,43 @@ func CreateToolHandler(executor CommandExecutor, cfg *config.ConfigData) func(ct
 	}
 }
 
+// CreateToolHandlerWithName creates an adapter that injects the tool name into params for executors that need it
+func CreateToolHandlerWithName(executor CommandExecutor, cfg *config.ConfigData, toolName string) func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		logToolCall(req.Params.Name, req.Params.Arguments)
+
+		args, ok := req.Params.Arguments.(map[string]interface{})
+		if !ok {
+			err := fmt.Errorf("arguments must be a map[string]interface{}, got %T", req.Params.Arguments)
+			// Track failed tool invocation
+			if cfg.TelemetryService != nil {
+				cfg.TelemetryService.TrackToolInvocation(ctx, req.Params.Name, "", false)
+			}
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+
+		// Inject the tool name into the arguments
+		args["_tool_name"] = toolName
+
+		result, err := executor.Execute(ctx, args, cfg)
+		if cfg.TelemetryService != nil {
+			cfg.TelemetryService.TrackToolInvocation(ctx, req.Params.Name, getOperationValue(args), err == nil)
+		}
+
+		logToolResult(req.Params.Name, result, err)
+
+		if err != nil {
+			// Include command output (often stderr) in the error for context
+			if result != "" {
+				return mcp.NewToolResultError(fmt.Sprintf("%s\n%s", err.Error(), result)), nil
+			}
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+
+		return mcp.NewToolResultText(result), nil
+	}
+}
+
 // CreateResourceHandler creates an adapter that converts ResourceHandler to the format expected by MCP server
 func CreateResourceHandler(handler ResourceHandler, cfg *config.ConfigData) func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {

@@ -183,6 +183,37 @@ Unified tool for Azure monitoring and diagnostics operations for AKS clusters.
 
 - Get detailed VMSS configuration for node pools in the AKS cluster
 
+**Tool:** `collect_aks_node_logs`
+
+Collect system logs from AKS VMSS nodes for debugging and troubleshooting.
+
+**Parameters:**
+- `aks_resource_id`: AKS cluster resource ID
+- `vmss_name`: VMSS name (obtain from `get_aks_vmss_info` or `kubectl get nodes`)
+- `instance_id`: VMSS instance ID
+- `log_type`: Type of logs to collect (`kubelet`, `containerd`, `kernel`, `syslog`)
+- `lines`: Number of recent log lines to return (default: 500, max: 2000)
+- `since`: Time range for logs (e.g., `1h`, `30m`, `2d`) - takes precedence over `lines`
+- `level`: Log level filter (`ERROR`, `WARN`, `INFO`)
+- `filter`: Filter logs by keyword (case-insensitive text match)
+
+**Example Usage:**
+```json
+{
+  "aks_resource_id": "/subscriptions/.../managedClusters/myAKS",
+  "vmss_name": "aks-nodepool1-12345678-vmss",
+  "instance_id": "0",
+  "log_type": "kubelet",
+  "since": "1h",
+  "level": "ERROR",
+  "filter": "ImagePullBackOff"
+}
+```
+
+**Limitations:**
+- Only supports Linux VMSS nodes (Windows nodes and standalone VMs are not supported yet)
+- Only one run command can execute at a time per VMSS instance
+
 **Tool:** `az_compute_operations`
 
 Unified tool for managing Azure Virtual Machines (VMs) and Virtual Machine Scale Sets (VMSS) used by AKS.

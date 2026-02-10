@@ -544,7 +544,8 @@ func (s *Service) registerKubectlComponent() {
 	for _, tool := range kubectlTools {
 		logger.Debugf("Registering kubectl tool: %s", tool.Name)
 		// Create a handler that uses our wrapped executor
-		handler := tools.CreateToolHandler(wrappedExecutor, s.cfg)
+		// Use CreateToolHandlerWithName to inject the tool name for KubectlToolExecutor
+		handler := tools.CreateToolHandlerWithName(wrappedExecutor, s.cfg, tool.Name)
 		s.mcpServer.AddTool(tool, handler)
 	}
 }
@@ -635,6 +636,11 @@ func (s *Service) registerComputeComponent() {
 	logger.Debugf("Registering compute tool: get_aks_vmss_info")
 	vmssInfoTool := compute.RegisterAKSVMSSInfoTool()
 	s.mcpServer.AddTool(vmssInfoTool, tools.CreateResourceHandler(compute.GetAKSVMSSInfoHandler(s.azClient, s.cfg), s.cfg))
+
+	// Register AKS node logs collection tool
+	logger.Debugf("Registering compute tool: collect_aks_node_logs")
+	nodeLogsTool := compute.RegisterCollectAKSNodeLogsTool()
+	s.mcpServer.AddTool(nodeLogsTool, tools.CreateResourceHandler(compute.CollectAKSNodeLogsHandler(s.azClient, s.cfg), s.cfg))
 
 	// Register unified compute operations tool (only if using legacy tools)
 	if s.cfg.UseLegacyTools {
