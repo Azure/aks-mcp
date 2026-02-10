@@ -13,6 +13,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2"
 	k8sconfig "github.com/Azure/mcp-kubernetes/pkg/config"
+	k8ssecurity "github.com/Azure/mcp-kubernetes/pkg/security"
 )
 
 type RunCommandExecutor struct{}
@@ -81,6 +82,11 @@ func (e *RunCommandExecutor) Execute(ctx context.Context, params map[string]inte
 		return "", fmt.Errorf("failed to build command: %w", err)
 	}
 
+	// Validate command against security configuration
+	if err := e.validateCommand(command, cfg); err != nil {
+		return "", err
+	}
+
 	logger.Debugf("RunCommandExecutor: Command to execute: %s in cluster %s/%s", command, reqCtx.ResourceGroup, reqCtx.ClusterName)
 
 	cred := azureclient.NewStaticTokenCredential(reqCtx.AzureToken)
@@ -134,4 +140,20 @@ func (e *RunCommandExecutor) buildCommand(params map[string]interface{}) (string
 		return "", fmt.Errorf("command parameter is required")
 	}
 	return cmd, nil
+}
+
+// validateCommand validates the kubectl command against security configuration
+func (e *RunCommandExecutor) validateCommand(command string, cfg *k8sconfig.ConfigData) error {
+	// Create validator with security config
+	validator := k8ssecurity.NewValidator(cfg.SecurityConfig)
+
+	// Remove "kubectl " prefix if present, as validator expects command without binary name
+	fullCommand := strings.TrimPrefix(command, "kubectl ")
+
+	// Validate command (includes both access level and namespace validation)
+	if err := validator.ValidateCommand(fullCommand, k8ssecurity.CommandTypeKubectl); err != nil {
+		return fmt.Errorf("security validation failed: %w", err)
+	}
+
+	return nil
 }
