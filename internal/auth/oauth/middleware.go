@@ -168,9 +168,9 @@ func (m *AuthMiddleware) authenticateRequest(r *http.Request) *auth.AuthResult {
 		}
 	}
 
-	// Validate required scopes - strict enforcement for security
-	if !m.validateScopes(tokenInfo.Scope) {
-		logger.Errorf("SCOPE ERROR: Token scopes %v don't match required scopes %v", tokenInfo.Scope, m.provider.config.RequiredScopes)
+	// Validate required scopes - supports both user tokens (scp) and MI/SPN tokens (roles or audience-based)
+	if !m.validateScopesWithAudience(tokenInfo) {
+		logger.Errorf("SCOPE ERROR: Token scopes %v don't match required scopes %v (audience: %v)", tokenInfo.Scope, m.provider.config.RequiredScopes, tokenInfo.Audience)
 		return &auth.AuthResult{
 			Authenticated: false,
 			Error:         "insufficient scope",
@@ -202,6 +202,39 @@ func (m *AuthMiddleware) validateScopes(tokenScopes []string) bool {
 	return false
 }
 
+// validateScopesWithAudience checks scopes considering the token's audience
+// This handles Managed Identity tokens that may not have scp/roles but have correct audience
+func (m *AuthMiddleware) validateScopesWithAudience(tokenInfo *auth.TokenInfo) bool {
+	requiredScopes := m.provider.config.RequiredScopes
+	if len(requiredScopes) == 0 {
+		return true // No scopes required
+	}
+
+	// First try standard scope validation
+	if m.validateScopes(tokenInfo.Scope) {
+		return true
+	}
+
+	// For Managed Identity / Service Principal tokens:
+	// If the audience matches the required resource and token is valid, allow access
+	// MI tokens for https://management.azure.com often have empty scp/roles
+	for _, required := range requiredScopes {
+		// Extract resource from scope (e.g., "https://management.azure.com" from "https://management.azure.com/.default")
+		resource := strings.TrimSuffix(required, "/.default")
+		resource = strings.TrimSuffix(resource, "/")
+
+		for _, aud := range tokenInfo.Audience {
+			normalizedAud := strings.TrimSuffix(aud, "/")
+			if normalizedAud == resource {
+				logger.Debugf("Scope validation: accepting token with matching audience %s for resource %s (MI/SPN token)", aud, resource)
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 // hasScopePermission checks if the token scopes satisfy the required scope
 func (m *AuthMiddleware) hasScopePermission(requiredScope string, tokenScopes []string) bool {
 	// Direct scope match
@@ -212,13 +245,22 @@ func (m *AuthMiddleware) hasScopePermission(requiredScope string, tokenScopes []
 	}
 
 	// Azure resource scope mapping
+	// Maps required scopes to acceptable token claims (both 'scp' and 'roles')
 	azureResourceMappings := map[string][]string{
 		"https://management.azure.com/.default": {
+			// User delegated scopes (scp claim)
 			"user_impersonation",
 			"https://management.azure.com/user_impersonation",
 			"https://management.azure.com/.default",
 			"https://management.core.windows.net/",
 			"https://management.azure.com/",
+			// Application roles for Service Principals / Managed Identities (roles claim)
+			// When an MI has RBAC roles on Azure, the token includes these
+			"Reader",
+			"Contributor",
+			"Owner",
+			// Azure AD may also return the resource URL as a role
+			"https://management.azure.com",
 		},
 		"https://graph.microsoft.com/.default": {
 			"User.Read",
