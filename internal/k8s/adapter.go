@@ -60,19 +60,29 @@ func ConvertConfig(cfg *config.ConfigData) *k8sconfig.ConfigData {
 
 // WrapK8sExecutor makes an mcp-kubernetes CommandExecutor
 // compatible with the aks-mcp tools.CommandExecutor interface.
-func WrapK8sExecutor(k8sExecutor k8stools.CommandExecutor) tools.CommandExecutor {
-	return &executorAdapter{k8sExecutor: k8sExecutor}
+func WrapK8sExecutor(k8sExecutor k8stools.CommandExecutor, tokenAuthOnly bool) tools.CommandExecutor {
+	return &executorAdapter{
+		k8sExecutor:        k8sExecutor,
+		runCommandExecutor: NewRunCommandExecutor(),
+		tokenAuthOnly:      tokenAuthOnly,
+	}
 }
 
 // executorAdapter bridges aks-mcp execution to mcp-kubernetes.
 // Unexported; behavior is defined by the wrapped executor.
 type executorAdapter struct {
-	k8sExecutor k8stools.CommandExecutor
+	k8sExecutor        k8stools.CommandExecutor
+	runCommandExecutor *RunCommandExecutor
+	tokenAuthOnly      bool
 }
 
 // Execute adapts aks-mcp execution by converting its config
-// and delegating to the wrapped mcp-kubernetes executor.
+// and delegating to the wrapped mcp-kubernetes executor or RunCommand executor.
 func (a *executorAdapter) Execute(ctx context.Context, params map[string]interface{}, cfg *config.ConfigData) (string, error) {
+	if a.tokenAuthOnly {
+		k8sCfg := ConvertConfig(cfg)
+		return a.runCommandExecutor.Execute(ctx, params, k8sCfg)
+	}
 	k8sCfg := ConvertConfig(cfg)
 	return a.k8sExecutor.Execute(ctx, params, k8sCfg)
 }

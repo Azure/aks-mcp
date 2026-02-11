@@ -10,6 +10,7 @@ import (
 	"github.com/Azure/aks-mcp/internal/azcli"
 	"github.com/Azure/aks-mcp/internal/azureclient"
 	"github.com/Azure/aks-mcp/internal/config"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2"
 )
 
@@ -31,6 +32,32 @@ func ExtractAKSParameters(params map[string]interface{}) (subscriptionID, resour
 	}
 
 	return subID, rg, clusterNameParam, nil
+}
+
+// ExtractAKSParametersFromResourceID extracts and validates AKS parameters from aks_resource_id
+func ExtractAKSParametersFromResourceID(params map[string]interface{}) (subscriptionID, resourceGroup, clusterName string, err error) {
+	aksResourceID, ok := params["aks_resource_id"].(string)
+	if !ok || aksResourceID == "" {
+		return "", "", "", fmt.Errorf("missing or invalid aks_resource_id parameter")
+	}
+
+	// Parse Azure Resource ID: /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.ContainerService/managedClusters/{cluster}
+	resourceID, err := arm.ParseResourceID(aksResourceID)
+	if err != nil {
+		return "", "", "", fmt.Errorf("failed to parse aks_resource_id: %w", err)
+	}
+
+	if resourceID.SubscriptionID == "" {
+		return "", "", "", fmt.Errorf("subscription_id not found in aks_resource_id")
+	}
+	if resourceID.ResourceGroupName == "" {
+		return "", "", "", fmt.Errorf("resource_group not found in aks_resource_id")
+	}
+	if resourceID.Name == "" {
+		return "", "", "", fmt.Errorf("cluster_name not found in aks_resource_id")
+	}
+
+	return resourceID.SubscriptionID, resourceID.ResourceGroupName, resourceID.Name, nil
 }
 
 // GetClusterDetails gets the details of an AKS cluster

@@ -21,7 +21,8 @@ func NewClient() (*Client, error) {
 	k8sExecutor := kubectl.NewExecutor()
 
 	// Wrap it using the adapter to work with aks-mcp config
-	wrappedExecutor := k8s.WrapK8sExecutor(k8sExecutor)
+	// Fleet operations don't support token-only authentication mode yet (always use local kubeconfig)
+	wrappedExecutor := k8s.WrapK8sExecutor(k8sExecutor, false)
 
 	return &Client{
 		executor: wrappedExecutor,

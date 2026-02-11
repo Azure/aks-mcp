@@ -142,7 +142,7 @@ Unified tool for managing Azure Kubernetes Service (AKS) clusters and related op
 <details>
 <summary>Network Resource Management</summary>
 
-**Tool:** `az_network_resources`
+**Tool:** `aks_network_resources`
 
 Unified tool for getting Azure network resource information used by AKS clusters.
 
@@ -161,7 +161,7 @@ Unified tool for getting Azure network resource information used by AKS clusters
 <details>
 <summary>Monitoring and Diagnostics</summary>
 
-**Tool:** `az_monitoring`
+**Tool:** `aks_monitoring`
 
 Unified tool for Azure monitoring and diagnostics operations for AKS clusters.
 
@@ -182,6 +182,37 @@ Unified tool for Azure monitoring and diagnostics operations for AKS clusters.
 **Tool:** `get_aks_vmss_info`
 
 - Get detailed VMSS configuration for node pools in the AKS cluster
+
+**Tool:** `collect_aks_node_logs`
+
+Collect system logs from AKS VMSS nodes for debugging and troubleshooting.
+
+**Parameters:**
+- `aks_resource_id`: AKS cluster resource ID
+- `vmss_name`: VMSS name (obtain from `get_aks_vmss_info` or `kubectl get nodes`)
+- `instance_id`: VMSS instance ID
+- `log_type`: Type of logs to collect (`kubelet`, `containerd`, `kernel`, `syslog`)
+- `lines`: Number of recent log lines to return (default: 500, max: 2000)
+- `since`: Time range for logs (e.g., `1h`, `30m`, `2d`) - takes precedence over `lines`
+- `level`: Log level filter (`ERROR`, `WARN`, `INFO`)
+- `filter`: Filter logs by keyword (case-insensitive text match)
+
+**Example Usage:**
+```json
+{
+  "aks_resource_id": "/subscriptions/.../managedClusters/myAKS",
+  "vmss_name": "aks-nodepool1-12345678-vmss",
+  "instance_id": "0",
+  "log_type": "kubelet",
+  "since": "1h",
+  "level": "ERROR",
+  "filter": "ImagePullBackOff"
+}
+```
+
+**Limitations:**
+- Only supports Linux VMSS nodes (Windows nodes and standalone VMs are not supported yet)
+- Only one run command can execute at a time per VMSS instance
 
 **Tool:** `az_compute_operations`
 
@@ -224,27 +255,61 @@ CRD operations.
 <details>
 <summary>Diagnostic Detectors</summary>
 
-**Tool:** `list_detectors`
+**Tool:** `aks_detector`
 
-- List all available AKS cluster detectors
+Unified tool for executing AKS diagnostic detector operations.
 
-**Tool:** `run_detector`
+**Available Operations:**
 
-- Run a specific AKS diagnostic detector
+- `list`: List all available AKS cluster detectors
+- `run`: Run a specific AKS diagnostic detector
+- `run_by_category`: Run all detectors in a specific category
 
-**Tool:** `run_detectors_by_category`
+**Parameters:**
 
-- Run all detectors in a specific category
-- **Categories**: Best Practices, Cluster and Control Plane Availability and
-  Performance, Connectivity Issues, Create/Upgrade/Delete and Scale,
-  Deprecations, Identity and Security, Node Health, Storage
+- `operation` (required): Operation to perform (`list`, `run`, or `run_by_category`)
+- `aks_resource_id` (required): AKS cluster resource ID
+- `detector_name` (required for `run` operation): Name of the detector to run
+- `category` (required for `run_by_category` operation): Detector category
+- `start_time` (required for `run` and `run_by_category` operations): Start time in UTC ISO format (within last 30 days)
+- `end_time` (required for `run` and `run_by_category` operations): End time in UTC ISO format (within last 30 days, max 24h from start)
+
+**Available Categories:**
+
+- Best Practices
+- Cluster and Control Plane Availability and Performance
+- Connectivity Issues
+- Create, Upgrade, Delete and Scale
+- Deprecations
+- Identity and Security
+- Node Health
+- Storage
+
+**Example Usage:**
+
+```json
+{
+  "operation": "list",
+  "aks_resource_id": "/subscriptions/xxx/resourceGroups/xxx/providers/Microsoft.ContainerService/managedClusters/xxx"
+}
+```
+
+```json
+{
+  "operation": "run",
+  "aks_resource_id": "/subscriptions/xxx/resourceGroups/xxx/providers/Microsoft.ContainerService/managedClusters/xxx",
+  "detector_name": "node-health-detector",
+  "start_time": "2025-01-15T10:00:00Z",
+  "end_time": "2025-01-15T12:00:00Z"
+}
+```
 
 </details>
 
 <details>
 <summary>Azure Advisor</summary>
 
-**Tool:** `az_advisor_recommendation`
+**Tool:** `aks_advisor_recommendation`
 
 Retrieve and manage Azure Advisor recommendations for AKS clusters.
 
@@ -300,19 +365,19 @@ Unified tool for executing kubectl commands directly. This tool provides a flexi
 
 ### Helm
 
-**Tool:** `helm`
+**Tool:** `call_helm`
 
 Helm package manager for Kubernetes.
 
 ### Cilium
 
-**Tool:** `cilium`
+**Tool:** `call_cilium`
 
 Cilium CLI for eBPF-based networking and security.
 
 ### Hubble
 
-**Tool:** `hubble`
+**Tool:** `call_hubble`
 
 Hubble network observability for Cilium.
 
@@ -560,7 +625,7 @@ For a persistent configuration that works across all your VS Code workspaces, ad
 <details>
 <summary>Docker and Custom Client Installation</summary>
 
-For other MCP-compatible AI clients like [Claude Desktop](https://claude.ai/), configure the server in your MCP configuration:
+For other MCP-compatible AI clients like [Claude Desktop](https://claude.ai/) or [GitHub Copilot CLI](https://docs.github.com/en/copilot/concepts/agents/about-copilot-cli), configure the server in your MCP configuration:
 
 ```json
 {

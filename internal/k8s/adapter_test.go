@@ -154,7 +154,7 @@ func TestExecutorAdapter_DelegatesAndForwards(t *testing.T) {
 	t.Parallel()
 
 	fe := &fakeExecutor{out: "ok"}
-	adapter := WrapK8sExecutor(fe)
+	adapter := WrapK8sExecutor(fe, false)
 
 	params := map[string]interface{}{"k": "v"}
 	inCfg := &config.ConfigData{
@@ -191,7 +191,7 @@ func TestExecutorAdapter_PropagatesError(t *testing.T) {
 	t.Parallel()
 
 	fe := &fakeExecutor{err: errors.New("boom")}
-	adapter := WrapK8sExecutor(fe)
+	adapter := WrapK8sExecutor(fe, false)
 
 	_, err := adapter.Execute(context.Background(), map[string]interface{}{"x": 1}, &config.ConfigData{})
 	if err == nil {
@@ -210,7 +210,7 @@ func TestExecutorAdapter_PanicsOnNilConfig_CurrentBehavior(t *testing.T) {
 	}()
 
 	fe := &fakeExecutor{}
-	adapter := WrapK8sExecutor(fe)
+	adapter := WrapK8sExecutor(fe, false)
 	_, _ = adapter.Execute(context.Background(), map[string]interface{}{"x": 1}, nil)
 }
 

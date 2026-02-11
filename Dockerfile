@@ -119,6 +119,10 @@ EXPOSE 8000
 # Switch to non-root user
 USER mcp
 
+# Install Azure CLI extensions as mcp user
+RUN az extension add --name costmanagement --allow-preview true && \
+    az extension add --name application-insights --allow-preview true
+
 # Set environment variables
 # Use the system CA bundle which includes custom certs added via update-ca-certificates
 ENV HOME=/home/mcp \

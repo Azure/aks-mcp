@@ -1,10 +1,10 @@
 # Azure Advisor Tool for AKS-MCP - Usage Examples
 
-This document provides examples of how to use the newly implemented Azure Advisor tool (`az_advisor_recommendation`) in the AKS-MCP server.
+This document provides examples of how to use the newly implemented Azure Advisor tool (`aks_advisor_recommendation`) in the AKS-MCP server.
 
 ## Tool Overview
 
-The `az_advisor_recommendation` tool provides Azure Advisor recommendations specifically for AKS clusters and related resources. It supports three main operations:
+The `aks_advisor_recommendation` tool provides Azure Advisor recommendations specifically for AKS clusters and related resources. It supports three main operations:
 
 - **list**: Return AKS-related recommendations with basic details
 - **details**: Get comprehensive information for a specific recommendation

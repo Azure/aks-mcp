@@ -74,6 +74,11 @@ type ConfigData struct {
 	// Default is false (use new unified tools)
 	// This flag is provided for backward compatibility and may be removed in future versions
 	UseLegacyTools bool
+
+	// TokenAuthOnly enables token-only authentication mode for tools that support it
+	// When enabled, supported tools (e.g., kubectl) are executed via Azure AKS RunCommand API using user-provided tokens
+	// When disabled (default), tools are executed locally with default authentication (e.g., kubeconfig for Kubernetes tools)
+	TokenAuthOnly bool
 }
 
 // NewConfig creates and returns a new configuration instance
@@ -90,6 +95,7 @@ func NewConfig() *ConfigData {
 		AllowNamespaces:   "",
 		LogLevel:          "info",
 		UseLegacyTools:    os.Getenv("USE_LEGACY_TOOLS") == "true",
+		TokenAuthOnly:     false,
 	}
 }
 
@@ -124,6 +130,10 @@ func (cfg *ConfigData) ParseFlags() {
 	// Kubernetes namespaces configuration
 	flag.StringVar(&cfg.AllowNamespaces, "allow-namespaces", "",
 		"Comma-separated list of allowed Kubernetes namespaces (empty means all namespaces)")
+
+	// Token-only authentication configuration
+	flag.BoolVar(&cfg.TokenAuthOnly, "token-auth-only", false,
+		"Enable token-only authentication mode for supported tools (e.g., kubectl uses Azure AKS RunCommand API with user-provided tokens instead of local kubeconfig)")
 
 	// Logging settings
 	flag.StringVar(&cfg.LogLevel, "log-level", "info", "Log level (debug, info, warn, error)")
@@ -266,6 +276,16 @@ func (cfg *ConfigData) ValidateConfig() error {
 	// Validate OAuth + transport compatibility
 	if cfg.OAuthConfig.Enabled && cfg.Transport == "stdio" {
 		return fmt.Errorf("OAuth authentication is not supported with stdio transport per MCP specification")
+	}
+
+	// Validate token-only authentication + stdio transport compatibility
+	if cfg.TokenAuthOnly && cfg.Transport == "stdio" {
+		return fmt.Errorf("token-only authentication mode (--token-auth-only) is not supported with stdio transport, use sse or streamable-http instead")
+	}
+
+	// Validate token-only authentication + legacy tools compatibility
+	if cfg.TokenAuthOnly && cfg.UseLegacyTools {
+		return fmt.Errorf("token-only authentication mode (--token-auth-only) requires unified tools and is not compatible with legacy tools (USE_LEGACY_TOOLS=true)")
 	}
 
 	return nil

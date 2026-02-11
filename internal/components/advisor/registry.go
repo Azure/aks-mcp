@@ -6,10 +6,10 @@ import (
 
 // Advisory-related tool registrations
 
-// RegisterAdvisorRecommendationTool registers the az_advisor_recommendation tool
+// RegisterAdvisorRecommendationTool registers the aks_advisor_recommendation tool
 func RegisterAdvisorRecommendationTool() mcp.Tool {
 	return mcp.NewTool(
-		"az_advisor_recommendation",
+		"aks_advisor_recommendation",
 		mcp.WithDescription("Retrieve and manage Azure Advisor recommendations for AKS clusters"),
 		mcp.WithTitleAnnotation("Azure Advisor Recommendations"),
 		mcp.WithReadOnlyHintAnnotation(true),

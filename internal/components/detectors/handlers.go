@@ -16,43 +16,50 @@ import (
 // Detector-related Handlers
 // =============================================================================
 
-// GetListDetectorsHandler returns handler for list_detectors tool
-func GetListDetectorsHandler(azClient *azureclient.AzureClient, cfg *config.ConfigData) tools.ResourceHandler {
+// GetAksDetectorHandler returns handler for unified aks_detector tool
+func GetAksDetectorHandler(azClient *azureclient.AzureClient, cfg *config.ConfigData) tools.ResourceHandler {
 	return tools.ResourceHandlerFunc(func(ctx context.Context, params map[string]interface{}, _ *config.ConfigData) (string, error) {
-		return HandleListDetectors(ctx, params, NewDetectorClient(azClient))
+		return HandleAksDetector(ctx, params, NewDetectorClient(azClient))
 	})
 }
 
-// GetRunDetectorHandler returns handler for run_detector tool
-func GetRunDetectorHandler(azClient *azureclient.AzureClient, cfg *config.ConfigData) tools.ResourceHandler {
-	return tools.ResourceHandlerFunc(func(ctx context.Context, params map[string]interface{}, _ *config.ConfigData) (string, error) {
-		return HandleRunDetector(ctx, params, NewDetectorClient(azClient))
-	})
-}
+// HandleAksDetector is the main handler that routes to operation-specific handlers
+func HandleAksDetector(ctx context.Context, params map[string]interface{}, client *DetectorClient) (string, error) {
+	// Extract operation
+	operation, ok := params["operation"].(string)
+	if !ok || operation == "" {
+		return "", fmt.Errorf("missing or invalid operation parameter")
+	}
 
-// GetRunDetectorsByCategoryHandler returns handler for run_detectors_by_category tool
-func GetRunDetectorsByCategoryHandler(azClient *azureclient.AzureClient, cfg *config.ConfigData) tools.ResourceHandler {
-	return tools.ResourceHandlerFunc(func(ctx context.Context, params map[string]interface{}, _ *config.ConfigData) (string, error) {
-		return HandleRunDetectorsByCategory(ctx, params, NewDetectorClient(azClient))
-	})
+	// Route to appropriate handler based on operation
+	switch operation {
+	case "list":
+		return handleListOperation(ctx, params, client)
+	case "run":
+		return handleRunOperation(ctx, params, client)
+	case "run_by_category":
+		return handleRunByCategoryOperation(ctx, params, client)
+	default:
+		return "", fmt.Errorf("invalid operation '%s', must be one of: list, run, run_by_category", operation)
+	}
 }
 
 // =============================================================================
-// Handler Implementation Functions
+// Operation-specific Handler Functions
 // =============================================================================
 
-// HandleListDetectors implements the list_detectors functionality
-func HandleListDetectors(ctx context.Context, params map[string]interface{}, client *DetectorClient) (string, error) {
-	// Extract cluster resource ID
-	clusterResourceID, ok := params["cluster_resource_id"].(string)
-	if !ok || clusterResourceID == "" {
-		return "", fmt.Errorf("missing or invalid cluster_resource_id parameter")
+// handleListOperation implements the list detectors functionality
+func handleListOperation(ctx context.Context, params map[string]interface{}, client *DetectorClient) (string, error) {
+	// Extract AKS resource ID
+	aksResourceID, ok := params["aks_resource_id"].(string)
+	if !ok || aksResourceID == "" {
+		return "", fmt.Errorf("missing or invalid aks_resource_id parameter")
 	}
 
 	// Parse resource ID
-	subscriptionID, resourceGroup, clusterName, err := azureclient.ParseAKSResourceID(clusterResourceID)
+	subscriptionID, resourceGroup, clusterName, err := azureclient.ParseAKSResourceID(aksResourceID)
 	if err != nil {
-		return "", fmt.Errorf("failed to parse cluster resource ID: %v", err)
+		return "", fmt.Errorf("failed to parse AKS resource ID: %v", err)
 	}
 
 	// List detectors
@@ -70,12 +77,12 @@ func HandleListDetectors(ctx context.Context, params map[string]interface{}, cli
 	return string(resultJSON), nil
 }
 
-// HandleRunDetector implements the run_detector functionality
-func HandleRunDetector(ctx context.Context, params map[string]interface{}, client *DetectorClient) (string, error) {
-	// Extract cluster resource ID
-	clusterResourceID, ok := params["cluster_resource_id"].(string)
-	if !ok || clusterResourceID == "" {
-		return "", fmt.Errorf("missing or invalid cluster_resource_id parameter")
+// handleRunOperation implements the run single detector functionality
+func handleRunOperation(ctx context.Context, params map[string]interface{}, client *DetectorClient) (string, error) {
+	// Extract AKS resource ID
+	aksResourceID, ok := params["aks_resource_id"].(string)
+	if !ok || aksResourceID == "" {
+		return "", fmt.Errorf("missing or invalid aks_resource_id parameter")
 	}
 
 	// Extract detector name
@@ -102,9 +109,9 @@ func HandleRunDetector(ctx context.Context, params map[string]interface{}, clien
 	}
 
 	// Parse resource ID
-	subscriptionID, resourceGroup, clusterName, err := azureclient.ParseAKSResourceID(clusterResourceID)
+	subscriptionID, resourceGroup, clusterName, err := azureclient.ParseAKSResourceID(aksResourceID)
 	if err != nil {
-		return "", fmt.Errorf("failed to parse cluster resource ID: %v", err)
+		return "", fmt.Errorf("failed to parse AKS resource ID: %v", err)
 	}
 
 	// Run detector
@@ -122,12 +129,12 @@ func HandleRunDetector(ctx context.Context, params map[string]interface{}, clien
 	return string(resultJSON), nil
 }
 
-// HandleRunDetectorsByCategory implements the run_detectors_by_category functionality
-func HandleRunDetectorsByCategory(ctx context.Context, params map[string]interface{}, client *DetectorClient) (string, error) {
-	// Extract cluster resource ID
-	clusterResourceID, ok := params["cluster_resource_id"].(string)
-	if !ok || clusterResourceID == "" {
-		return "", fmt.Errorf("missing or invalid cluster_resource_id parameter")
+// handleRunByCategoryOperation implements the run detectors by category functionality
+func handleRunByCategoryOperation(ctx context.Context, params map[string]interface{}, client *DetectorClient) (string, error) {
+	// Extract AKS resource ID
+	aksResourceID, ok := params["aks_resource_id"].(string)
+	if !ok || aksResourceID == "" {
+		return "", fmt.Errorf("missing or invalid aks_resource_id parameter")
 	}
 
 	// Extract category
@@ -159,9 +166,9 @@ func HandleRunDetectorsByCategory(ctx context.Context, params map[string]interfa
 	}
 
 	// Parse resource ID
-	subscriptionID, resourceGroup, clusterName, err := azureclient.ParseAKSResourceID(clusterResourceID)
+	subscriptionID, resourceGroup, clusterName, err := azureclient.ParseAKSResourceID(aksResourceID)
 	if err != nil {
-		return "", fmt.Errorf("failed to parse cluster resource ID: %v", err)
+		return "", fmt.Errorf("failed to parse AKS resource ID: %v", err)
 	}
 
 	// Run detectors by category

@@ -74,10 +74,11 @@ jobs:
           az account show
 
       - name: Authenticate to MCR
+        id: mcr-auth
         run: |
           MCR_REGISTRY=$(echo "${{ secrets.AKS_MCP_MCR_REGISTRY }}" | tr '[:upper:]' '[:lower:]')
           az acr login -n ${{ secrets.AKS_MCP_MCR_REGISTRY }}
-          echo "MCR_REGISTRY_LOWER=${MCR_REGISTRY}" >> $GITHUB_ENV
+          echo "registry=${MCR_REGISTRY}" >> "$GITHUB_OUTPUT"
 
       - name: Authenticate to GHCR
         run: |
@@ -100,58 +101,64 @@ jobs:
         run: |
           GHCR_IMAGE="${{ steps.version.outputs.ghcr_image }}"
           VERSION="${{ steps.version.outputs.version }}"
-          MCR_REGISTRY="${{ env.MCR_REGISTRY_LOWER }}"
-          MCR_IMAGE="${MCR_REGISTRY}.azurecr.io/public/aks/aks-mcp"
+          MCR_REGISTRY="${{ steps.mcr-auth.outputs.registry }}"
+          MCR_INTERNAL_IMAGE="${MCR_REGISTRY}.azurecr.io/public/aks/aks-mcp"
+          MCR_PUBLIC_IMAGE="mcr.microsoft.com/aks/aks-mcp"
 
-          # Tag with version
-          echo "Tagging image for MCR: ${MCR_IMAGE}:${VERSION}"
-          docker tag ${GHCR_IMAGE} ${MCR_IMAGE}:${VERSION}
+          # Tag and push (suppress output to avoid exposing internal registry)
+          docker tag ${GHCR_IMAGE} ${MCR_INTERNAL_IMAGE}:${VERSION}
+          docker tag ${GHCR_IMAGE} ${MCR_INTERNAL_IMAGE}:latest
+          docker push ${MCR_INTERNAL_IMAGE}:${VERSION} > /dev/null 2>&1
+          docker push ${MCR_INTERNAL_IMAGE}:latest > /dev/null 2>&1
 
-          # Also tag as latest
-          echo "Tagging image for MCR: ${MCR_IMAGE}:latest"
-          docker tag ${GHCR_IMAGE} ${MCR_IMAGE}:latest
-
-          # Push version tag
-          echo "Pushing ${MCR_IMAGE}:${VERSION}"
-          docker push ${MCR_IMAGE}:${VERSION}
-
-          # Push latest tag
-          echo "Pushing ${MCR_IMAGE}:latest"
-          docker push ${MCR_IMAGE}:latest
-
-          echo "mcr_image=${MCR_IMAGE}:${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "Successfully pushed to MCR"
+          # Output the public MCR image for display (not the internal registry)
+          echo "mcr_image=${MCR_PUBLIC_IMAGE}:${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "mcr_internal_image=${MCR_INTERNAL_IMAGE}:${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Successfully pushed to mcr.microsoft.com/aks/aks-mcp:${VERSION}"
 
       - name: Verify image consistency
         id: verify
         run: |
-          GHCR_IMAGE_ID="${{ steps.pull.outputs.ghcr_image_id }}"
-          MCR_IMAGE="${{ steps.push.outputs.mcr_image }}"
+          GHCR_IMAGE="${{ steps.version.outputs.ghcr_image }}"
+          MCR_INTERNAL_IMAGE="${{ steps.push.outputs.mcr_internal_image }}"
+          MCR_PUBLIC_IMAGE="${{ steps.push.outputs.mcr_image }}"
 
-          # Pull the MCR image to get its Image ID
-          docker pull ${MCR_IMAGE}
-          MCR_IMAGE_ID=$(docker inspect ${MCR_IMAGE} --format='{{.Id}}')
+          # Pull and inspect (suppress output to avoid exposing internal registry)
+          docker pull ${MCR_INTERNAL_IMAGE} > /dev/null 2>&1
+          MCR_IMAGE_ID=$(docker inspect ${MCR_INTERNAL_IMAGE} --format='{{.Id}}')
 
-          echo "GHCR Image ID: ${GHCR_IMAGE_ID}"
-          echo "MCR Image ID:  ${MCR_IMAGE_ID}"
+          echo "Source: ${GHCR_IMAGE}"
+          echo "Published: ${MCR_PUBLIC_IMAGE}"
+          echo "Image ID: ${MCR_IMAGE_ID}"
 
-          if [ "${GHCR_IMAGE_ID}" = "${MCR_IMAGE_ID}" ]; then
-            echo "✅ Image verification PASSED - Images are identical"
+          # Get and compare layer information (more reliable than Image ID)
+          GHCR_LAYERS=$(docker inspect ${GHCR_IMAGE} --format='{{range .RootFS.Layers}}{{println .}}{{end}}' | sort)
+          MCR_LAYERS=$(docker inspect ${MCR_INTERNAL_IMAGE} --format='{{range .RootFS.Layers}}{{println .}}{{end}}' | sort)
+
+          echo ""
+          echo "=== Layer Verification ==="
+          GHCR_LAYER_COUNT=$(echo "${GHCR_LAYERS}" | wc -l)
+          MCR_LAYER_COUNT=$(echo "${MCR_LAYERS}" | wc -l)
+          echo "GHCR Layer Count: ${GHCR_LAYER_COUNT}"
+          echo "MCR Layer Count: ${MCR_LAYER_COUNT}"
+
+          if [ "${GHCR_LAYERS}" = "${MCR_LAYERS}" ]; then
+            echo "✅ Image verification PASSED - All layers are identical"
             echo "image_id=${MCR_IMAGE_ID}" >> "$GITHUB_OUTPUT"
           else
-            echo "❌ Image verification FAILED - Images differ!"
-            echo "GHCR Image ID: ${GHCR_IMAGE_ID}"
-            echo "MCR Image ID:  ${MCR_IMAGE_ID}"
+            echo "❌ Image verification FAILED - Layers differ!"
+            echo ""
+            echo "GHCR Layers:"
+            echo "${GHCR_LAYERS}"
+            echo ""
+            echo "MCR Layers:"
+            echo "${MCR_LAYERS}"
             exit 1
           fi
 
-          # Also show the manifest digests for reference
-          GHCR_IMAGE="${{ steps.version.outputs.ghcr_image }}"
-          GHCR_DIGEST=$(docker inspect ${GHCR_IMAGE} --format='{{index .RepoDigests 0}}')
-          MCR_DIGEST=$(docker inspect ${MCR_IMAGE} --format='{{index .RepoDigests 0}}')
-          echo "Note: Manifest digests may differ (this is expected for multi-arch images)"
-          echo "GHCR Manifest: ${GHCR_DIGEST}"
-          echo "MCR Manifest:  ${MCR_DIGEST}"
+          # Verification complete
+          echo ""
+          echo "✅ Image layers verified successfully"
 
       - name: Summary
         run: |
