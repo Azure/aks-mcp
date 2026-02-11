@@ -51,11 +51,14 @@ func (c *helmClient) InstallChart(chartUrl, releaseName, namespace string) (stri
 	install := action.NewInstall(actionCfg)
 	install.ReleaseName = releaseName
 	install.Namespace = namespace
-	install.CreateNamespace = true
+	// Don't create the namespace if it already exists.
+	install.CreateNamespace = getPodNamespace() == ""
 	install.Wait = true
 	install.Timeout = 5 * time.Minute
 
 	setting := cli.New()
+	// Use /tmp for the cache to avoid permission issues when running in a pod.
+	setting.RepositoryCache = "/tmp/helm/repository/.cache"
 	chartPath, err := install.LocateChart(chartUrl, setting)
 	if err != nil {
 		return "", fmt.Errorf("locating chart: %w", err)
