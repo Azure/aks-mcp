@@ -37,7 +37,7 @@ func (c *AzureClient) MakeDetectorAPICall(ctx context.Context, url string, subsc
 	req.Header.Set("User-Agent", "AKS-MCP")
 
 	// Make the request
-	resp, err := client.Do(req)
+	resp, err := client.Do(req) // #nosec G704 -- URL is constructed from validated Azure resource ID
 	if err != nil {
 		return nil, fmt.Errorf("failed to make request: %v", err)
 	}
