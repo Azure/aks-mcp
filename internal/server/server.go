@@ -262,7 +262,7 @@ func (s *Service) createCustomHTTPServerWithHelp404(addr string) *http.Server {
 
 			// Add OAuth endpoints to the response if enabled
 			if s.cfg.OAuthConfig.Enabled {
-				oauthEndpoints := map[string]string{
+				oauthEndpoints := map[string]string{ // #nosec G101 -- These are endpoint descriptions, not credentials
 					"oauth-metadata":       "GET /.well-known/oauth-protected-resource - OAuth metadata",
 					"auth-server-metadata": "GET /.well-known/oauth-authorization-server - Authorization server metadata",
 					"client-registration":  "POST /oauth/register - Dynamic client registration",
@@ -341,7 +341,7 @@ func (s *Service) createCustomSSEServerWithHelp404(sseServer *server.SSEServer, 
 					"note":     "Include 'Authorization: Bearer <token>' header for authenticated endpoints",
 				}
 
-				oauthEndpoints := map[string]string{
+				oauthEndpoints := map[string]string{ // #nosec G101 -- These are endpoint descriptions, not credentials
 					"oauth-metadata":       "GET /.well-known/oauth-protected-resource - OAuth metadata",
 					"auth-server-metadata": "GET /.well-known/oauth-authorization-server - Authorization server metadata",
 					"client-registration":  "POST /oauth/register - Dynamic client registration",

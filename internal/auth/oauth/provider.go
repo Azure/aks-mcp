@@ -111,7 +111,7 @@ func (p *AzureOAuthProvider) GetAuthorizationServerMetadata(serverURL string) (*
 	metadataURL := fmt.Sprintf("https://login.microsoftonline.com/%s/v2.0/.well-known/openid-configuration", p.config.TenantID)
 	logger.Debugf("OAuth DEBUG: Fetching Azure AD metadata from: %s", metadataURL)
 
-	resp, err := p.httpClient.Get(metadataURL)
+	resp, err := p.httpClient.Get(metadataURL) // #nosec G704 -- URL is constructed from validated Azure AD tenant ID
 	if err != nil {
 		logger.Errorf("OAuth ERROR: Failed to fetch metadata from %s: %v", metadataURL, err)
 		return nil, fmt.Errorf("failed to fetch metadata from %s: %w", metadataURL, err)
