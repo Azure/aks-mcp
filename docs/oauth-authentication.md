@@ -10,11 +10,61 @@ AKS-MCP now supports OAuth 2.1 authentication using Azure Active Directory as th
 
 - **Azure AD Integration**: Uses Azure Active Directory as the OAuth authorization server
 - **JWT Token Validation**: Validates JWT tokens with Azure AD signing keys
+- **Multiple Authentication Methods**: Supports user tokens, Managed Identity (MI), and Service Principal (SPN) authentication
 - **OAuth 2.0 Metadata Endpoints**: Provides standard OAuth metadata discovery endpoints
 - **Dynamic Client Registration**: Supports RFC 7591 dynamic client registration
 - **Token Introspection**: Implements RFC 7662 token introspection
 - **Transport Support**: Works with both SSE and HTTP Streamable transports
 - **Flexible Configuration**: Supports environment variables and command-line configuration
+
+## Managed Identity and Service Principal Support
+
+AKS-MCP supports authentication from Managed Identities and Service Principals, enabling automated access from CI/CD pipelines, Azure services, and machine-to-machine scenarios.
+
+### Token Validation for MI/SPN
+
+MI and SPN tokens differ from user tokens - they may have empty `scp` claims. AKS-MCP validates these tokens by:
+
+1. Checking standard scopes (`scp` claim)
+2. Checking application roles (`roles` claim: Reader, Contributor, Owner)
+3. Falling back to audience validation for MI tokens with empty claims
+
+### Example: GitHub Actions with Azure OIDC
+
+```yaml
+jobs:
+  call-mcp:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      
+      - name: Call MCP Server
+        run: |
+          TOKEN=$(az account get-access-token --resource https://management.azure.com/ --query accessToken -o tsv)
+          curl -X POST https://your-mcp-server/mcp \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{"jsonrpc":"2.0","method":"tools/list","id":1}'
+```
+
+### Example: Azure VM with Managed Identity
+
+```bash
+TOKEN=$(curl -s 'http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://management.azure.com/' \
+  -H 'Metadata: true' | jq -r '.access_token')
+
+curl -X POST https://your-mcp-server/mcp \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"tools/list","id":1}'
+```
 
 ## Environment Setup and Azure AD Configuration
 
