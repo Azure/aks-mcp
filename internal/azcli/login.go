@@ -97,7 +97,7 @@ func EnsureAzCliLoginWithProc(proc Proc, cfg *config.ConfigData) (string, error)
 		}
 
 		// Open the only allowed federated token file (fixed path, safe)
-		f, err := os.Open(validatedPath) // #nosec G304 -- validated fixed path, not user-controlled
+		f, err := os.Open(validatedPath) // #nosec G304,G703 -- validated fixed path, not user-controlled
 		if err != nil {
 			return "", fmt.Errorf("failed to open federated token file %s: %w", validatedPath, err)
 		}

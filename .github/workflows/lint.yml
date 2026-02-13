@@ -15,12 +15,12 @@ jobs:
   golangci:
     strategy:
       matrix:
-        go: [stable]
+        go: ['1.25']
         os: [ubuntu-latest, macos-latest, windows-latest]
     name: lint
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6.0.2
       - uses: actions/setup-go@v6
         with:
           go-version: ${{ matrix.go }}
@@ -28,4 +28,4 @@ jobs:
         uses: golangci/golangci-lint-action@v9
         with:
           args: --build-tags "withoutebpf"
-          version: v2.1
+          version: latest

@@ -66,7 +66,7 @@ spec:%s
 	if err != nil {
 		return "", fmt.Errorf("failed to create temp file: %w", err)
 	}
-	defer func() { _ = os.Remove(tempFile.Name()) }()
+	defer func() { _ = os.Remove(tempFile.Name()) }() // #nosec G703 -- temp file created by CreateTemp is safe
 
 	if _, err := tempFile.WriteString(manifest); err != nil {
 		_ = tempFile.Close()

@@ -52,7 +52,7 @@ type TokenValidationConfig struct {
 // TokenInfo represents validated token information
 type TokenInfo struct {
 	// Access token
-	AccessToken string `json:"access_token"`
+	AccessToken string `json:"access_token"` // #nosec G117 -- Standard OAuth2 field name
 
 	// Token type (usually "Bearer")
 	TokenType string `json:"token_type"`
