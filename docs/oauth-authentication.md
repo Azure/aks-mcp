@@ -270,18 +270,175 @@ curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8000/mcp
 - `--oauth-client-id`: Azure AD client ID (or use AZURE_CLIENT_ID env var)
 - `--oauth-redirects`: Comma-separated list of allowed redirect URIs (required when OAuth enabled)
 - `--oauth-cors-origins`: Comma-separated list of allowed CORS origins for OAuth endpoints (e.g. http://localhost:6274 for MCP Inspector). If empty, no cross-origin requests are allowed for security
+- `--oauth-scopes`: Comma-separated list of OAuth scopes to require (e.g., `api://your-app-id/.default`). If empty, defaults to `https://management.azure.com/.default`
 
-**Note**: OAuth scopes are automatically configured to use `https://management.azure.com/.default` for optimal Azure AD compatibility. Custom scopes are not currently configurable via command line.
+## Restricted Scope Authentication (Assignment Required)
+
+By default, AKS-MCP validates tokens issued for `https://management.azure.com/.default`. This means **any authenticated Azure AD user** can access your MCP server.
+
+To restrict access to only users/identities explicitly assigned to your application, use the `--oauth-scopes` flag with a custom Application ID URI scope.
+
+### Why Use Restricted Scopes?
+
+| Scenario | Default Scope | Custom App ID URI Scope |
+|----------|--------------|------------------------|
+| Audience | `https://management.azure.com` | `api://your-app-id` |
+| Who can access | Any Azure AD user | Only assigned users/groups/SPNs |
+| Azure AD "Assignment Required" | Not enforced | Enforced |
+| Token request | `az account get-access-token --resource https://management.azure.com/` | `az account get-access-token --resource api://your-app-id/` |
+
+### Step 1: Configure Azure AD Application for Restricted Access
+
+1. **Set Application ID URI**
+   ```
+   Azure Portal → App registrations → [Your App] → Expose an API → Set Application ID URI
+   ```
+   - Set to: `api://<your-client-id>` (e.g., `api://12345678-1234-1234-1234-123456789012`)
+
+2. **Add a Scope** (required for user tokens)
+   ```
+   Azure Portal → App registrations → [Your App] → Expose an API → Add a scope
+   ```
+   - Scope name: `access_as_user`
+   - Who can consent: Admins and users
+   - Admin consent display name: "Access MCP Server"
+   - Admin consent description: "Allows access to the MCP server"
+
+3. **Enable Assignment Required**
+   ```
+   Azure Portal → Enterprise applications → [Your App] → Properties
+   ```
+   - Set **Assignment required?** to **Yes**
+
+4. **Assign Users/Groups/Service Principals**
+   ```
+   Azure Portal → Enterprise applications → [Your App] → Users and groups → Add user/group
+   ```
+   - Add users, groups, or service principals that should have access
+
+5. **Pre-authorize Azure CLI** (required for `az account get-access-token`)
+   ```
+   Azure Portal → App registrations → [Your App] → Expose an API → Add a client application
+   ```
+   - Client ID: `04b07795-8ddb-461a-bbee-02f9e1bf7b46` (Azure CLI)
+   - Authorized scopes: Select your `access_as_user` scope
+
+### Step 2: Start AKS-MCP with Custom Scope
+
+```bash
+# Using custom App ID URI scope for restricted access
+./aks-mcp \
+  --transport=streamable-http \
+  --port=8000 \
+  --oauth-enabled \
+  --oauth-tenant-id="$AZURE_TENANT_ID" \
+  --oauth-client-id="$AZURE_CLIENT_ID" \
+  --oauth-scopes="api://$AZURE_CLIENT_ID/.default" \
+  --oauth-redirects="http://localhost:8000/oauth/callback" \
+  --access-level=readonly
+```
+
+### Step 3: Request Token with Custom Scope
+
+**User authentication (Azure CLI):**
+```bash
+# Request token for your custom App ID URI
+TOKEN=$(az account get-access-token --resource "api://<your-client-id>" --query accessToken -o tsv)
+
+# Call MCP server
+curl -X POST http://localhost:8000/mcp \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"tools/list","id":1}'
+```
+
+**Managed Identity / Service Principal:**
+```bash
+# Using Azure CLI with MI
+TOKEN=$(az account get-access-token --resource "api://<your-client-id>" --query accessToken -o tsv)
+
+# Using IMDS (Azure VM)
+TOKEN=$(curl -s 'http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=api://<your-client-id>' \
+  -H 'Metadata: true' | jq -r '.access_token')
+```
+
+### Helm Chart Configuration
+
+```yaml
+# values.yaml
+oauth:
+  enabled: true
+  tenantId: "your-tenant-id"
+  clientId: "your-client-id"
+  # Restrict to only assigned users/SPNs
+  scopes:
+    - "api://your-client-id/.default"
+  redirectURIs:
+    - "http://localhost:8000/oauth/callback"
+```
+
+### GitHub Actions with Restricted Scope
+
+```yaml
+jobs:
+  call-mcp:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      MCP_SERVER_URL: ${{ vars.MCP_SERVER_URL }}
+      MCP_SCOPE: "api://${{ secrets.AZURE_CLIENT_ID }}/.default"
+    steps:
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      
+      - name: Call MCP Server
+        run: |
+          # Request token for custom scope
+          TOKEN=$(az account get-access-token --resource "${MCP_SCOPE%/.default}" --query accessToken -o tsv)
+          curl -X POST "$MCP_SERVER_URL/mcp" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{"jsonrpc":"2.0","method":"tools/list","id":1}'
+```
+
+### Token Validation Behavior
+
+When `--oauth-scopes` is set to a custom App ID URI scope, AKS-MCP validates:
+
+1. **Token audience** - Must match the resource (e.g., `api://your-app-id`)
+2. **Scopes/Roles** - Checks for:
+   - User scopes (`scp` claim): `access_as_user`, `user_impersonation`
+   - App roles (`roles` claim): `Reader`, `Contributor`, `Owner`, `Admin`
+3. **Fallback** - For MI tokens with empty claims, validates audience match
+
+### Troubleshooting Restricted Scopes
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| `AADSTS650057` | Application ID URI not configured | Set Application ID URI in App Registration |
+| `AADSTS65001` | User not assigned to application | Add user in Enterprise Applications → Users and groups |
+| `AADSTS700016` | Azure CLI not pre-authorized | Add Azure CLI (`04b07795-8ddb-461a-bbee-02f9e1bf7b46`) as authorized client |
+| `insufficient scope` | Token missing required scopes | Ensure user has app role assigned, or scope is defined |
 
 ### Example with Command Line Flags
 
 ```bash
+# Default scope (any Azure AD user)
 ./aks-mcp --transport=sse --oauth-enabled=true \
   --oauth-tenant-id="12345678-1234-1234-1234-123456789012" \
   --oauth-client-id="87654321-4321-4321-4321-210987654321"
-```
 
-**Note**: Scopes are automatically set to `https://management.azure.com/.default` and cannot be customized via command line.
+# Restricted scope (only assigned users/SPNs)
+./aks-mcp --transport=streamable-http --oauth-enabled=true \
+  --oauth-tenant-id="12345678-1234-1234-1234-123456789012" \
+  --oauth-client-id="87654321-4321-4321-4321-210987654321" \
+  --oauth-scopes="api://87654321-4321-4321-4321-210987654321/.default"
+```
 
 ## OAuth Endpoints
 
