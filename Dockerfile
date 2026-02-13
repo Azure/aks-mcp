@@ -1,17 +1,12 @@
 # Linux Dockerfile for aks-mcp
 # Build stage
-FROM docker.artifactory.platform.manulife.io/golang:1.25-alpine AS builder
+FROM golang:1.25-alpine AS builder
 ARG TARGETOS=linux
 ARG TARGETARCH
 ARG VERSION
 ARG GIT_COMMIT
 ARG BUILD_DATE
 ARG GIT_TREE_STATE
-
-# Install CA certificates and update trust store in builder
-RUN apk add --no-cache ca-certificates
-COPY ./common/certs/*.crt /usr/local/share/ca-certificates/
-RUN cat /usr/local/share/ca-certificates/*.crt >> /etc/ssl/certs/ca-certificates.crt
 
 # Set working directory
 WORKDIR /app
@@ -36,30 +31,15 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
     -o aks-mcp ./cmd/aks-mcp
 
 # Runtime stage
-FROM docker.artifactory.platform.manulife.io/alpine:3.23
+FROM alpine:3.23
 ARG TARGETARCH
 
-# Copy Manulife private CA certificates FIRST before any network calls
-# This must happen before apk commands since they need to trust the proxy/registry certs
-COPY ./common/certs/*.crt /usr/local/share/ca-certificates/
-RUN cat /etc/ssl/certs/ca-certificates.crt > /tmp/ca-bundle.crt && \
-    cat /usr/local/share/ca-certificates/*.crt >> /tmp/ca-bundle.crt && \
-    cp /tmp/ca-bundle.crt /etc/ssl/certs/ca-certificates.crt && \
-    rm /tmp/ca-bundle.crt
-
-# Now apk can work - install ca-certificates package to get update-ca-certificates tool
-RUN apk add --no-cache ca-certificates && \
-    chmod 644 /usr/local/share/ca-certificates/*.crt && \
-    update-ca-certificates
-
-
 # Install required packages for kubectl and helm, plus build tools for Azure CLI
-RUN apk add --no-cache curl bash openssl git python3 py3-pip \
-    gcc python3-dev musl-dev linux-headers unzip
+RUN apk add --no-cache curl bash openssl ca-certificates git python3 py3-pip \
+    gcc python3-dev musl-dev linux-headers
 
-# Install kubectl (pinned version for reliability)
-RUN KUBECTL_VERSION="v1.33.5" && \
-    curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${TARGETARCH}/kubectl" && \
+# Install kubectl
+RUN echo $TARGETARCH; curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/${TARGETARCH}/kubectl" && \
     chmod +x kubectl && \
     mv kubectl /usr/local/bin/kubectl
 
@@ -124,12 +104,8 @@ RUN az extension add --name costmanagement --allow-preview true && \
     az extension add --name application-insights --allow-preview true
 
 # Set environment variables
-# Use the system CA bundle which includes custom certs added via update-ca-certificates
 ENV HOME=/home/mcp \
-    KUBECONFIG=/home/mcp/.kube/config \
-    REQUESTS_CA_BUNDLE="/etc/ssl/certs/ca-certificates.crt" \
-    SSL_CERT_FILE="/etc/ssl/certs/ca-certificates.crt" \
-    CURL_CA_BUNDLE="/etc/ssl/certs/ca-certificates.crt"
+    KUBECONFIG=/home/mcp/.kube/config
 
 # Command to run
 ENTRYPOINT ["/usr/local/bin/aks-mcp"]
