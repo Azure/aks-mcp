@@ -58,6 +58,35 @@ helm install my-aks-mcp . \
   --set azure.subscriptionId=your-subscription-id
 ```
 
+### OAuth with Custom Scope (Assignment Required)
+
+To restrict access to only assigned users/identities using Azure AD's "Assignment Required" feature, use a custom App ID URI scope:
+
+```bash
+# First, configure your Azure AD app with an Application ID URI:
+# Azure Portal → App registrations → [Your App] → Expose an API → Add Application ID URI
+# Set to: api://<your-client-id>
+
+# Then deploy with custom scope
+helm install my-aks-mcp . \
+  --set app.accessLevel=readonly \
+  --set oauth.enabled=true \
+  --set oauth.tenantId=your-tenant-id \
+  --set oauth.clientId=your-oauth-client-id \
+  --set oauth.scopes[0]="api://your-oauth-client-id/.default" \
+  --set azure.subscriptionId=your-subscription-id
+```
+
+**Important:** When using custom scopes, clients must request tokens for your app specifically:
+```bash
+# User authentication
+az account get-access-token --resource api://your-oauth-client-id --query accessToken -o tsv
+
+# Managed Identity (from Azure VM/AKS)
+curl -s 'http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=api://your-oauth-client-id' \
+  -H 'Metadata: true' | jq -r '.access_token'
+```
+
 ### Using Existing Secret for Azure Credentials
 ```bash
 # Create secret first

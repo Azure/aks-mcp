@@ -12,7 +12,7 @@ func TestBasicOAuthConfig(t *testing.T) {
 	cfg.OAuthConfig.ClientID = "87654321-4321-4321-4321-cba987654321"
 
 	// Parse OAuth configuration
-	if err := cfg.parseOAuthConfig("", ""); err != nil {
+	if err := cfg.parseOAuthConfig("", "", ""); err != nil {
 		t.Fatalf("Unexpected error in parseOAuthConfig: %v", err)
 	}
 
@@ -37,7 +37,7 @@ func TestOAuthRedirectURIsConfig(t *testing.T) {
 
 	// Test with additional redirect URIs
 	additionalRedirectURIs := "http://localhost:6274/oauth/callback,http://localhost:8080/oauth/callback"
-	if err := cfg.parseOAuthConfig(additionalRedirectURIs, ""); err != nil {
+	if err := cfg.parseOAuthConfig(additionalRedirectURIs, "", ""); err != nil {
 		t.Fatalf("Unexpected error in parseOAuthConfig: %v", err)
 	}
 
@@ -74,7 +74,7 @@ func TestOAuthRedirectURIsEmptyAdditional(t *testing.T) {
 	cfg.Port = 8081
 
 	// Test with empty additional redirect URIs
-	if err := cfg.parseOAuthConfig("", ""); err != nil {
+	if err := cfg.parseOAuthConfig("", "", ""); err != nil {
 		t.Fatalf("Unexpected error in parseOAuthConfig: %v", err)
 	}
 
@@ -215,10 +215,79 @@ func TestOAuthGUIDValidation(t *testing.T) {
 			cfg.Host = "127.0.0.1"
 			cfg.Port = 8081
 
-			err := cfg.parseOAuthConfig("", "")
+			err := cfg.parseOAuthConfig("", "", "")
 			if (err != nil) != tt.wantErr {
 				t.Errorf("parseOAuthConfig() error = %v, wantErr %v", err, tt.wantErr)
 				return
+			}
+		})
+	}
+}
+
+func TestOAuthScopesConfig(t *testing.T) {
+	tests := []struct {
+		name             string
+		oauthScopes      string
+		expectedScopes   []string
+		expectedAudience string
+	}{
+		{
+			name:             "empty scopes uses default",
+			oauthScopes:      "",
+			expectedScopes:   []string{"https://management.azure.com/.default"},
+			expectedAudience: "https://management.azure.com",
+		},
+		{
+			name:             "custom app id uri scope",
+			oauthScopes:      "api://12345678-1234-1234-1234-123456789abc/.default",
+			expectedScopes:   []string{"api://12345678-1234-1234-1234-123456789abc/.default"},
+			expectedAudience: "api://12345678-1234-1234-1234-123456789abc",
+		},
+		{
+			name:             "multiple custom scopes",
+			oauthScopes:      "api://my-app/.default,https://graph.microsoft.com/.default",
+			expectedScopes:   []string{"api://my-app/.default", "https://graph.microsoft.com/.default"},
+			expectedAudience: "api://my-app",
+		},
+		{
+			name:             "scope with trailing slash",
+			oauthScopes:      "api://my-app/",
+			expectedScopes:   []string{"api://my-app/"},
+			expectedAudience: "api://my-app",
+		},
+		{
+			name:             "scopes with whitespace trimmed",
+			oauthScopes:      " api://my-app/.default , https://management.azure.com/.default ",
+			expectedScopes:   []string{"api://my-app/.default", "https://management.azure.com/.default"},
+			expectedAudience: "api://my-app",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := NewConfig()
+			cfg.OAuthConfig.Enabled = true
+			cfg.Host = "127.0.0.1"
+			cfg.Port = 8081
+
+			err := cfg.parseOAuthConfig("", "", tt.oauthScopes)
+			if err != nil {
+				t.Fatalf("Unexpected error in parseOAuthConfig: %v", err)
+			}
+
+			// Verify scopes
+			if len(cfg.OAuthConfig.RequiredScopes) != len(tt.expectedScopes) {
+				t.Errorf("Expected %d scopes, got %d", len(tt.expectedScopes), len(cfg.OAuthConfig.RequiredScopes))
+			}
+			for i, expected := range tt.expectedScopes {
+				if i < len(cfg.OAuthConfig.RequiredScopes) && cfg.OAuthConfig.RequiredScopes[i] != expected {
+					t.Errorf("Expected scope '%s' at index %d, got '%s'", expected, i, cfg.OAuthConfig.RequiredScopes[i])
+				}
+			}
+
+			// Verify audience is updated for custom scopes
+			if tt.oauthScopes != "" && cfg.OAuthConfig.TokenValidation.ExpectedAudience != tt.expectedAudience {
+				t.Errorf("Expected audience '%s', got '%s'", tt.expectedAudience, cfg.OAuthConfig.TokenValidation.ExpectedAudience)
 			}
 		})
 	}

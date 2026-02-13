@@ -278,6 +278,33 @@ func (m *AuthMiddleware) hasScopePermission(requiredScope string, tokenScopes []
 		}
 	}
 
+	// For custom App ID URI scopes (e.g., api://my-app/.default):
+	// Accept tokens with app roles defined in the Enterprise Application
+	// Also accept common delegated scope patterns
+	if strings.HasPrefix(requiredScope, "api://") {
+		// Extract app ID from scope for logging
+		appResource := strings.TrimSuffix(requiredScope, "/.default")
+		
+		// Accept common app roles that may be assigned to users/SPNs in Enterprise Application
+		customAppRoles := []string{
+			"access_as_user",  // Common delegated scope
+			"user_impersonation",
+			"Reader",
+			"Contributor", 
+			"Owner",
+			"Admin",
+			"User",
+		}
+		for _, role := range customAppRoles {
+			for _, tokenScope := range tokenScopes {
+				if tokenScope == role {
+					logger.Debugf("Scope validation: accepting custom app scope %s with role %s for resource %s", tokenScope, role, appResource)
+					return true
+				}
+			}
+		}
+	}
+
 	return false
 }
 

@@ -56,8 +56,11 @@ This document describes the configuration parameters for the AKS-MCP Helm chart.
 | `oauth.enabled` | Enable OAuth authentication | `false` |
 | `oauth.tenantId` | Azure AD tenant ID for OAuth | `""` |
 | `oauth.clientId` | Azure AD client ID for OAuth | `""` |
+| `oauth.scopes` | Custom OAuth scopes (e.g., `["api://your-app-id/.default"]`). Use custom App ID URI scope to enforce "Assignment Required" in Azure AD. If empty, defaults to `https://management.azure.com/.default` | `[]` |
 | `oauth.redirectURIs` | Custom redirect URIs | `[]` |
 | `oauth.corsOrigins` | Custom CORS origins | `[]` |
+
+**Note:** See [oauth-authentication.md](./oauth-authentication.md) for detailed OAuth setup instructions, including how to configure restricted scope authentication.
 
 ### Ingress Configuration
 
