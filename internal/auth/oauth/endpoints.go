@@ -632,10 +632,10 @@ func (em *EndpointManager) callbackHandler() http.HandlerFunc {
 
 // TokenResponse represents the response from token exchange
 type TokenResponse struct {
-	AccessToken  string `json:"access_token"`
+	AccessToken  string `json:"access_token"` // #nosec G117 -- Standard OAuth2 field name
 	TokenType    string `json:"token_type"`
 	ExpiresIn    int    `json:"expires_in"`
-	RefreshToken string `json:"refresh_token,omitempty"`
+	RefreshToken string `json:"refresh_token,omitempty"` // #nosec G117 -- Standard OAuth2 field name
 	Scope        string `json:"scope,omitempty"`
 }
 
@@ -665,7 +665,7 @@ func (em *EndpointManager) exchangeCodeForToken(code, state string) (*TokenRespo
 	// For MCP compliance, we handle resource binding through audience validation
 
 	// Make token exchange request
-	resp, err := http.PostForm(tokenURL, data) // #nosec G107 -- URL is validated above
+	resp, err := http.PostForm(tokenURL, data) // #nosec G107,G704 -- URL is validated above
 	if err != nil {
 		return nil, fmt.Errorf("token exchange request failed: %w", err)
 	}
@@ -969,7 +969,7 @@ func (em *EndpointManager) exchangeCodeForTokenDirect(code, redirectURI, codeVer
 	logger.Debugf("Azure AD token request with scope: %s", scope)
 
 	// Make token exchange request to Azure AD
-	resp, err := http.PostForm(tokenURL, data) // #nosec G107 -- URL is validated above
+	resp, err := http.PostForm(tokenURL, data) // #nosec G107,G704 -- URL is validated above
 	if err != nil {
 		return nil, fmt.Errorf("token exchange request failed: %w", err)
 	}
