@@ -312,6 +312,59 @@ func TestServiceInitialization(t *testing.T) {
 	t.Logf("Service initialized successfully")
 }
 
+// TestServiceInitializationWithTokenAuthOnly tests service initialization with token-auth-only mode
+func TestServiceInitializationWithTokenAuthOnly(t *testing.T) {
+	// Set test environment variables (dummy values)
+	_ = os.Setenv("AZURE_TENANT_ID", "dummy-tenant-id")
+	_ = os.Setenv("AZURE_CLIENT_ID", "dummy-client-id")
+	_ = os.Setenv("AZURE_CLIENT_SECRET", "dummy-client-secret")
+	_ = os.Setenv("AZURE_SUBSCRIPTION_ID", "dummy-subscription-id")
+	defer func() {
+		_ = os.Unsetenv("AZURE_TENANT_ID")
+		_ = os.Unsetenv("AZURE_CLIENT_ID")
+		_ = os.Unsetenv("AZURE_CLIENT_SECRET")
+		_ = os.Unsetenv("AZURE_SUBSCRIPTION_ID")
+	}()
+
+	// Create config with token-auth-only enabled
+	cfg := createTestConfig("readonly", []string{})
+	cfg.TokenAuthOnly = true
+
+	// Track if az CLI login was attempted
+	azCliLoginAttempted := false
+	procFactory := func(timeout int) azcli.Proc {
+		azCliLoginAttempted = true
+		return &fakeProc{}
+	}
+
+	service := NewService(cfg, WithAzCliProcFactory(procFactory))
+
+	// Test service creation - must be non-nil
+	if service == nil {
+		t.Fatal("Service should not be nil")
+	}
+
+	// Test initialization
+	if err := service.Initialize(); err != nil {
+		t.Fatalf("Initialize should not return error: %v", err)
+	}
+
+	// Verify that Azure CLI login was NOT attempted in token-auth-only mode
+	if azCliLoginAttempted {
+		t.Error("Azure CLI login should not be attempted when token-auth-only mode is enabled")
+	}
+
+	// Test that infrastructure is initialized
+	if service.azClient == nil {
+		t.Error("Azure client should be initialized after Initialize()")
+	}
+	if service.mcpServer == nil {
+		t.Error("MCP server should be initialized after Initialize()")
+	}
+
+	t.Logf("Service initialized successfully with token-auth-only mode (skipped Azure CLI login)")
+}
+
 // TestExpectedToolsByAccessLevel provides detailed breakdown of expected tools
 func TestExpectedToolsByAccessLevel(t *testing.T) {
 	accessLevels := []string{"readonly", "readwrite", "admin"}

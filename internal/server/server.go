@@ -102,9 +102,12 @@ func (s *Service) initializeInfrastructure() error {
 	}
 
 	// Ensure Azure CLI exists and is logged in
+	// Skip this step if token-auth-only mode is enabled, as Azure CLI authentication is not required
 	// Allow service to start even if az CLI is not available or authentication fails
 	// Tools that require az will fail at runtime with appropriate error messages
-	if s.azcliProcFactory != nil {
+	if s.cfg.TokenAuthOnly {
+		logger.Infof("Token-only authentication mode enabled - skipping Azure CLI authentication")
+	} else if s.azcliProcFactory != nil {
 		// Use injected factory to create an azcli.Proc
 		proc := s.azcliProcFactory(s.cfg.Timeout)
 		if loginType, err := azcli.EnsureAzCliLoginWithProc(proc, s.cfg); err != nil {
