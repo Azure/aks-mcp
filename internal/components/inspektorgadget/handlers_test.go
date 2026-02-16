@@ -67,6 +67,8 @@ func (m *mockGadgetManager) GetVersion() (string, error) {
 	return m.version, nil
 }
 
+func (m *mockGadgetManager) SetRuntimeNamespace(namespace string) {}
+
 func TestInspektorGadgetHandler(t *testing.T) {
 	cfg := &config.ConfigData{}
 

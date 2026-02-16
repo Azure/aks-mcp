@@ -81,3 +81,5 @@ Can you capture network traffic for the pod my-pod in the default namespace for 
 IG_VERSION=$(curl -s https://api.github.com/repos/inspektor-gadget/inspektor-gadget/releases/latest | jq -r '.tag_name' | sed 's/^v//')
 helm install gadget --namespace=gadget --create-namespace oci://ghcr.io/inspektor-gadget/inspektor-gadget/charts/gadget --version=$IG_VERSION
 ```
+
+This is useful if you want to deploy the AKS-MCP server in the cluster.
