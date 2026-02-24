@@ -284,13 +284,13 @@ func (m *AuthMiddleware) hasScopePermission(requiredScope string, tokenScopes []
 	if strings.HasPrefix(requiredScope, "api://") {
 		// Extract app ID from scope for logging
 		appResource := strings.TrimSuffix(requiredScope, "/.default")
-		
+
 		// Accept common app roles that may be assigned to users/SPNs in Enterprise Application
 		customAppRoles := []string{
-			"access_as_user",  // Common delegated scope
+			"access_as_user", // Common delegated scope
 			"user_impersonation",
 			"Reader",
-			"Contributor", 
+			"Contributor",
 			"Owner",
 			"Admin",
 			"User",
