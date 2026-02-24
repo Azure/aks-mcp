@@ -25,7 +25,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-const maxResultLen = 64 * 1024 // 64kb
+const maxResultLen = 128 * 1024 // 128 KB
 
 var KubernetesFlags = genericclioptions.NewConfigFlags(false)
 
@@ -45,6 +45,8 @@ type GadgetManager interface {
 	IsDeployed(ctx context.Context) (bool, string, error)
 	// GetVersion retrieves the version of Inspektor Gadget installed in the cluster
 	GetVersion() (string, error)
+	// SetRuntimeNamespace sets the namespace for the gadget runtime
+	SetRuntimeNamespace(namespace string)
 }
 
 // GadgetInstance represents a running gadget instance
@@ -69,6 +71,7 @@ func NewGadgetManager() GadgetManager {
 
 type manager struct {
 	formatterMu sync.Mutex
+	namespace   string
 }
 
 // RunGadget runs a gadget with the specified image and parameters for a given duration
@@ -86,7 +89,7 @@ func (g *manager) RunGadget(ctx context.Context, image string, params map[string
 		gadgetcontext.WithTimeout(duration),
 	)
 
-	rt, err := getRuntime()
+	rt, err := g.getRuntime()
 	if err != nil {
 		return "", fmt.Errorf("getting runtime: %w", err)
 	}
@@ -186,7 +189,7 @@ func (g *manager) StartGadget(ctx context.Context, image string, params map[stri
 		image,
 	)
 
-	rt, err := getRuntime()
+	rt, err := g.getRuntime()
 	if err != nil {
 		return "", fmt.Errorf("getting runtime: %w", err)
 	}
@@ -219,7 +222,7 @@ func (g *manager) StartGadget(ctx context.Context, image string, params map[stri
 
 // StopGadget stops a running gadget by its ID
 func (g *manager) StopGadget(ctx context.Context, id string) error {
-	rt, err := getRuntime()
+	rt, err := g.getRuntime()
 	if err != nil {
 		return fmt.Errorf("getting runtime: %w", err)
 	}
@@ -250,7 +253,7 @@ func (g *manager) GetResults(ctx context.Context, id string) (string, error) {
 		gadgetcontext.WithTimeout(time.Second),
 	)
 
-	rt, err := getRuntime()
+	rt, err := g.getRuntime()
 	if err != nil {
 		return "", fmt.Errorf("getting runtime: %w", err)
 	}
@@ -264,7 +267,7 @@ func (g *manager) GetResults(ctx context.Context, id string) (string, error) {
 
 // ListGadgets lists all running gadgets and returns their instances
 func (g *manager) ListGadgets(ctx context.Context) ([]*GadgetInstance, error) {
-	rt, err := getRuntime()
+	rt, err := g.getRuntime()
 	if err != nil {
 		return nil, fmt.Errorf("getting runtime: %w", err)
 	}
@@ -312,13 +315,17 @@ func (g *manager) IsDeployed(ctx context.Context) (bool, string, error) {
 		}
 	}
 	if len(namespaces) > 1 {
+		// If there are multiple namespaces, prefer the one where the pod is running
+		if ns := getPodNamespace(); ns != "" && slices.Contains(namespaces, ns) {
+			return true, ns, nil
+		}
 		return false, "", fmt.Errorf("multiple namespaces found for Inspektor Gadget pods: %v", namespaces)
 	}
 	return true, namespaces[0], nil
 }
 
 func (g *manager) GetVersion() (string, error) {
-	rt, err := getRuntime()
+	rt, err := g.getRuntime()
 	if err != nil {
 		return "", fmt.Errorf("getting runtime: %w", err)
 	}
@@ -330,10 +337,21 @@ func (g *manager) GetVersion() (string, error) {
 	return info.ServerVersion, nil
 }
 
+func (g *manager) SetRuntimeNamespace(namespace string) {
+	g.namespace = namespace
+}
+
 // getRuntime sets up a runtime, ensuring we always use the latest kubeconfig
-func getRuntime() (*grpcruntime.Runtime, error) {
+func (g *manager) getRuntime() (*grpcruntime.Runtime, error) {
 	rt := grpcruntime.New(grpcruntime.WithConnectUsingK8SProxy)
-	if err := rt.Init(nil); err != nil {
+	rtGlobalParams := rt.GlobalParamDescs().ToParams()
+	if g.namespace != "" {
+		if err := rtGlobalParams.Set(grpcruntime.ParamGadgetNamespace, g.namespace); err != nil {
+			return nil, fmt.Errorf("setting gadget namespace: %w", err)
+		}
+	}
+
+	if err := rt.Init(rtGlobalParams); err != nil {
 		return nil, fmt.Errorf("initializing gadget runtime: %w", err)
 	}
 

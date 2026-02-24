@@ -87,6 +87,23 @@ func getLatestVersionFromGitHub() (string, error) {
 	return cachedGithubVersion, githubVersionError
 }
 
+// getPodNamespace returns the namespace in which the current pod is running.
+func getPodNamespace() string {
+	ns, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(ns))
+}
+
+// getChartNamespace returns the namespace in which the Inspektor Gadget Helm chart should be deployed
+func getChartNamespace() string {
+	if ns := getPodNamespace(); ns != "" {
+		return ns
+	}
+	return "gadget"
+}
+
 // gadgetInstanceFromAPI converts an API GadgetInstance to a GadgetInstance struct.
 func gadgetInstanceFromAPI(instance *api.GadgetInstance) *GadgetInstance {
 	if instance == nil {

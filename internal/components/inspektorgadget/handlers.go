@@ -34,13 +34,16 @@ func InspektorGadgetHandler(mgr GadgetManager, cfg *config.ConfigData) tools.Res
 		}
 
 		// Check if Inspektor Gadget is deployed
-		deployed, _, err := mgr.IsDeployed(ctx)
+		deployed, ns, err := mgr.IsDeployed(ctx)
 		if err != nil {
 			return "", fmt.Errorf("checking Inspektor Gadget deployment: %w", err)
 		}
 		if !deployed && !slices.Contains(getLifecycleActions(), action) {
 			return "", ErrNotDeployed
 		}
+
+		// Set namespace for runtime
+		mgr.SetRuntimeNamespace(ns)
 
 		// Initialize action/filter parameters if not provided
 		actionParams, ok := params["action_params"].(map[string]interface{})
@@ -223,17 +226,12 @@ func handleListGadgetsAction(ctx context.Context, mgr GadgetManager, cfg *config
 }
 
 func handleLifecycleAction(mgr GadgetManager, deployed bool, action string, actionParams map[string]interface{}, cfg *config.ConfigData) (string, error) {
-	// TODO: use security.Validator once helm readwrite/admin operations are implemented
-	if !cfg.SecurityConfig.IsNamespaceAllowed(inspektorGadgetChartNamespace) {
-		return "", fmt.Errorf("namespace %s is not allowed by security policy", inspektorGadgetChartNamespace)
-	}
-
 	con, ok := actionParams["confirm"].(bool)
 	if !ok {
 		con = false
 	}
 	if cfg.AccessLevel == "readonly" && action != isDeployedAction && !con {
-		return "", fmt.Errorf("confirmation required to deploy/upgrade/undeploy Inspektor Gadget when running server in 'readonly' mode. Note this will create/modify resources in the %s namespace. Should we proceed?", inspektorGadgetChartNamespace)
+		return "", fmt.Errorf("confirmation required to deploy/upgrade/undeploy Inspektor Gadget when running server in 'readonly' mode. Note this will create/modify resources in the %s namespace. Should we proceed?", getChartNamespace())
 	}
 
 	installedVersion, err := mgr.GetVersion()
@@ -285,7 +283,7 @@ func handleDeployAction(client HelmClient, actionParams map[string]interface{}) 
 		chartVersion = getChartVersion()
 	}
 	chartUrl := fmt.Sprintf("%s:%s", inspektorGadgetChartURL, chartVersion)
-	return client.InstallChart(chartUrl, inspektorGadgetChartRelease, inspektorGadgetChartNamespace)
+	return client.InstallChart(chartUrl, inspektorGadgetChartRelease, getChartNamespace())
 }
 
 func handleUndeployAction(client HelmClient) (string, error) {
@@ -294,11 +292,11 @@ func handleUndeployAction(client HelmClient) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("verifying release: %w", err)
 	}
-	return client.UninstallChart(inspektorGadgetChartRelease, inspektorGadgetChartNamespace)
+	return client.UninstallChart(inspektorGadgetChartRelease, getChartNamespace())
 }
 
 func verifyRelease(client HelmClient) error {
-	err := client.CheckRelease(inspektorGadgetChartRelease, inspektorGadgetChartNamespace)
+	err := client.CheckRelease(inspektorGadgetChartRelease, getChartNamespace())
 	if err != nil {
 		if strings.Contains(err.Error(), "release: not found") {
 			return fmt.Errorf("helm release %q not found. Did you manually deploy Inspektor Gadget?", inspektorGadgetChartRelease)
@@ -320,7 +318,7 @@ func handleUpgradeAction(client HelmClient, actionParams map[string]interface{})
 		chartVersion = getChartVersion()
 	}
 	chartUrl := fmt.Sprintf("%s:%s", inspektorGadgetChartURL, chartVersion)
-	return client.UpgradeChart(chartUrl, inspektorGadgetChartRelease, inspektorGadgetChartNamespace)
+	return client.UpgradeChart(chartUrl, inspektorGadgetChartRelease, getChartNamespace())
 }
 
 func prepareCommonParams(filterParams map[string]interface{}, cfg *config.ConfigData) (map[string]string, error) {
