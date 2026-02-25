@@ -164,22 +164,6 @@ To preserve resources for debugging:
 SKIP_CLEANUP=true ./cleanup.sh
 ```
 
-## Test Cases
-
-### get_aks_vmss_info
-
-Tests the `get_aks_vmss_info` tool which retrieves Virtual Machine Scale Set information for AKS node pools.
-
-**Test Scenarios:**
-1. Get VMSS info for all node pools (no `node_pool_name` specified)
-2. Get VMSS info for a specific node pool (if `NODE_POOL_NAME` env var is set)
-
-**Validation:**
-- Response is valid JSON
-- Contains required fields: `id`, `name`, `location`
-- VMSS ID is non-empty
-- For array responses, validates each VMSS object
-
 ## Project Structure
 
 ```
