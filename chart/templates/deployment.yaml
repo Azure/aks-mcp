@@ -63,6 +63,10 @@ spec:
             - "--oauth-client-id"
             - {{ .Values.oauth.clientId | quote }}
             {{- end }}
+            {{- if .Values.oauth.scopes }}
+            - "--oauth-scopes"
+            - {{ join "," .Values.oauth.scopes | quote }}
+            {{- end }}
             {{- $redirectURIs := include "aks-mcp.oauthRedirectURIs" . }}
             {{- if $redirectURIs }}
             - "--oauth-redirects"

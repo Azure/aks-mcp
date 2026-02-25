@@ -123,6 +123,10 @@ func (cfg *ConfigData) ParseFlags() {
 	allowedCORSOrigins := flag.String("oauth-cors-origins", "",
 		"Comma-separated list of allowed CORS origins for OAuth endpoints (e.g. http://localhost:6274). If empty, no cross-origin requests are allowed for security")
 
+	// OAuth scopes configuration
+	oauthScopes := flag.String("oauth-scopes", "",
+		"Comma-separated list of OAuth scopes to require (e.g. api://your-app-id/.default). If empty, defaults to https://management.azure.com/.default")
+
 	// Component configuration
 	enabledComponents := flag.String("enabled-components", "",
 		"Comma-separated list of enabled components (empty means all components enabled). Available: az_cli,monitor,fleet,network,compute,detectors,advisor,inspektorgadget,kubectl,helm,cilium,hubble")
@@ -174,7 +178,7 @@ func (cfg *ConfigData) ParseFlags() {
 	cfg.SecurityConfig.AllowedNamespaces = cfg.AllowNamespaces
 
 	// Parse OAuth configuration
-	if err := cfg.parseOAuthConfig(*additionalRedirectURIs, *allowedCORSOrigins); err != nil {
+	if err := cfg.parseOAuthConfig(*additionalRedirectURIs, *allowedCORSOrigins, *oauthScopes); err != nil {
 		fmt.Printf("OAuth configuration error: %v\n", err)
 		os.Exit(1)
 	}
@@ -192,9 +196,27 @@ func (cfg *ConfigData) ParseFlags() {
 }
 
 // parseOAuthConfig parses OAuth-related command line arguments
-func (cfg *ConfigData) parseOAuthConfig(additionalRedirectURIs, allowedCORSOrigins string) error {
-	// Note: OAuth scopes are automatically configured to use "https://management.azure.com/.default"
-	// and are not configurable via command line per design
+func (cfg *ConfigData) parseOAuthConfig(additionalRedirectURIs, allowedCORSOrigins, oauthScopes string) error {
+	// Parse custom OAuth scopes if provided
+	if oauthScopes != "" {
+		scopes := strings.Split(oauthScopes, ",")
+		cfg.OAuthConfig.RequiredScopes = []string{}
+		for _, scope := range scopes {
+			trimmedScope := strings.TrimSpace(scope)
+			if trimmedScope != "" {
+				cfg.OAuthConfig.RequiredScopes = append(cfg.OAuthConfig.RequiredScopes, trimmedScope)
+			}
+		}
+		// Update expected audience to match the custom scope resource
+		if len(cfg.OAuthConfig.RequiredScopes) > 0 {
+			// Extract audience from scope (e.g., "api://my-app" from "api://my-app/.default")
+			firstScope := cfg.OAuthConfig.RequiredScopes[0]
+			audience := strings.TrimSuffix(firstScope, "/.default")
+			audience = strings.TrimSuffix(audience, "/")
+			cfg.OAuthConfig.TokenValidation.ExpectedAudience = audience
+			logger.Infof("OAuth Config: Using custom scopes %v with audience %s", cfg.OAuthConfig.RequiredScopes, audience)
+		}
+	}
 
 	// Track configuration sources for logging
 	var tenantIDSource, clientIDSource string

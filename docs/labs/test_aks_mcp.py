@@ -55,9 +55,9 @@ async def test_aks_mcp(transport="stdio", host="localhost", port=8000):
         # Configure Azure OpenAI
         azure_openai = AzureChatCompletion(
             endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-            api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-            deployment_name=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4o"),
-            api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-08-01-preview")
+            api_key=os.getenv("GENAI_API_KEY"),
+            deployment_name=os.getenv("AZURE_OPENAI_MODEL", "gpt-5"),
+            api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2025-08-07")
         )
         
         kernel.add_service(azure_openai)
@@ -90,10 +90,17 @@ async def test_aks_mcp(transport="stdio", host="localhost", port=8000):
         elif transport == "streamable-http":
             print(f"🌐 Connecting to HTTP server at {host}:{port}")
             print(f"📡 URL: http://{host}:{port}/mcp")
-            mcp_plugin = MCPStreamableHttpPlugin(
-                name="AKSMCP",
-                url=f"http://{host}:{port}/mcp",
+            if port == 443:
+                print("💡 Using HTTPS for port 443")
+                mcp_plugin = MCPStreamableHttpPlugin(
+                    name="AKSMCP",
+                    url=f"https://{host}/mcp",
             )
+            else:
+                mcp_plugin = MCPStreamableHttpPlugin(
+                    name="AKSMCP",
+                    url=f"http://{host}:{port}/mcp",
+                )
             
         else:
             print(f"❌ Unsupported transport: {transport}")

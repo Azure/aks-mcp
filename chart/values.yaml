@@ -59,6 +59,10 @@ oauth:
   tenantId: ""
   # Azure AD client ID for OAuth (falls back to azure.clientId)
   clientId: ""
+  # Custom OAuth scopes (e.g., ["api://your-app-id/.default"])
+  # If empty, defaults to https://management.azure.com/.default
+  # Use custom App ID URI scope to enforce "Assignment Required" in Azure AD
+  scopes: []
   # Custom redirect URIs (auto-generated if empty)
   redirectURIs: []
   # Custom CORS origins (auto-generated if empty)
@@ -120,7 +124,7 @@ securityContext:
   runAsGroup: 1000
   capabilities:
     drop:
-    - ALL
+      - ALL
 
 service:
   type: ClusterIP
