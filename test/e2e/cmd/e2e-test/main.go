@@ -127,6 +127,24 @@ func main() {
 		})
 	}
 
+	// Test 3: Collect kubelet logs
+	testRunner.AddTest(&tests.CollectNodeLogsTest{
+		SubscriptionID: *subscriptionID,
+		ResourceGroup:  *resourceGroup,
+		ClusterName:    *clusterName,
+		LogType:        "kubelet",
+		Lines:          100, // Use fewer lines to speed up test
+	})
+
+	// Test 4: Collect containerd logs
+	testRunner.AddTest(&tests.CollectNodeLogsTest{
+		SubscriptionID: *subscriptionID,
+		ResourceGroup:  *resourceGroup,
+		ClusterName:    *clusterName,
+		LogType:        "containerd",
+		Lines:          100,
+	})
+
 	// Run all tests
 	fmt.Println("Starting test execution...")
 	results, err := testRunner.RunAll(ctx)

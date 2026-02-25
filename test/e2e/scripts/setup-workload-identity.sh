@@ -160,6 +160,15 @@ az role assignment create \
     --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$NODE_RESOURCE_GROUP" \
     --output none 2>/dev/null || echo "     (Role assignment may already exist)"
 
+# Assign Virtual Machine Contributor role on node resource group (for VMSS run command)
+echo "   - Assigning Virtual Machine Contributor role on node resource group (for run command)..."
+az role assignment create \
+    --role "Virtual Machine Contributor" \
+    --assignee-object-id "$PRINCIPAL_ID" \
+    --assignee-principal-type ServicePrincipal \
+    --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$NODE_RESOURCE_GROUP" \
+    --output none 2>/dev/null || echo "     (Role assignment may already exist)"
+
 echo "   ✅ RBAC roles assigned"
 echo ""
 
@@ -186,8 +195,10 @@ echo "    --set azure.clientId=$CLIENT_ID \\"
 echo "    --set azure.subscriptionId=$SUBSCRIPTION_ID \\"
 echo "    --set workloadIdentity.enabled=true \\"
 echo "    --set app.transport=streamable-http \\"
-echo "    --set app.accessLevel=readonly \\"
+echo "    --set app.accessLevel=readwrite \\"
 echo "    --set-json 'config.enabledComponents=[\"compute\",\"az_cli\",\"kubectl\"]'"
+echo ""
+echo "Note: accessLevel=readwrite is required for collect_aks_node_logs (VMSS run command)"
 echo ""
 echo "Verify federated credential:"
 echo "  az identity federated-credential list \\"

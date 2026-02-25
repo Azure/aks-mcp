@@ -80,7 +80,7 @@ helm install aks-mcp ./chart \
   --set azure.subscriptionId=$AZURE_SUBSCRIPTION_ID \
   --set workloadIdentity.enabled=true \
   --set app.transport=streamable-http \
-  --set app.accessLevel=readonly \
+  --set app.accessLevel=readwrite \
   --set app.logLevel=debug \
   --set-json 'config.enabledComponents=["compute","az_cli","kubectl"]'
 ```

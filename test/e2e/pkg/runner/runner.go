@@ -131,9 +131,9 @@ func PrintResults(results []TestResult, verbose bool) {
 					prettyJSON, _ := json.MarshalIndent(jsonData, "      ", "  ")
 					fmt.Printf("      %s\n", string(prettyJSON))
 				} else {
-					// Not JSON, print as-is (truncate if too long)
-					if len(result.ToolResult) > 500 {
-						fmt.Printf("      %s...(truncated)\n", result.ToolResult[:500])
+					// Not JSON, print as-is (show more for debugging, up to 2000 chars)
+					if len(result.ToolResult) > 2000 {
+						fmt.Printf("      %s...(truncated at 2000 chars)\n", result.ToolResult[:2000])
 					} else {
 						fmt.Printf("      %s\n", result.ToolResult)
 					}
@@ -150,9 +150,10 @@ func PrintResults(results []TestResult, verbose bool) {
 
 			// Print result even on failure in verbose mode
 			if verbose && result.ToolResult != "" {
-				fmt.Println("    Partial Result:")
-				if len(result.ToolResult) > 500 {
-					fmt.Printf("      %s...(truncated)\n", result.ToolResult[:500])
+				fmt.Println("    Full Error Response:")
+				// Show more content for errors (up to 2000 chars)
+				if len(result.ToolResult) > 2000 {
+					fmt.Printf("      %s...(truncated at 2000 chars)\n", result.ToolResult[:2000])
 				} else {
 					fmt.Printf("      %s\n", result.ToolResult)
 				}
