@@ -31,7 +31,7 @@ const (
 
 // CollectAKSNodeLogsHandler returns a handler for the collect_aks_node_logs tool
 func CollectAKSNodeLogsHandler(client *azureclient.AzureClient, cfg *config.ConfigData) tools.ResourceHandler {
-	return tools.ResourceHandlerFunc(func(ctx context.Context, params map[string]interface{}, _ *config.ConfigData) (string, error) {
+	return tools.ResourceHandlerFunc(func(ctx context.Context, params map[string]any, _ *config.ConfigData) (string, error) {
 		// Extract AKS resource parameters from aks_resource_id
 		subID, rg, clusterName, err := common.ExtractAKSParametersFromResourceID(params)
 		if err != nil {
@@ -339,11 +339,11 @@ func formatLogOutput(clusterName, rg, vmssName, instanceID, logType, output stri
 
 	// Add metadata header
 	result.WriteString("=== AKS Node Logs ===\n")
-	result.WriteString(fmt.Sprintf("Cluster: %s\n", clusterName))
-	result.WriteString(fmt.Sprintf("Resource Group: %s\n", rg))
-	result.WriteString(fmt.Sprintf("VMSS: %s\n", vmssName))
-	result.WriteString(fmt.Sprintf("Instance ID: %s\n", instanceID))
-	result.WriteString(fmt.Sprintf("Log Type: %s\n", logType))
+	fmt.Fprintf(&result, "Cluster: %s\n", clusterName)
+	fmt.Fprintf(&result, "Resource Group: %s\n", rg)
+	fmt.Fprintf(&result, "VMSS: %s\n", vmssName)
+	fmt.Fprintf(&result, "Instance ID: %s\n", instanceID)
+	fmt.Fprintf(&result, "Log Type: %s\n", logType)
 	result.WriteString("=====================\n\n")
 
 	// Add the actual log output
