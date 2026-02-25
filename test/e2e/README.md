@@ -147,45 +147,7 @@ This will display:
 - Useful for debugging and understanding what the tools return
 
 #### Option B: Run in Kubernetes (Advanced)
-
-For testing the full containerized deployment:
-
-```bash
-cd test/e2e
-docker build -t aks-mcp-e2e-test:local .
-
-# If using Kind/Minikube, load the image
-kind load docker-image aks-mcp-e2e-test:local
-```
-
-Deploy the test Job:
-
-```bash
-# Substitute environment variables in the manifest
-envsubst < manifests/e2e-job.yaml | kubectl apply -f -
-```
-
-Wait for completion and check results:
-
-```bash
-kubectl wait --for=condition=complete job/aks-mcp-e2e-test --timeout=300s
-kubectl logs job/aks-mcp-e2e-test
-```
-
-#### Option B: Run Locally (Quick Debug)
-
-Set up port-forward and run locally:
-
-```bash
-kubectl port-forward svc/aks-mcp 8000:8000 &
-
-export MCP_SERVER_URL=http://localhost:8000
-export AZURE_SUBSCRIPTION_ID=<your-subscription-id>
-export RESOURCE_GROUP=<your-resource-group>
-export CLUSTER_NAME=<your-cluster-name>
-
-go run ./cmd/e2e-test/main.go
-```
+(TODO)
 
 ### Step 5: Cleanup
 
@@ -248,7 +210,7 @@ test/e2e/
 
 ### Test Configuration
 
-- `MCP_SERVER_URL`: URL of the MCP server (default: `http://aks-mcp.default.svc.cluster.local:8000`)
+- `MCP_SERVER_URL`: URL of the MCP server (default: `http://localhost:8000`)
 - `AZURE_SUBSCRIPTION_ID`: Azure subscription ID (required)
 - `RESOURCE_GROUP`: Resource group containing the AKS cluster (required)
 - `CLUSTER_NAME`: Name of the AKS cluster (required)
@@ -272,64 +234,6 @@ test/e2e/
 kubectl logs -l app.kubernetes.io/name=aks-mcp -f
 ```
 
-### View Test Client Logs
-
-```bash
-kubectl logs job/aks-mcp-e2e-test
-```
-
-### Interactive Debugging
-
-Run a debug pod with the test client:
-
-```bash
-kubectl run -it --rm debug-client \
-  --image=aks-mcp-e2e-test:local \
-  --env="MCP_SERVER_URL=http://aks-mcp.default.svc.cluster.local:8000" \
-  --env="AZURE_SUBSCRIPTION_ID=$AZURE_SUBSCRIPTION_ID" \
-  --env="RESOURCE_GROUP=$RESOURCE_GROUP" \
-  --env="CLUSTER_NAME=$CLUSTER_NAME" \
-  -- /bin/sh
-
-# Inside the pod:
-/usr/local/bin/e2e-test
-```
-
-### Check MCP Server Health
-
-```bash
-kubectl port-forward svc/aks-mcp 8000:8000 &
-curl http://localhost:8000/health
-
-# Should return:
-# {
-#   "status": "healthy",
-#   "version": "x.x.x",
-#   "transport": "streamable-http"
-# }
-```
-
-### Verify Workload Identity Configuration
-
-Check service account annotations:
-
-```bash
-kubectl get sa aks-mcp -o yaml | grep azure
-```
-
-Check pod identity:
-
-```bash
-kubectl get pod -l app.kubernetes.io/name=aks-mcp -o yaml | grep -A 5 azure
-```
-
-Test Azure authentication from MCP server pod:
-
-```bash
-kubectl exec -it <mcp-pod-name> -- /bin/sh
-# Inside pod:
-az account show
-```
 
 ## Adding New Tests
 

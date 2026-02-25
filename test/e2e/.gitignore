@@ -1,6 +1,5 @@
 # Binaries
 bin/
-e2e-test
 
 # Go build artifacts
 *.exe
