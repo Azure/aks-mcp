@@ -202,14 +202,3 @@ func getFilterParamKeys() []string {
 		"node",
 	}...)
 }
-
-func mergeMaps(a, b map[string]interface{}) map[string]interface{} {
-	merged := make(map[string]interface{})
-	for k, v := range a {
-		merged[k] = v
-	}
-	for k, v := range b {
-		merged[k] = v
-	}
-	return merged
-}

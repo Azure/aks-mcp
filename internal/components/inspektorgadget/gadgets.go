@@ -31,24 +31,24 @@ var gadgets = []Gadget{
 		Params: map[string]interface{}{
 			"name": map[string]interface{}{
 				"type":        "string",
-				"description": "Filter DNS traffic by name. Only DNS queries containing this string will be shown",
+				"description": "Filter by DNS query name (substring match)",
 			},
 			"nameserver": map[string]interface{}{
 				"type":        "string",
-				"description": "Filter DNS traffic by nameserver address",
+				"description": "Filter by nameserver address",
 			},
 			"minimum_latency": map[string]interface{}{
-				"type":        "string",
-				"description": "Filter DNS queries with latency greater to this value (in nanoseconds)",
+				"type":        "number",
+				"description": "Min latency threshold (nanoseconds)",
 			},
 			"response_code": map[string]interface{}{
 				"type":        "string",
-				"description": "Filter DNS queries by response code",
+				"description": "Filter by response code",
 				"enum":        []string{"Success", "FormatError", "ServerFailure", "NameError", "NotImplemented", "Refused"},
 			},
 			"unsuccessful_only": map[string]interface{}{
 				"type":        "boolean",
-				"description": "Filter to only show unsuccessful DNS responses",
+				"description": "Show only failed DNS responses",
 			},
 		},
 		ParamsFunc: func(filterParams map[string]interface{}, gadgetParams map[string]string) {
@@ -63,13 +63,13 @@ var gadgets = []Gadget{
 			if nameserver, ok := dnsParams["nameserver"]; ok && nameserver != "" {
 				filter = append(filter, fmt.Sprintf("nameserver.addr==%s", nameserver))
 			}
-			if minimumLatency, ok := dnsParams["minimum_latency"]; ok && minimumLatency != "" {
-				filter = append(filter, fmt.Sprintf("latency_ns_raw>=%s", minimumLatency))
+			if minimumLatency, ok := dnsParams["minimum_latency"].(float64); ok && minimumLatency > 0 {
+				filter = append(filter, fmt.Sprintf("latency_ns_raw>=%d", int(minimumLatency)))
 			}
 			if responseCode, ok := dnsParams["response_code"]; ok && responseCode != "" {
 				filter = append(filter, fmt.Sprintf("rcode==%s", responseCode))
 			}
-			if unsuccessfulOnly, ok := dnsParams["unsuccessful_only"]; ok && unsuccessfulOnly.(bool) {
+			if unsuccessfulOnly, ok := dnsParams["unsuccessful_only"].(bool); ok && unsuccessfulOnly {
 				filter = append(filter, "qr==R,rcode!=Success")
 			}
 			if len(filter) > 0 {
@@ -84,20 +84,20 @@ var gadgets = []Gadget{
 		Params: map[string]interface{}{
 			"source_port": map[string]interface{}{
 				"type":        "string",
-				"description": "Filter TCP traffic by source port",
+				"description": "Filter by source port",
 			},
 			"destination_port": map[string]interface{}{
 				"type":        "string",
-				"description": "Filter TCP traffic by destination port",
+				"description": "Filter by destination port",
 			},
 			"event_type": map[string]interface{}{
 				"type":        "string",
-				"description": "Filter TCP events by type",
+				"description": "Filter by event type",
 				"enum":        []string{"connect", "accept", "close"},
 			},
 			"unsuccessful_only": map[string]interface{}{
 				"type":        "boolean",
-				"description": "Filter to only show unsuccessful TCP connections",
+				"description": "Show only failed connections",
 			},
 		},
 		ParamsFunc: func(filterParams map[string]interface{}, gadgetParams map[string]string) {
@@ -115,7 +115,7 @@ var gadgets = []Gadget{
 			if typ, ok := tcpParams["event_type"]; ok && typ != "" {
 				filter = append(filter, fmt.Sprintf("type==%s", typ))
 			}
-			if unsuccessfulOnly, ok := tcpParams["unsuccessful_only"]; ok && unsuccessfulOnly.(bool) {
+			if unsuccessfulOnly, ok := tcpParams["unsuccessful_only"].(bool); ok && unsuccessfulOnly {
 				filter = append(filter, "error_raw!=0")
 			}
 			if len(filter) > 0 {
@@ -130,11 +130,11 @@ var gadgets = []Gadget{
 		Params: map[string]interface{}{
 			"path": map[string]interface{}{
 				"type":        "string",
-				"description": "Filter file operations by path. Only operations on files containing this string will be shown",
+				"description": "Filter by file path (substring match)",
 			},
 			"unsuccessful_only": map[string]interface{}{
 				"type":        "boolean",
-				"description": "Filter to only show unsuccessful file open operations",
+				"description": "Show only failed operations",
 			},
 		},
 		ParamsFunc: func(filterParams map[string]interface{}, gadgetParams map[string]string) {
@@ -146,7 +146,7 @@ var gadgets = []Gadget{
 			if path, ok := fileOpenParams["path"]; ok && path != "" {
 				filter = append(filter, fmt.Sprintf("fname~%s", path))
 			}
-			if unsuccessfulOnly, ok := fileOpenParams["unsuccessful_only"]; ok && unsuccessfulOnly.(bool) {
+			if unsuccessfulOnly, ok := fileOpenParams["unsuccessful_only"].(bool); ok && unsuccessfulOnly {
 				filter = append(filter, "error_raw!=0")
 			}
 			if len(filter) > 0 {
@@ -161,7 +161,7 @@ var gadgets = []Gadget{
 		Params: map[string]interface{}{
 			"command": map[string]interface{}{
 				"type":        "string",
-				"description": "Filter process execution by command name. Only processes executing the command containing this string will be shown",
+				"description": "Filter by command name (substring match)",
 			},
 		},
 		ParamsFunc: func(filterParams map[string]interface{}, gadgetParams map[string]string) {
@@ -181,8 +181,7 @@ var gadgets = []Gadget{
 		Params: map[string]interface{}{
 			"signal": map[string]interface{}{
 				"type":        "string",
-				"description": "Filter by signal type",
-				"enum":        []string{"SIGINT", "SIGTERM", "SIGKILL", "SIGHUP", "SIGURG", "SIGUSR1", "SIGUSR2", "SIGQUIT", "SIGSTOP"},
+				"description": "Unix signal name (e.g. SIGTERM, SIGKILL, SIGINT)",
 			},
 		},
 		ParamsFunc: func(filterParams map[string]interface{}, gadgetParams map[string]string) {
@@ -202,7 +201,7 @@ var gadgets = []Gadget{
 		Params: map[string]interface{}{
 			"syscall": map[string]interface{}{
 				"type":        "string",
-				"description": "Filter by system call names (comma-separated list, e.g. 'open,close,read,write')",
+				"description": "Filter by syscall names (comma-separated, e.g. 'open,close,read')",
 			},
 		},
 		ParamsFunc: func(filterParams map[string]interface{}, gadgetParams map[string]string) {
@@ -224,12 +223,12 @@ var gadgets = []Gadget{
 		Params: map[string]interface{}{
 			"max_entries": map[string]interface{}{
 				"type":        "number",
-				"description": "Maximum number of entries to return",
+				"description": "Max entries to return",
 				"default":     5,
 			},
 			"sort_by": map[string]interface{}{
 				"type":        "string",
-				"description": "Which metric to sort the results by.",
+				"description": "Sort metric",
 				"default":     "wbytes_raw",
 				"enum":        []string{"rbytes_raw", "wbytes_raw"},
 			},
@@ -244,6 +243,8 @@ var gadgets = []Gadget{
 			}
 			if maxEntries, ok := topFileParams["max_entries"].(float64); ok && maxEntries > 0 {
 				gadgetParams[paramLimiter] = fmt.Sprintf("%d", int(maxEntries))
+			} else if maxEntriesInt, ok := topFileParams["max_entries"].(int); ok && maxEntriesInt > 0 {
+				gadgetParams[paramLimiter] = fmt.Sprintf("%d", maxEntriesInt)
 			}
 			if sortBy, ok := topFileParams["sort_by"].(string); ok && sortBy != "" {
 				gadgetParams[paramSort] = fmt.Sprintf("-%s", sortBy)
@@ -257,7 +258,7 @@ var gadgets = []Gadget{
 		Params: map[string]interface{}{
 			"max_entries": map[string]interface{}{
 				"type":        "number",
-				"description": "Maximum number of entries to return",
+				"description": "Max entries to return",
 				"default":     5,
 			},
 		},
@@ -272,6 +273,8 @@ var gadgets = []Gadget{
 			}
 			if maxEntries, ok := topTCPParams["max_entries"].(float64); ok && maxEntries > 0 {
 				gadgetParams[paramLimiter] = fmt.Sprintf("%d", int(maxEntries))
+			} else if maxEntriesInt, ok := topTCPParams["max_entries"].(int); ok && maxEntriesInt > 0 {
+				gadgetParams[paramLimiter] = fmt.Sprintf("%d", maxEntriesInt)
 			}
 		},
 	},
@@ -281,26 +284,8 @@ var gadgets = []Gadget{
 		Description: "Captures network traffic in the cluster",
 		Params: map[string]interface{}{
 			"pcap-filter": map[string]interface{}{
-				"type": "string",
-				"description": `Parses tcpdump/BPF-style filter expressions for network packet filtering.
-				Syntax:
-				expression = [not] [direction] [protocol] type [id] | expression and expression | expression or expression | ( expression )
-                Qualifiers:
-				  direction = src | dst | src or dst | src and dst
-				  protocol = ether | fddi | tr | wlan | ip | ip6 | arp | rarp | decnet | tcp | udp | icmp | igmp | atalk | aarp | vlan | ppptalk | pptp | sctp | mpls
-				  type = host | net | port | portrange | less | greater | gateway | proto (protocol)
-				  id = address | number
-				Examples:
-				  host 192.168.1.1
-				  src port 80
-				  tcp dst port 443
-				  not src host 10.0.0.1
-				  (src port 22) and (dst host 192.168.1.1)
-				  ip6 and not tcp
-				  proto icmp
-				  ether host aa:bb:cc:dd:ee:ff
-				  src or dst port 80 or 443
-				`,
+				"type":        "string",
+				"description": "tcpdump filter expression (e.g. 'tcp port 443', 'host 10.0.0.1', 'udp and port 53')",
 			},
 		},
 		ParamsFunc: func(filterParams map[string]interface{}, gadgetParams map[string]string) {
@@ -323,11 +308,11 @@ var gadgets = []Gadget{
 	{
 		Name:        topBlockIO,
 		Image:       "ghcr.io/inspektor-gadget/gadget/top_blockio",
-		Description: "Shows top block IO (disk) activity by bytes for read/write operations (requires Kernel version >=6.6)",
+		Description: "Shows top block IO activity by bytes (requires Kernel >=6.6)",
 		Params: map[string]interface{}{
 			"max_entries": map[string]interface{}{
 				"type":        "number",
-				"description": "Maximum number of entries to return",
+				"description": "Max entries to return",
 				"default":     5,
 			},
 		},
@@ -342,6 +327,8 @@ var gadgets = []Gadget{
 			}
 			if maxEntries, ok := topBlockIOParams["max_entries"].(float64); ok && maxEntries > 0 {
 				gadgetParams[paramLimiter] = fmt.Sprintf("%d", int(maxEntries))
+			} else if maxEntriesInt, ok := topBlockIOParams["max_entries"].(int); ok && maxEntriesInt > 0 {
+				gadgetParams[paramLimiter] = fmt.Sprintf("%d", maxEntriesInt)
 			}
 		},
 	},
