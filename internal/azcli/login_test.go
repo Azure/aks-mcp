@@ -383,7 +383,7 @@ func TestValidateFederatedTokenFile_Allowlist(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp file: %v", err)
 	}
-	tmpFile.Close()
+	_ = tmpFile.Close()
 	realTmpPath := tmpFile.Name()
 
 	// Build a table of (path, wantErr) entries. For the two allowed paths we
