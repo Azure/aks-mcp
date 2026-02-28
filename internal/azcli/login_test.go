@@ -195,6 +195,31 @@ func TestEnsureAzCliLogin_Federated(t *testing.T) {
 	}
 }
 
+func TestEnsureAzCliLogin_Federated_AKSManagedWebhookPath(t *testing.T) {
+	cfg := config.NewConfig()
+	t.Setenv("AZURE_CLIENT_ID", "dummy-client-id")
+	t.Setenv("AZURE_TENANT_ID", "dummy-tenant-id")
+
+	// AKS managed webhook v1.6.0-alpha.1+ injects token at this path
+	const aksWebhookTokenPath = "/var/run/secrets/azure/wi/token/azure-identity-token"
+	t.Setenv("AZURE_FEDERATED_TOKEN_FILE", aksWebhookTokenPath)
+
+	// If the file does not exist (not running in AKS with managed webhook), skip the test
+	if _, err := os.Stat(aksWebhookTokenPath); err != nil {
+		t.Skipf("skipping: %s not present (only available in AKS with managed webhook v1.6.0-alpha.1+)", aksWebhookTokenPath)
+	}
+
+	p := &loginCommands{resp: []loginCommandResponses{}}
+
+	got, err := EnsureAzCliLoginWithProc(p, cfg)
+	if err != nil && !strings.Contains(err.Error(), aksWebhookTokenPath) {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err == nil && got == "federated_token" {
+		t.Fatalf("unexpected result: %s", got)
+	}
+}
+
 func TestEnsureAzCliLogin_Federated_InvalidFile(t *testing.T) {
 	cfg := config.NewConfig()
 	t.Setenv("AZURE_CLIENT_ID", "dummy-client-id")
@@ -346,5 +371,79 @@ func TestEnsureAzCliLogin_LoginPromptInOutput(t *testing.T) {
 	}
 	if got != "user_assigned_managed_identity" {
 		t.Fatalf("unexpected result: %s", got)
+	}
+}
+
+// TestValidateFederatedTokenFile_Allowlist tests the validateFederatedTokenFile function
+// directly to ensure the allowlist accepts both known AKS webhook paths and rejects unknown ones.
+// These tests use temp files to simulate the token paths without needing a real AKS environment.
+func TestValidateFederatedTokenFile_Allowlist(t *testing.T) {
+	// Create a temp regular file to stand in for the token file.
+	tmpFile, err := os.CreateTemp(t.TempDir(), "token")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	_ = tmpFile.Close()
+	realTmpPath := tmpFile.Name()
+
+	// Build a table of (path, wantErr) entries. For the two allowed paths we
+	// point allowedFederatedTokenPaths at the temp file so os.Stat succeeds.
+	tests := []struct {
+		name    string
+		path    string
+		wantErr bool
+	}{
+		{
+			name:    "unknown path is rejected",
+			path:    "/tmp/non-existent-file",
+			wantErr: true,
+		},
+		{
+			name:    "directory traversal is rejected",
+			path:    "../../../etc/passwd",
+			wantErr: true,
+		},
+		{
+			name:    "arbitrary absolute path is rejected",
+			path:    "/etc/shadow",
+			wantErr: true,
+		},
+		{
+			name:    "empty path is rejected",
+			path:    "",
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := validateFederatedTokenFile(tc.path)
+			if tc.wantErr && err == nil {
+				t.Errorf("expected error for path %q but got none", tc.path)
+			}
+			if !tc.wantErr && err != nil {
+				t.Errorf("unexpected error for path %q: %v", tc.path, err)
+			}
+		})
+	}
+
+	// Test that each path in the allowlist is accepted when the file exists.
+	// We temporarily override allowedFederatedTokenPaths with a path pointing
+	// to the real temp file so os.Stat() succeeds.
+	origPaths := allowedFederatedTokenPaths
+	defer func() { allowedFederatedTokenPaths = origPaths }()
+
+	for _, allowedPath := range origPaths {
+		t.Run("allowlist path accepted: "+allowedPath, func(t *testing.T) {
+			// Redirect the single entry under test to the temp file.
+			allowedFederatedTokenPaths = []string{realTmpPath}
+			got, err := validateFederatedTokenFile(realTmpPath)
+			if err != nil {
+				t.Errorf("expected allowed path %q to be accepted, got error: %v", allowedPath, err)
+			}
+			if got != realTmpPath {
+				t.Errorf("expected returned path %q, got %q", realTmpPath, got)
+			}
+		})
 	}
 }
