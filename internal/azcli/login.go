@@ -43,7 +43,7 @@ func validateFederatedTokenFile(filePath string) (string, error) {
 	if !allowed {
 		return "", fmt.Errorf("federated token file path must be one of the allowed AKS token paths")
 	}
-	fileInfo, err := os.Stat(filePath)
+	fileInfo, err := os.Stat(filePath) // #nosec G304,G703 -- filePath is validated against a fixed allowlist above
 	if err != nil {
 		return "", fmt.Errorf("cannot stat federated token file %s: %w", filePath, err)
 	}
