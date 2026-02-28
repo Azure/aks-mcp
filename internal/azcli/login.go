@@ -22,20 +22,35 @@ const (
 	AuthTypeSystemAssignedManagedID = "system_assigned_managed_identity"
 )
 
-// validateFederatedTokenFile only allows the fixed AKS identity token path.
+// allowedFederatedTokenPaths is the allowlist of accepted federated token file paths.
+// Two paths are supported:
+//   - /var/run/secrets/azure/tokens/azure-identity-token  (open-source AKS webhook)
+//   - /var/run/secrets/azure/wi/token/azure-identity-token (AKS managed webhook v1.6.0-alpha.1+)
+var allowedFederatedTokenPaths = []string{ // #nosec G101 -- not credentials, these are fixed AKS token paths
+	"/var/run/secrets/azure/tokens/azure-identity-token",
+	"/var/run/secrets/azure/wi/token/azure-identity-token",
+}
+
+// validateFederatedTokenFile only allows paths from the fixed AKS identity token allowlist.
 func validateFederatedTokenFile(filePath string) (string, error) {
-	const allowedTokenPath = "/var/run/secrets/azure/tokens/azure-identity-token" // #nosec G101 -- not a credential, this is a fixed AKS token path
-	if filePath != allowedTokenPath {
-		return "", fmt.Errorf("federated token file path must be exactly %s", allowedTokenPath)
+	allowed := false
+	for _, p := range allowedFederatedTokenPaths {
+		if filePath == p {
+			allowed = true
+			break
+		}
 	}
-	fileInfo, err := os.Stat(allowedTokenPath)
+	if !allowed {
+		return "", fmt.Errorf("federated token file path must be one of the allowed AKS token paths")
+	}
+	fileInfo, err := os.Stat(filePath)
 	if err != nil {
-		return "", fmt.Errorf("cannot stat federated token file %s: %w", allowedTokenPath, err)
+		return "", fmt.Errorf("cannot stat federated token file %s: %w", filePath, err)
 	}
 	if !fileInfo.Mode().IsRegular() {
-		return "", fmt.Errorf("federated token file is not a regular file: %s", allowedTokenPath)
+		return "", fmt.Errorf("federated token file is not a regular file: %s", filePath)
 	}
-	return allowedTokenPath, nil
+	return filePath, nil
 }
 
 // Proc is a minimal interface used by this package so tests can inject a fake process.
