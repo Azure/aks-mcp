@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Azure/aks-mcp/internal/config"
+	"github.com/Azure/aks-mcp/internal/telemetry"
 	"github.com/Azure/azure-api-mcp/pkg/azcli"
 	"github.com/mark3labs/mcp-go/mcp"
 )
@@ -30,6 +31,18 @@ func (m *mockAzClient) ValidateCommand(cmdStr string) error {
 	return nil
 }
 
+// newTestConfig creates a config with a non-nil (but disabled) telemetry service
+// to exercise the TrackToolInvocation code paths.
+func newTestConfig(timeout int) *config.ConfigData {
+	telemetryCfg := &telemetry.Config{
+		Enabled: false,
+	}
+	return &config.ConfigData{
+		Timeout:          timeout,
+		TelemetryService: telemetry.NewService(telemetryCfg),
+	}
+}
+
 func TestAzApiHandler_Success(t *testing.T) {
 	mockClient := &mockAzClient{
 		executeFunc: func(ctx context.Context, command string) (*azcli.Result, error) {
@@ -43,9 +56,7 @@ func TestAzApiHandler_Success(t *testing.T) {
 		},
 	}
 
-	cfg := &config.ConfigData{
-		Timeout: 30,
-	}
+	cfg := newTestConfig(30)
 
 	handler := AzApiHandler(mockClient, cfg)
 
@@ -81,9 +92,7 @@ func TestAzApiHandler_Success(t *testing.T) {
 
 func TestAzApiHandler_InvalidArguments(t *testing.T) {
 	mockClient := &mockAzClient{}
-	cfg := &config.ConfigData{
-		Timeout: 30,
-	}
+	cfg := newTestConfig(30)
 
 	handler := AzApiHandler(mockClient, cfg)
 
@@ -107,9 +116,7 @@ func TestAzApiHandler_InvalidArguments(t *testing.T) {
 
 func TestAzApiHandler_MissingCliCommand(t *testing.T) {
 	mockClient := &mockAzClient{}
-	cfg := &config.ConfigData{
-		Timeout: 30,
-	}
+	cfg := newTestConfig(30)
 
 	handler := AzApiHandler(mockClient, cfg)
 
@@ -149,9 +156,7 @@ func TestAzApiHandler_ExecutionError(t *testing.T) {
 		},
 	}
 
-	cfg := &config.ConfigData{
-		Timeout: 30,
-	}
+	cfg := newTestConfig(30)
 
 	handler := AzApiHandler(mockClient, cfg)
 
@@ -185,9 +190,7 @@ func TestAzApiHandler_CommandError(t *testing.T) {
 		},
 	}
 
-	cfg := &config.ConfigData{
-		Timeout: 30,
-	}
+	cfg := newTestConfig(30)
 
 	handler := AzApiHandler(mockClient, cfg)
 
@@ -232,9 +235,7 @@ func TestAzApiHandler_CustomTimeout(t *testing.T) {
 		},
 	}
 
-	cfg := &config.ConfigData{
-		Timeout: 30,
-	}
+	cfg := newTestConfig(30)
 
 	handler := AzApiHandler(mockClient, cfg)
 
@@ -257,5 +258,41 @@ func TestAzApiHandler_CustomTimeout(t *testing.T) {
 	case <-executionStarted:
 	case <-time.After(1 * time.Second):
 		t.Fatal("execution did not start")
+	}
+}
+
+func TestAzApiHandler_NilTelemetryService(t *testing.T) {
+	// Ensure handler works fine when TelemetryService is nil
+	mockClient := &mockAzClient{
+		executeFunc: func(ctx context.Context, command string) (*azcli.Result, error) {
+			return &azcli.Result{
+				Output: json.RawMessage(`"ok"`),
+				Error:  "",
+			}, nil
+		},
+	}
+
+	cfg := &config.ConfigData{
+		Timeout:          30,
+		TelemetryService: nil,
+	}
+
+	handler := AzApiHandler(mockClient, cfg)
+
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Name: "call_az",
+			Arguments: map[string]interface{}{
+				"cli_command": "az group list",
+			},
+		},
+	}
+
+	result, err := handler(context.Background(), req)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if result.IsError {
+		t.Fatal("expected success result")
 	}
 }
