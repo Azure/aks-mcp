@@ -1,8 +1,6 @@
 package inspektorgadget
 
 import (
-	"strings"
-
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
@@ -14,27 +12,15 @@ import (
 func RegisterInspektorGadgetTool() mcp.Tool {
 	return mcp.NewTool(
 		"inspektor_gadget_observability",
-		mcp.WithDescription("Real-time observability tool for Azure Kubernetes Service (AKS) clusters, allowing users to manage gadgets for monitoring and debugging\n\n"+
-			"Apart from 'action' param:\n\n"+
-			"It supports 'action_params' (type=object) to specify parameters for the action."+
-			"Available params are: "+
-			"gadget_name, duration, gadget_id, chart_version, confirm (only if user explicitly wants to perform the action in 'readonly' mode)."+
-			"Available Gadget names are: "+strings.Join(getGadgetNames(), ", ")+". "+
-			"Example: "+
-			"{'action': 'deploy', 'action_params': {'confirm': true}}\n"+
-			"{'action': 'run', 'action_params': {'gadget_name': 'observe_dns', 'duration': 10}}\n\n"+
-			"It supports 'filter_params' (type=object) to filter the data captured by the gadget. "+
-			"Available params are: "+
-			"namespace, pod, container, selector,"+strings.Join(getGadgetParamsKeys(), ", ")+". "+
-			"Example: "+
-			"{'action': 'run', 'filter_params': {'namespace': 'default', 'selector': 'app=myapp', 'observe_dns.unsuccessful_only': true}}"),
+		mcp.WithDescription("Real-time observability tool for Azure Kubernetes Service (AKS) clusters, allowing users to manage gadgets for monitoring and debugging"),
 		mcp.WithTitleAnnotation("Inspektor Gadget Observability"),
 		mcp.WithDestructiveHintAnnotation(true),
 		mcp.WithString("action",
 			mcp.Required(),
+			mcp.Description("Action to perform"),
 			mcp.Description("Action to perform on the gadget: "+
 				runAction+" to run a gadget for a specific duration, "+
-				startAction+" to start a gadget for continuous observation, "+
+				startAction+" to start a gadget for continuous (background) observation, "+
 				stopAction+" to stop a running gadget using gadget_id, "+
 				getResultsAction+" to retrieve results of a gadget run using gadget_id (only available before stopping the gadget), "+
 				listGadgetsAction+" to list all running (not available) gadgets"+
@@ -45,58 +31,61 @@ func RegisterInspektorGadgetTool() mcp.Tool {
 			),
 			mcp.Enum(getActions()...),
 		),
-		mcp.WithObject("action_params",
-			mcp.Description("Parameters for the action"),
-			mcp.Properties(map[string]any{
-				"gadget_name": map[string]any{
-					"type":        "string",
-					"description": "Name of the gadget to run/start",
-					"enum":        getGadgetNames(),
-				},
-				"duration": map[string]any{
-					"type":        "number",
-					"description": "Duration in seconds to run the gadget",
-					"default":     10,
-				},
-				"gadget_id": map[string]any{
-					"type":        "string",
-					"description": "ID of the gadget run to stop or get results for. This ID is returned when starting a gadget for continuous observation.",
-				},
-				"chart_version": map[string]any{
-					"type":        "string",
-					"description": "The version of the Inspektor Gadget Helm chart to deploy. Only set this if user explicitly wants to deploy a specific version",
-				},
-				"confirm": map[string]any{
-					"type":        "boolean",
-					"description": "Confirmation to deploy/upgrade/undeploy Inspektor Gadget (in gadget namespace) when running server in 'readonly' mode. Only set this if user explicitly wants to perform the action in 'readonly' mode",
-				},
-			}),
+		mcp.WithString("gadget_name",
+			mcp.Description("Gadget to run/start"),
+			mcp.Enum(getGadgetNames()...),
 		),
-		mcp.WithObject("filter_params",
-			mcp.Description("Parameters to filter the data captured by the gadget"),
-			mcp.Properties(
-				mergeMaps(
-					map[string]any{
-						"namespace": map[string]any{
-							"type":        "string",
-							"description": "Kubernetes namespace, leave empty to use all namespaces",
-						},
-						"pod": map[string]any{
-							"type":        "string",
-							"description": "Kubernetes pod name",
-						},
-						"container": map[string]any{
-							"type":        "string",
-							"description": "Kubernetes container name",
-						},
-						"selector": map[string]any{
-							"type":        "string",
-							"description": "Label selector to filter pods by labels (e.g. key1=value1,key2=value2)",
-						},
-					},
-					getGadgetParams(),
-				),
-			),
+		mcp.WithNumber("duration",
+			mcp.Description("Run duration (seconds)"),
+			mcp.DefaultNumber(10),
 		),
+		mcp.WithString("gadget_id",
+			mcp.Description("Gadget ID for stop/get_results"),
+		),
+		mcp.WithString("chart_version",
+			mcp.Description("Helm chart version (only set if user explicitly requests)"),
+		),
+		mcp.WithBoolean("confirm",
+			mcp.Description("Confirm deploy/upgrade/undeploy in readonly mode"),
+		),
+		// Common filter parameters (flattened from filter_params)
+		mcp.WithString("namespace",
+			mcp.Description("Kubernetes namespace, empty to use all namespaces"),
+		),
+		mcp.WithString("pod",
+			mcp.Description("Pod name"),
+		),
+		mcp.WithString("container",
+			mcp.Description("Container name"),
+		),
+		mcp.WithString("selector",
+			mcp.Description("Label selector (e.g. app=myapp,stage=prod)"),
+		),
+		mcp.WithString("node",
+			mcp.Description("Kubernetes node name to filter on"),
+		),
+		withGadgetFilterParams(),
 	)
+}
+
+// withGadgetFilterParams returns MCP options for all gadget-specific filter parameters
+func withGadgetFilterParams() mcp.ToolOption {
+	return func(t *mcp.Tool) {
+		for key, value := range getGadgetParams() {
+			if paramDef, ok := value.(map[string]any); ok {
+				desc := ""
+				if d, ok := paramDef["description"].(string); ok {
+					desc = d
+				}
+				typ := "string"
+				if tp, ok := paramDef["type"].(string); ok {
+					typ = tp
+				}
+				t.InputSchema.Properties[key] = map[string]any{
+					"type":        typ,
+					"description": desc,
+				}
+			}
+		}
+	}
 }
