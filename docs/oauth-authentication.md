@@ -304,26 +304,167 @@ To restrict access to only users/identities explicitly assigned to your applicat
    - Admin consent display name: "Access MCP Server"
    - Admin consent description: "Allows access to the MCP server"
 
-3. **Enable Assignment Required**
-   ```
-   Azure Portal → Enterprise applications → [Your App] → Properties
-   ```
-   - Set **Assignment required?** to **Yes**
-
-4. **Assign Users/Groups/Service Principals**
-   ```
-   Azure Portal → Enterprise applications → [Your App] → Users and groups → Add user/group
-   ```
-   - Add users, groups, or service principals that should have access
-
-5. **Pre-authorize Azure CLI** (required for `az account get-access-token`)
+3. **Pre-authorize Azure CLI** (required for `az account get-access-token`)
    ```
    Azure Portal → App registrations → [Your App] → Expose an API → Add a client application
    ```
    - Client ID: `04b07795-8ddb-461a-bbee-02f9e1bf7b46` (Azure CLI)
    - Authorized scopes: Select your `access_as_user` scope
 
-### Step 2: Start AKS-MCP with Custom Scope
+4. **(Optional) Define App Roles** for role-based access control
+   ```
+   Azure Portal → App registrations → [Your App] → App roles → Create app role
+   ```
+   Create roles as needed (e.g., Reader, Contributor, Admin):
+   - Display name: `Reader`
+   - Allowed member types: Both (Users/Groups + Applications)
+   - Value: `Reader`
+   - Description: "Read-only access to MCP server"
+   
+   Repeat for other roles (`Contributor`, `Admin`) as needed.
+
+### Step 2: Configure Enterprise Application
+
+> **Important**: When you create an App Registration, Azure automatically creates a corresponding **Enterprise Application** (Service Principal) in your tenant. The App Registration defines *what* the application can do, while the Enterprise Application controls *who* can use it and with what permissions.
+
+#### Understanding App Registration vs Enterprise Application
+
+| Aspect | App Registration | Enterprise Application |
+|--------|------------------|----------------------|
+| Purpose | Define application identity and capabilities | Control access and assignments in your tenant |
+| Location | Azure AD → App registrations | Azure AD → Enterprise applications |
+| Scope | Global application definition | Tenant-specific access control |
+| Controls | API permissions, redirect URIs, secrets, scopes | User/group assignments, conditional access, properties |
+
+#### Enterprise Application Configuration Steps
+
+1. **Navigate to Enterprise Application**
+   ```
+   Azure Portal → Azure Active Directory → Enterprise applications → [Your App Name]
+   ```
+   
+   > **Note**: Search for the same name you used in App Registration. The Enterprise Application is automatically created when you create an App Registration.
+
+2. **Enable Assignment Required** (Critical for restricting access)
+   ```
+   Azure Portal → Enterprise applications → [Your App] → Properties
+   ```
+   - Set **Assignment required?** to **Yes**
+   - Click **Save**
+   
+   > **What this does**: When enabled, only users/groups/service principals explicitly assigned to this application can obtain tokens. Without this, ANY authenticated user in your Azure AD tenant can access the MCP server.
+
+3. **Assign Users and Groups**
+   ```
+   Azure Portal → Enterprise applications → [Your App] → Users and groups → Add user/group
+   ```
+   
+   **To assign users:**
+   - Click "Add user/group"
+   - Under "Users", click "None Selected"
+   - Search and select users who should have access
+   - (Optional) Select a role if you defined App Roles
+   - Click "Assign"
+   
+   **To assign groups:**
+   - Click "Add user/group"
+   - Under "Users", click "None Selected" 
+   - Switch to "Groups" tab
+   - Search and select Azure AD groups
+   - (Optional) Select a role
+   - Click "Assign"
+   
+   > **Best Practice**: Use Azure AD groups for easier management. Create groups like `MCP-Readers`, `MCP-Contributors`, and assign roles accordingly.
+
+4. **Assign Service Principals / Managed Identities**
+   
+   For automated access (CI/CD, Azure services), you need to assign Service Principals or Managed Identities.
+   
+   **Using Azure Portal:**
+   ```
+   Azure Portal → Enterprise applications → [Your App] → Users and groups → Add user/group
+   ```
+   - Click "Add user/group"
+   - Note: Service Principals may not appear in the standard picker
+   
+   **Using Azure CLI (Recommended for SPNs):**
+   ```bash
+   # Get the Enterprise Application (Service Principal) Object ID
+   APP_SP_ID=$(az ad sp list --display-name "AKS-MCP-OAuth" --query "[0].id" -o tsv)
+   
+   # Get the Service Principal Object ID that needs access (e.g., your MI or SPN)
+   CLIENT_SP_ID=$(az ad sp list --display-name "your-managed-identity-name" --query "[0].id" -o tsv)
+   
+   # If you defined App Roles, get the Role ID
+   APP_ROLE_ID=$(az ad sp show --id $APP_SP_ID --query "appRoles[?value=='Reader'].id" -o tsv)
+   
+   # Assign the Service Principal to the Enterprise Application with a role
+   az rest --method POST \
+     --uri "https://graph.microsoft.com/v1.0/servicePrincipals/$APP_SP_ID/appRoleAssignedTo" \
+     --headers "Content-Type=application/json" \
+     --body "{
+       \"principalId\": \"$CLIENT_SP_ID\",
+       \"resourceId\": \"$APP_SP_ID\",
+       \"appRoleId\": \"$APP_ROLE_ID\"
+     }"
+   ```
+   
+   **Using PowerShell:**
+   ```powershell
+   # Connect to Microsoft Graph
+   Connect-MgGraph -Scopes "Application.ReadWrite.All", "AppRoleAssignment.ReadWrite.All"
+   
+   # Get Service Principal IDs
+   $appSp = Get-MgServicePrincipal -Filter "displayName eq 'AKS-MCP-OAuth'"
+   $clientSp = Get-MgServicePrincipal -Filter "displayName eq 'your-managed-identity-name'"
+   
+   # Get Role ID (if using roles)
+   $roleId = ($appSp.AppRoles | Where-Object { $_.Value -eq 'Reader' }).Id
+   
+   # Create assignment
+   New-MgServicePrincipalAppRoleAssignment `
+     -ServicePrincipalId $appSp.Id `
+     -PrincipalId $clientSp.Id `
+     -ResourceId $appSp.Id `
+     -AppRoleId $roleId
+   ```
+
+5. **Configure Conditional Access (Optional)**
+   ```
+   Azure Portal → Azure Active Directory → Security → Conditional Access → New policy
+   ```
+   - Name: "MCP Server Access Policy"
+   - Assignments:
+     - Users: Select users/groups or "All users"
+     - Cloud apps: Select your Enterprise Application
+   - Conditions: Configure as needed (location, device, risk level)
+   - Grant: Require MFA, compliant device, etc.
+   
+   > **Use Case**: Require MFA for MCP server access, restrict to corporate network, require compliant devices.
+
+#### Verify Enterprise Application Configuration
+
+```bash
+# List all assignments to your Enterprise Application
+az rest --method GET \
+  --uri "https://graph.microsoft.com/v1.0/servicePrincipals/$APP_SP_ID/appRoleAssignedTo" \
+  --query "value[].{Principal:principalDisplayName,Role:appRoleId,Type:principalType}"
+
+# Check if Assignment Required is enabled
+az ad sp show --id $AZURE_CLIENT_ID --query "appRoleAssignmentRequired"
+```
+
+#### Common Enterprise Application Issues
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| `AADSTS65001: User not assigned` | User not in Users and groups | Add user/group assignment |
+| `AADSTS50105: Not assigned a role` | Assignment required but no assignment exists | Add assignment in Enterprise Application |
+| Token works but no `roles` claim | App Role not assigned to user | Assign specific App Role to user/group |
+| SPN/MI can't get token | Service Principal not assigned | Use Graph API to assign SPN (see above) |
+| Group assignment doesn't work | Azure AD P1/P2 required for group assignment | Upgrade Azure AD or assign users individually |
+
+### Step 3: Start AKS-MCP with Custom Scope
 
 ```bash
 # Using custom App ID URI scope for restricted access
@@ -338,7 +479,7 @@ To restrict access to only users/identities explicitly assigned to your applicat
   --access-level=readonly
 ```
 
-### Step 3: Request Token with Custom Scope
+### Step 4: Request Token with Custom Scope
 
 **User authentication (Azure CLI):**
 ```bash
