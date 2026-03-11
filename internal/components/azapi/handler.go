@@ -17,6 +17,9 @@ func AzApiHandler(azClient azcli.Client, cfg *config.ConfigData) func(ctx contex
 		if !ok {
 			errMsg := fmt.Sprintf("arguments must be a map[string]interface{}, got %T", req.Params.Arguments)
 			logger.Errorf("AzApiHandler: %s", errMsg)
+			if cfg.TelemetryService != nil {
+				cfg.TelemetryService.TrackToolInvocation(ctx, req.Params.Name, "", false)
+			}
 			return mcp.NewToolResultError(errMsg), nil
 		}
 
@@ -24,6 +27,9 @@ func AzApiHandler(azClient azcli.Client, cfg *config.ConfigData) func(ctx contex
 		if !ok {
 			errMsg := "missing or invalid 'cli_command' parameter"
 			logger.Errorf("AzApiHandler: %s", errMsg)
+			if cfg.TelemetryService != nil {
+				cfg.TelemetryService.TrackToolInvocation(ctx, req.Params.Name, "", false)
+			}
 			return mcp.NewToolResultError(errMsg), nil
 		}
 
@@ -41,16 +47,26 @@ func AzApiHandler(azClient azcli.Client, cfg *config.ConfigData) func(ctx contex
 		if err != nil {
 			errMsg := fmt.Sprintf("failed to execute Azure CLI command: %v", err)
 			logger.Errorf("AzApiHandler: %s", errMsg)
+			if cfg.TelemetryService != nil {
+				cfg.TelemetryService.TrackToolInvocation(ctx, req.Params.Name, cliCommand, false)
+			}
 			return mcp.NewToolResultError(errMsg), nil
 		}
 
 		if result.Error != "" {
 			errMsg := fmt.Sprintf("Azure CLI command failed: %s", result.Error)
 			logger.Errorf("AzApiHandler: %s", errMsg)
+			if cfg.TelemetryService != nil {
+				cfg.TelemetryService.TrackToolInvocation(ctx, req.Params.Name, cliCommand, false)
+			}
 			return mcp.NewToolResultError(errMsg), nil
 		}
 
 		logger.Debugf("AzApiHandler: Command completed successfully")
+
+		if cfg.TelemetryService != nil {
+			cfg.TelemetryService.TrackToolInvocation(ctx, req.Params.Name, cliCommand, true)
+		}
 
 		return mcp.NewToolResultText(string(result.Output)), nil
 	}
