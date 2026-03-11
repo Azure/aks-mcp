@@ -296,3 +296,51 @@ func TestAzApiHandler_NilTelemetryService(t *testing.T) {
 		t.Fatal("expected success result")
 	}
 }
+
+func TestSanitizeCliCommand(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "simple command without flags",
+			input:    "az group list",
+			expected: "az group list",
+		},
+		{
+			name:     "command with flags",
+			input:    "az aks show --name foo --resource-group bar",
+			expected: "az aks show",
+		},
+		{
+			name:     "command with secrets",
+			input:    "az login --service-principal --client-secret xxx",
+			expected: "az login",
+		},
+		{
+			name:     "deep subcommand with flags",
+			input:    "az network vnet subnet show --name sub1 --vnet-name vnet1",
+			expected: "az network vnet subnet show",
+		},
+		{
+			name:     "empty string",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "command with short flags",
+			input:    "az group list -o table",
+			expected: "az group list",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := sanitizeCliCommand(tc.input)
+			if got != tc.expected {
+				t.Errorf("sanitizeCliCommand(%q) = %q, want %q", tc.input, got, tc.expected)
+			}
+		})
+	}
+}
