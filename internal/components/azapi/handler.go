@@ -3,6 +3,7 @@ package azapi
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/Azure/aks-mcp/internal/config"
@@ -10,6 +11,21 @@ import (
 	"github.com/Azure/azure-api-mcp/pkg/azcli"
 	"github.com/mark3labs/mcp-go/mcp"
 )
+
+// sanitizeCliCommand extracts only the "az <group> <subcommand>" prefix from a
+// CLI command, stripping all flags and arguments. This prevents secrets and
+// high-cardinality values from leaking into telemetry.
+func sanitizeCliCommand(cmd string) string {
+	tokens := strings.Fields(cmd)
+	var kept []string
+	for _, t := range tokens {
+		if strings.HasPrefix(t, "-") {
+			break
+		}
+		kept = append(kept, t)
+	}
+	return strings.Join(kept, " ")
+}
 
 func AzApiHandler(azClient azcli.Client, cfg *config.ConfigData) func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -48,7 +64,7 @@ func AzApiHandler(azClient azcli.Client, cfg *config.ConfigData) func(ctx contex
 			errMsg := fmt.Sprintf("failed to execute Azure CLI command: %v", err)
 			logger.Errorf("AzApiHandler: %s", errMsg)
 			if cfg.TelemetryService != nil {
-				cfg.TelemetryService.TrackToolInvocation(ctx, req.Params.Name, cliCommand, false)
+				cfg.TelemetryService.TrackToolInvocation(ctx, req.Params.Name, sanitizeCliCommand(cliCommand), false)
 			}
 			return mcp.NewToolResultError(errMsg), nil
 		}
@@ -57,7 +73,7 @@ func AzApiHandler(azClient azcli.Client, cfg *config.ConfigData) func(ctx contex
 			errMsg := fmt.Sprintf("Azure CLI command failed: %s", result.Error)
 			logger.Errorf("AzApiHandler: %s", errMsg)
 			if cfg.TelemetryService != nil {
-				cfg.TelemetryService.TrackToolInvocation(ctx, req.Params.Name, cliCommand, false)
+				cfg.TelemetryService.TrackToolInvocation(ctx, req.Params.Name, sanitizeCliCommand(cliCommand), false)
 			}
 			return mcp.NewToolResultError(errMsg), nil
 		}
@@ -65,7 +81,7 @@ func AzApiHandler(azClient azcli.Client, cfg *config.ConfigData) func(ctx contex
 		logger.Debugf("AzApiHandler: Command completed successfully")
 
 		if cfg.TelemetryService != nil {
-			cfg.TelemetryService.TrackToolInvocation(ctx, req.Params.Name, cliCommand, true)
+			cfg.TelemetryService.TrackToolInvocation(ctx, req.Params.Name, sanitizeCliCommand(cliCommand), true)
 		}
 
 		return mcp.NewToolResultText(string(result.Output)), nil
