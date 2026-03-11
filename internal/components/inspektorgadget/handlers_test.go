@@ -102,10 +102,8 @@ func TestInspektorGadgetHandler(t *testing.T) {
 
 		handler := InspektorGadgetHandler(mockMgr, cfg)
 		params := map[string]interface{}{
-			"action": "start",
-			"action_params": map[string]interface{}{
-				"gadget_name": observeDNS,
-			},
+			"action":      "start",
+			"gadget_name": observeDNS,
 		}
 
 		result, err := handler.Handle(context.Background(), params, cfg)
@@ -118,10 +116,8 @@ func TestInspektorGadgetHandler(t *testing.T) {
 		}
 
 		params = map[string]interface{}{
-			"action": "get_results",
-			"action_params": map[string]interface{}{
-				"gadget_id": "gadget-1",
-			},
+			"action":    "get_results",
+			"gadget_id": "gadget-1",
 		}
 
 		result, err = handler.Handle(context.Background(), params, cfg)
@@ -134,10 +130,8 @@ func TestInspektorGadgetHandler(t *testing.T) {
 		}
 
 		params = map[string]interface{}{
-			"action": "stop",
-			"action_params": map[string]interface{}{
-				"gadget_id": "gadget-1",
-			},
+			"action":    "stop",
+			"gadget_id": "gadget-1",
 		}
 
 		result, err = handler.Handle(context.Background(), params, cfg)
@@ -158,15 +152,11 @@ func TestInspektorGadgetHandler(t *testing.T) {
 
 		handler := InspektorGadgetHandler(mockMgr, cfg)
 		params := map[string]interface{}{
-			"action": "run",
-			"action_params": map[string]interface{}{
-				"gadget_name": observeDNS,
-				"duration":    5.0,
-			},
-			"filter_params": map[string]interface{}{
-				"namespace":        "kube-system",
-				"observe_dns.name": "kubernetes",
-			},
+			"action":           "run",
+			"gadget_name":      observeDNS,
+			"duration":         5.0,
+			"namespace":        "kube-system",
+			"observe_dns.name": "kubernetes",
 		}
 
 		result, err := handler.Handle(context.Background(), params, cfg)

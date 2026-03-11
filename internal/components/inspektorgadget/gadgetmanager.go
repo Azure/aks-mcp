@@ -25,7 +25,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-const maxResultLen = 128 * 1024 // 128 KB
+const maxResultLen = 64 * 1024 // 64 KB
 
 var KubernetesFlags = genericclioptions.NewConfigFlags(false)
 

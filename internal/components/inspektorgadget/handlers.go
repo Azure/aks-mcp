@@ -45,15 +45,8 @@ func InspektorGadgetHandler(mgr GadgetManager, cfg *config.ConfigData) tools.Res
 		// Set namespace for runtime
 		mgr.SetRuntimeNamespace(ns)
 
-		// Initialize action/filter parameters if not provided
-		actionParams, ok := params["action_params"].(map[string]interface{})
-		if !ok {
-			actionParams = map[string]interface{}{}
-		}
-		filterParams, ok := params["filter_params"].(map[string]interface{})
-		if !ok {
-			filterParams = map[string]interface{}{}
-		}
+		// Build filter parameters from top-level params
+		filterParams := buildFilterParams(params)
 
 		// validate filter parameters
 		for k := range filterParams {
@@ -64,25 +57,25 @@ func InspektorGadgetHandler(mgr GadgetManager, cfg *config.ConfigData) tools.Res
 
 		switch action {
 		case runAction:
-			return handleRunAction(ctx, mgr, actionParams, filterParams, cfg)
+			return handleRunAction(ctx, mgr, params, filterParams, cfg)
 		case startAction:
-			return handleStartAction(ctx, mgr, actionParams, filterParams, cfg)
+			return handleStartAction(ctx, mgr, params, filterParams, cfg)
 		case stopAction:
-			return handleStopAction(ctx, mgr, actionParams, cfg)
+			return handleStopAction(ctx, mgr, params, cfg)
 		case getResultsAction:
-			return handleGetResultsAction(ctx, mgr, actionParams, cfg)
+			return handleGetResultsAction(ctx, mgr, params, cfg)
 		case listGadgetsAction:
 			return handleListGadgetsAction(ctx, mgr, cfg)
 		case isDeployedAction, undeployAction, upgradeAction, deployAction:
-			return handleLifecycleAction(mgr, deployed, action, actionParams, cfg)
+			return handleLifecycleAction(mgr, deployed, action, params, cfg)
 		}
 
 		return "", fmt.Errorf("unsupported action: %s", action)
 	})
 }
 
-func handleRunAction(ctx context.Context, mgr GadgetManager, actionParams map[string]interface{}, filterParams map[string]interface{}, cfg *config.ConfigData) (string, error) {
-	gadgetName, ok := actionParams["gadget_name"].(string)
+func handleRunAction(ctx context.Context, mgr GadgetManager, params map[string]interface{}, filterParams map[string]interface{}, cfg *config.ConfigData) (string, error) {
+	gadgetName, ok := params["gadget_name"].(string)
 	if !ok || gadgetName == "" {
 		return "", fmt.Errorf("invalid or missing 'gadget_name' parameter in 'run' action, must be a non-empty string")
 	}
@@ -92,7 +85,7 @@ func handleRunAction(ctx context.Context, mgr GadgetManager, actionParams map[st
 		return "", fmt.Errorf("invalid or unsupported gadget name: %s: expected one of %v", gadgetName, getGadgetNames())
 	}
 
-	duration, ok := actionParams["duration"].(float64)
+	duration, ok := params["duration"].(float64)
 	if !ok || duration <= 0 {
 		duration = 10
 	}
@@ -120,8 +113,8 @@ func handleRunAction(ctx context.Context, mgr GadgetManager, actionParams map[st
 	return resp, nil
 }
 
-func handleStartAction(ctx context.Context, mgr GadgetManager, actionParams map[string]interface{}, filterParams map[string]interface{}, cfg *config.ConfigData) (string, error) {
-	gadgetName, ok := actionParams["gadget_name"].(string)
+func handleStartAction(ctx context.Context, mgr GadgetManager, params map[string]interface{}, filterParams map[string]interface{}, cfg *config.ConfigData) (string, error) {
+	gadgetName, ok := params["gadget_name"].(string)
 	if !ok || gadgetName == "" {
 		return "", fmt.Errorf("invalid or missing 'gadget_name' parameter in 'start' action, must be a non-empty string")
 	}
@@ -164,8 +157,8 @@ func handleStartAction(ctx context.Context, mgr GadgetManager, actionParams map[
 	return fmt.Sprintf("Gadget started with ID: %s", id), nil
 }
 
-func handleStopAction(ctx context.Context, mgr GadgetManager, actionParams map[string]interface{}, cfg *config.ConfigData) (string, error) {
-	id, ok := actionParams["gadget_id"].(string)
+func handleStopAction(ctx context.Context, mgr GadgetManager, params map[string]interface{}, cfg *config.ConfigData) (string, error) {
+	id, ok := params["gadget_id"].(string)
 	if !ok || id == "" {
 		return "", fmt.Errorf("invalid or missing 'gadget_id' parameter in 'stop' action, must be a non-empty string")
 	}
@@ -181,8 +174,8 @@ func handleStopAction(ctx context.Context, mgr GadgetManager, actionParams map[s
 	return fmt.Sprintf("Gadget with ID %s stopped successfully", id), nil
 }
 
-func handleGetResultsAction(ctx context.Context, mgr GadgetManager, actionParams map[string]interface{}, cfg *config.ConfigData) (string, error) {
-	id, ok := actionParams["gadget_id"].(string)
+func handleGetResultsAction(ctx context.Context, mgr GadgetManager, params map[string]interface{}, cfg *config.ConfigData) (string, error) {
+	id, ok := params["gadget_id"].(string)
 	if !ok || id == "" {
 		return "", fmt.Errorf("invalid or missing 'gadget_id' parameter in 'get_results' action, must be a non-empty string")
 	}
@@ -225,8 +218,8 @@ func handleListGadgetsAction(ctx context.Context, mgr GadgetManager, cfg *config
 	return string(JSONData), nil
 }
 
-func handleLifecycleAction(mgr GadgetManager, deployed bool, action string, actionParams map[string]interface{}, cfg *config.ConfigData) (string, error) {
-	con, ok := actionParams["confirm"].(bool)
+func handleLifecycleAction(mgr GadgetManager, deployed bool, action string, params map[string]interface{}, cfg *config.ConfigData) (string, error) {
+	con, ok := params["confirm"].(bool)
 	if !ok {
 		con = false
 	}
@@ -263,7 +256,7 @@ func handleLifecycleAction(mgr GadgetManager, deployed bool, action string, acti
 		if deployed {
 			return "inspektor gadget is already deployed (version: " + installedVersion + ", latest: " + latestVersion + ")", nil
 		}
-		return handleDeployAction(hc, actionParams)
+		return handleDeployAction(hc, params)
 	case upgradeAction:
 		if !deployed {
 			return "inspektor gadget is not deployed, no upgrade needed", nil
@@ -271,14 +264,14 @@ func handleLifecycleAction(mgr GadgetManager, deployed bool, action string, acti
 		if installedVersion == latestVersion {
 			return fmt.Sprintf("inspektor gadget is already at the latest version (%s), no upgrade needed", installedVersion), nil
 		}
-		return handleUpgradeAction(hc, actionParams)
+		return handleUpgradeAction(hc, params)
 	}
 
 	return "", fmt.Errorf("unsupported lifecycle action %q, must be one of %v", action, getLifecycleActions())
 }
 
-func handleDeployAction(client HelmClient, actionParams map[string]interface{}) (string, error) {
-	chartVersion, ok := actionParams["chart_version"].(string)
+func handleDeployAction(client HelmClient, params map[string]interface{}) (string, error) {
+	chartVersion, ok := params["chart_version"].(string)
 	if !ok || chartVersion == "" {
 		chartVersion = getChartVersion()
 	}
@@ -306,14 +299,14 @@ func verifyRelease(client HelmClient) error {
 	return nil
 }
 
-func handleUpgradeAction(client HelmClient, actionParams map[string]interface{}) (string, error) {
+func handleUpgradeAction(client HelmClient, params map[string]interface{}) (string, error) {
 	// Verify if the release exists before upgrading
 	err := verifyRelease(client)
 	if err != nil {
 		return "", fmt.Errorf("verifying release: %w", err)
 	}
 	// Proceed with upgrade if the release exists
-	chartVersion, ok := actionParams["chart_version"].(string)
+	chartVersion, ok := params["chart_version"].(string)
 	if !ok || chartVersion == "" {
 		chartVersion = getChartVersion()
 	}
@@ -411,4 +404,28 @@ func isGadgetAccessAllowed(gadget *GadgetInstance, cfg *config.ConfigData) bool 
 	}
 
 	return true
+}
+
+// buildFilterParams extracts filter parameters from top-level params
+// This includes common filter params (namespace, pod, container, selector, node)
+// and gadget-specific params (e.g., observe_dns.name, observe_tcp.src)
+func buildFilterParams(params map[string]interface{}) map[string]interface{} {
+	filterParams := make(map[string]interface{})
+
+	// Extract common filter params
+	commonKeys := []string{"node", "namespace", "pod", "container", "selector"}
+	for _, key := range commonKeys {
+		if val, ok := params[key]; ok && val != nil && val != "" {
+			filterParams[key] = val
+		}
+	}
+
+	// Extract gadget-specific params (keys containing ".")
+	for key, val := range params {
+		if strings.Contains(key, ".") && val != nil && val != "" {
+			filterParams[key] = val
+		}
+	}
+
+	return filterParams
 }
