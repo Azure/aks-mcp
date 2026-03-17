@@ -1,0 +1,52 @@
+name: Publish Helm Chart to GHCR OCI
+
+on:
+  workflow_dispatch:
+  
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  CHART_PATH: chart
+
+jobs:
+  publish-helm-chart:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Extract chart version
+        id: chart
+        run: |
+          VERSION=$(grep '^version:' ${{ env.CHART_PATH }}/Chart.yaml | awk '{print $2}')
+          NAME=$(grep '^name:' ${{ env.CHART_PATH }}/Chart.yaml | awk '{print $2}')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "name=$NAME" >> $GITHUB_OUTPUT
+          echo "Chart: $NAME version $VERSION"
+
+      - name: Login to GHCR
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
+
+      - name: Package Helm chart
+        run: |
+          helm package ${{ env.CHART_PATH }}
+
+      - name: Push Helm chart to GHCR OCI
+        run: |
+          helm push ${{ steps.chart.outputs.name }}-${{ steps.chart.outputs.version }}.tgz oci://${{ env.REGISTRY }}/${{ github.repository_owner }}
+
+      - name: Summary
+        run: |
+          echo "### Helm Chart Published" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Chart:** ${{ steps.chart.outputs.name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version:** ${{ steps.chart.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Registry:** oci://${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ steps.chart.outputs.name }}" >> $GITHUB_STEP_SUMMARY
