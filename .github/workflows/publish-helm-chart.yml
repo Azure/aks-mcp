@@ -33,6 +33,10 @@ jobs:
           echo "owner=$OWNER" >> $GITHUB_OUTPUT
           echo "Chart: $NAME version $VERSION (owner: $OWNER)"
 
+      - name: Lint Helm chart
+        run: |
+          helm lint ${{ env.CHART_PATH }}
+
       - name: Login to GHCR
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
