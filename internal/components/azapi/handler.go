@@ -3,6 +3,8 @@ package azapi
 import (
 	"context"
 	"fmt"
+	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
@@ -25,6 +27,54 @@ func sanitizeCliCommand(cmd string) string {
 		kept = append(kept, t)
 	}
 	return strings.Join(kept, " ")
+}
+
+// azureHostPattern matches known Azure/Microsoft hostnames.
+var azureHostPattern = regexp.MustCompile(`(?i)(^|\.)(azure\.com|azure\.cn|azure\.us|azure\.de|microsoftonline\.com|microsoft\.com|windows\.net|azure-api\.net|azurecr\.io|azurewebsites\.net|azureedge\.net|msecnd\.net|msftauth\.net|msauth\.net|msftidentity\.com|visualstudio\.com|aka\.ms)$`)
+
+// validateAzCommand provides defense-in-depth validation for az CLI commands.
+// It blocks "az rest" commands where --url points to a non-Azure host,
+// preventing token exfiltration attacks.
+func validateAzCommand(cliCommand string) error {
+	tokens := strings.Fields(cliCommand)
+
+	// Only inspect "az rest" commands
+	if len(tokens) < 2 || tokens[0] != "az" || tokens[1] != "rest" {
+		return nil
+	}
+
+	// Search for --url / -u flag value
+	var urlVal string
+	var hasURL bool
+	for i := 2; i < len(tokens); i++ {
+		t := tokens[i]
+		if (t == "--url" || t == "-u") && i+1 < len(tokens) {
+			urlVal = tokens[i+1]
+			hasURL = true
+			break
+		}
+		if strings.HasPrefix(t, "--url=") {
+			urlVal = strings.TrimPrefix(t, "--url=")
+			hasURL = true
+			break
+		}
+	}
+
+	if !hasURL {
+		return nil
+	}
+
+	parsed, err := url.Parse(urlVal)
+	if err != nil || parsed.Host == "" {
+		return fmt.Errorf("az rest --url must point to a known Azure host; non-Azure URLs are blocked to prevent token exfiltration")
+	}
+
+	hostname := parsed.Hostname()
+	if !azureHostPattern.MatchString(hostname) {
+		return fmt.Errorf("az rest --url must point to a known Azure host; non-Azure URLs are blocked to prevent token exfiltration")
+	}
+
+	return nil
 }
 
 func AzApiHandler(azClient azcli.Client, cfg *config.ConfigData) func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -58,6 +108,15 @@ func AzApiHandler(azClient azcli.Client, cfg *config.ConfigData) func(ctx contex
 		defer cancel()
 
 		logger.Debugf("AzApiHandler: Executing Azure CLI command: %s", cliCommand)
+
+		if err := validateAzCommand(cliCommand); err != nil {
+			errMsg := fmt.Sprintf("command validation failed: %v", err)
+			logger.Errorf("AzApiHandler: %s", errMsg)
+			if cfg.TelemetryService != nil {
+				cfg.TelemetryService.TrackToolInvocation(ctx, req.Params.Name, sanitizeCliCommand(cliCommand), false)
+			}
+			return mcp.NewToolResultError(errMsg), nil
+		}
 
 		result, err := azClient.ExecuteCommand(cmdCtx, cliCommand)
 		if err != nil {
