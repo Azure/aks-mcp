@@ -48,13 +48,18 @@ func validateAzCommand(cliCommand string) error {
 	var hasURL bool
 	for i := 2; i < len(tokens); i++ {
 		t := tokens[i]
-		if (t == "--url" || t == "-u") && i+1 < len(tokens) {
+		if (t == "--url" || t == "--uri" || t == "-u") && i+1 < len(tokens) {
 			urlVal = tokens[i+1]
 			hasURL = true
 			break
 		}
 		if strings.HasPrefix(t, "--url=") {
 			urlVal = strings.TrimPrefix(t, "--url=")
+			hasURL = true
+			break
+		}
+		if strings.HasPrefix(t, "--uri=") {
+			urlVal = strings.TrimPrefix(t, "--uri=")
 			hasURL = true
 			break
 		}

