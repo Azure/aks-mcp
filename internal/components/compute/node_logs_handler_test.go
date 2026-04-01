@@ -454,3 +454,117 @@ func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
 		(len(s) > 0 && (s[:len(substr)] == substr || contains(s[1:], substr))))
 }
+
+// Test validateSinceParameter function
+func TestValidateSinceParameter(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		expectError bool
+	}{
+		// Valid inputs
+		{"empty string", "", false},
+		{"1 hour shorthand", "1h", false},
+		{"30 minutes shorthand", "30m", false},
+		{"2 days shorthand", "2d", false},
+		{"45 seconds shorthand", "45s", false},
+		{"1 week shorthand", "1w", false},
+		{"4-digit shorthand", "1234h", false},
+		{"date only", "2024-01-01", false},
+		{"date and time HH:MM", "2024-01-01 10:00", false},
+		{"date and time HH:MM:SS", "2024-01-01 10:00:00", false},
+		{"relative 1 hour ago", "1 hour ago", false},
+		{"relative 30 minutes ago", "30 minutes ago", false},
+		{"relative 1 minute ago", "1 minute ago", false},
+		{"relative 2 days ago", "2 days ago", false},
+		{"relative 1 day ago", "1 day ago", false},
+		{"relative 1 week ago", "1 week ago", false},
+		{"relative 2 weeks ago", "2 weeks ago", false},
+		{"relative 45 seconds ago", "45 seconds ago", false},
+		{"relative 1 second ago", "1 second ago", false},
+
+		// Invalid inputs - injection attempts
+		{"injection single quote escape", "1'; id; echo '", true},
+		{"injection command substitution", "$(whoami)", true},
+		{"injection backtick", "`id`", true},
+		{"injection semicolon", "1h; rm -rf /", true},
+		{"injection pipe", "1h | cat /etc/passwd", true},
+		{"injection ampersand", "1h && id", true},
+		{"injection newline", "1h\nid", true},
+		{"injection double quote", "1h\" && id", true},
+
+		// Invalid inputs - malformed values
+		{"random text", "foobar", true},
+		{"too many digits", "12345h", true},
+		{"no digit prefix", "h", true},
+		{"partial timestamp", "2024-01", true},
+		{"invalid relative", "ago 1 hour", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateSinceParameter(tt.input)
+			if tt.expectError && err == nil {
+				t.Errorf("validateSinceParameter(%q) expected error, got nil", tt.input)
+			}
+			if !tt.expectError && err != nil {
+				t.Errorf("validateSinceParameter(%q) unexpected error: %v", tt.input, err)
+			}
+		})
+	}
+}
+
+// Test validateFilterParameter function
+func TestValidateFilterParameter(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		expectError bool
+	}{
+		// Valid inputs
+		{"empty string", "", false},
+		{"simple text", "ImagePullBackOff", false},
+		{"text with hyphen", "pod-name", false},
+		{"text with dot", "my.namespace", false},
+		{"text with underscore", "my_pod", false},
+		{"text with space", "kernel panic", false},
+		{"text with digits", "error123", false},
+		{"text with slash", "kube/proxy", false},
+		{"text with equals", "key=value", false},
+		{"text with colon", "level:error", false},
+		{"text with at sign", "user@host", false},
+		{"text with brackets", "container[0]", false},
+		{"text with hash", "#comment", false},
+		{"text with percent", "100%", false},
+		{"text with plus", "c++", false},
+
+		// Invalid inputs - injection attempts
+		{"injection single quote", "test'; rm -rf /; echo '", true},
+		{"injection double quote", "test\" && id", true},
+		{"injection semicolon", "test; id", true},
+		{"injection pipe", "test | cat /etc/passwd", true},
+		{"injection ampersand", "test && whoami", true},
+		{"injection backtick", "test `id`", true},
+		{"injection dollar", "test $(id)", true},
+		{"injection parenthesis", "test $(whoami)", true},
+		{"injection curly brace open", "test ${PATH}", true},
+		{"injection curly brace close", "test }", true},
+		{"injection redirect out", "test > /tmp/pwned", true},
+		{"injection redirect in", "test < /etc/passwd", true},
+		{"injection newline", "test\nid", true},
+		{"injection carriage return", "test\rid", true},
+		{"injection backslash", "test\\nid", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateFilterParameter(tt.input)
+			if tt.expectError && err == nil {
+				t.Errorf("validateFilterParameter(%q) expected error, got nil", tt.input)
+			}
+			if !tt.expectError && err != nil {
+				t.Errorf("validateFilterParameter(%q) unexpected error: %v", tt.input, err)
+			}
+		})
+	}
+}
