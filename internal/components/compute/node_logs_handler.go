@@ -3,6 +3,7 @@ package compute
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/Azure/aks-mcp/internal/azureclient"
@@ -112,6 +113,16 @@ func CollectAKSNodeLogsHandler(client *azureclient.AzureClient, cfg *config.Conf
 			filter = f
 		}
 
+		// Validate since parameter to prevent command injection
+		if err := validateSinceParameter(since); err != nil {
+			return "", err
+		}
+
+		// Validate filter parameter to prevent command injection
+		if err := validateFilterParameter(filter); err != nil {
+			return "", err
+		}
+
 		// Build the command
 		command, err := buildLogCommand(logType, lines, since, level, filter)
 		if err != nil {
@@ -154,6 +165,52 @@ func isValidLogLevel(level string) bool {
 	default:
 		return false
 	}
+}
+
+// Compiled regexes for since parameter validation
+var (
+	sinceShorthandRegex   = regexp.MustCompile(`^\d{1,4}[hmsdw]$`)
+	sinceTimestampRegex   = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}(:\d{2})?)?$`)
+	sinceRelativeRegex    = regexp.MustCompile(`^\d+ (hours?|minutes?|seconds?|days?|weeks?) ago$`)
+	filterDisallowedRegex = regexp.MustCompile("[;|&`$(){}><\n\r'\"\\\\]")
+)
+
+// validateSinceParameter validates the since parameter against allowed formats
+// to prevent command injection. Allowed formats:
+//   - Empty string (no filter)
+//   - Shorthand: 1h, 30m, 2d, 45s, 1w (up to 4 digits)
+//   - Timestamp: 2024-01-01, 2024-01-01 10:00, 2024-01-01 10:00:00
+//   - Relative: "1 hour ago", "30 minutes ago", etc.
+func validateSinceParameter(since string) error {
+	if since == "" {
+		return nil
+	}
+
+	if sinceShorthandRegex.MatchString(since) {
+		return nil
+	}
+	if sinceTimestampRegex.MatchString(since) {
+		return nil
+	}
+	if sinceRelativeRegex.MatchString(since) {
+		return nil
+	}
+
+	return fmt.Errorf("invalid since parameter %q: must be a shorthand (e.g., 1h, 30m, 2d), a timestamp (e.g., 2024-01-01 10:00:00), or a relative time (e.g., '1 hour ago')", since)
+}
+
+// validateFilterParameter validates the filter parameter to prevent command injection.
+// The filter is used as a fixed-string grep pattern, so shell metacharacters are not needed.
+func validateFilterParameter(filter string) error {
+	if filter == "" {
+		return nil
+	}
+
+	if filterDisallowedRegex.MatchString(filter) {
+		return fmt.Errorf("invalid filter parameter %q: must not contain shell metacharacters (;|&`$(){}><'\"\\)", filter)
+	}
+
+	return nil
 }
 
 // buildLogCommand builds the shell command to collect logs
