@@ -725,6 +725,11 @@ func TestValidateCommandInjection_IsolatedFunction(t *testing.T) {
 		{"newline", "az aks show\necho test", true},
 		{"carriage_return", "az aks show\recho test", true},
 		{"variable_substitution", "az aks show ${var}", true},
+		{"at_file_injection_name", "az aks show --name @/etc/passwd --resource-group rg", true},
+		{"at_file_injection_resource_group", "az aks show --name myCluster --resource-group @/etc/shadow", true},
+		{"at_file_absolute_path", "az aks create @/tmp/malicious.json", true},
+		{"at_file_relative_path", "az aks create @../secrets.json", true},
+		{"email_in_flag_value_allowed", "az aks show --contact user@example.com --name myCluster --resource-group rg", false},
 	}
 
 	for _, tt := range tests {
