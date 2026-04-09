@@ -123,6 +123,30 @@ func TestFleetExecutor_CheckAccessLevel(t *testing.T) {
 			accessLevel: "admin",
 			wantErr:     false,
 		},
+		// get-credentials must require admin, consistent with az aks get-credentials
+		{
+			name:        "readonly cannot get-credentials",
+			operation:   "get-credentials",
+			resource:    "fleet",
+			accessLevel: "readonly",
+			wantErr:     true,
+			errMsg:      "requires admin access level",
+		},
+		{
+			name:        "readwrite cannot get-credentials",
+			operation:   "get-credentials",
+			resource:    "fleet",
+			accessLevel: "readwrite",
+			wantErr:     true,
+			errMsg:      "requires admin access level",
+		},
+		{
+			name:        "admin can get-credentials",
+			operation:   "get-credentials",
+			resource:    "fleet",
+			accessLevel: "admin",
+			wantErr:     false,
+		},
 	}
 
 	for _, tt := range tests {
