@@ -11,6 +11,7 @@ import (
 	"github.com/Azure/aks-mcp/internal/config"
 	"github.com/Azure/aks-mcp/internal/logger"
 	"github.com/Azure/azure-api-mcp/pkg/azcli"
+	"github.com/google/shlex"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
@@ -34,11 +35,25 @@ var azureHostPattern = regexp.MustCompile(`(?i)(^|\.)(azure\.com|azure\.cn|azure
 
 // validateAzCommand provides defense-in-depth validation for az CLI commands.
 // It blocks "az rest" commands where --url points to a non-Azure host,
-// preventing token exfiltration attacks.
+// preventing token exfiltration attacks. It also blocks @file arguments across
+// all command types to prevent arbitrary local file reads.
 func validateAzCommand(cliCommand string) error {
+	// Block az CLI @file expansion: any token starting with @ triggers file content
+	// substitution in az CLI pre-processing, enabling arbitrary file reads.
+	{
+		tokens, err := shlex.Split(cliCommand)
+		if err == nil {
+			for _, token := range tokens {
+				if strings.HasPrefix(token, "@") {
+					return fmt.Errorf("command contains @file argument which would cause az CLI to read local files; this is blocked as a security measure")
+				}
+			}
+		}
+	}
+
 	tokens := strings.Fields(cliCommand)
 
-	// Only inspect "az rest" commands
+	// Only inspect "az rest" commands for URL validation
 	if len(tokens) < 2 || tokens[0] != "az" || tokens[1] != "rest" {
 		return nil
 	}
