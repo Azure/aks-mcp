@@ -2,6 +2,8 @@ package security
 
 import (
 	"strings"
+
+	"github.com/google/shlex"
 )
 
 // Command type constants
@@ -192,6 +194,21 @@ func (v *Validator) validateCommandInjection(command string) error {
 				}
 				// Skip the next '<' since we've verified it's part of '<<'
 				i++
+			}
+		}
+	}
+
+	// Block az CLI @file expansion: any argument token starting with @ causes az CLI
+	// to read that path and substitute its content, enabling arbitrary file reads.
+	// We check at token level (not substring) so that @ embedded mid-value
+	// (e.g. user@example.com) is not blocked.
+	{
+		tokens, err := shlex.Split(command)
+		if err == nil {
+			for _, token := range tokens {
+				if strings.HasPrefix(token, "@") {
+					return &ValidationError{Message: "Error: Command contains potentially dangerous characters or patterns"}
+				}
 			}
 		}
 	}

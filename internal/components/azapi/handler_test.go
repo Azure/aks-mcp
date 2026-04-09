@@ -447,6 +447,26 @@ func TestValidateAzCommand(t *testing.T) {
 			input:   "az group list",
 			wantErr: false,
 		},
+		{
+			name:    "at file injection via name arg - rejected",
+			input:   "az aks show --name @/etc/passwd --resource-group rg",
+			wantErr: true,
+		},
+		{
+			name:    "at file absolute path - rejected",
+			input:   "az resource list @/tmp/params.json",
+			wantErr: true,
+		},
+		{
+			name:    "at file relative path - rejected",
+			input:   "az aks create @../evil.json",
+			wantErr: true,
+		},
+		{
+			name:    "email in flag value mid-token - allowed",
+			input:   "az aks show --contact admin@corp.com --name myCluster --resource-group rg",
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
