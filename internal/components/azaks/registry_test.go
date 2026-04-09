@@ -65,6 +65,13 @@ func TestValidateOperationAccess_ChecksAccessLevels(t *testing.T) {
 		{"get-credentials", "readonly", false},
 		{"get-credentials", "readwrite", false},
 		{"get-credentials", "admin", true},
+		// login and account-set should require admin (not just readwrite)
+		{"login", "readonly", false},
+		{"login", "readwrite", false},
+		{"login", "admin", true},
+		{"account-set", "readonly", false},
+		{"account-set", "readwrite", false},
+		{"account-set", "admin", true},
 	}
 
 	for _, tc := range testCases {
