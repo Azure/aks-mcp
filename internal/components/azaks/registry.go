@@ -55,12 +55,12 @@ func generateToolDescription(accessLevel string) string {
 	if accessLevel == "readwrite" || accessLevel == "admin" {
 		clusterOps = append(clusterOps, "create", "delete", "scale", "update", "upgrade", "start", "stop")
 		nodepoolOps = append(nodepoolOps, "nodepool-add", "nodepool-delete", "nodepool-scale", "nodepool-upgrade")
-		accountOps = append(accountOps, "account-set", "login")
 	}
 
 	// Add admin operations for admin only
 	if accessLevel == "admin" {
 		clusterOps = append(clusterOps, "get-credentials")
+		accountOps = append(accountOps, "account-set", "login")
 	}
 
 	// Build the operations description
@@ -130,12 +130,11 @@ func GetOperationAccessLevel(operation string) string {
 		string(OpClusterCreate), string(OpClusterDelete), string(OpClusterScale),
 		string(OpClusterUpdate), string(OpClusterUpgrade), string(OpClusterStart),
 		string(OpClusterStop), string(OpNodepoolAdd), string(OpNodepoolDelete),
-		string(OpNodepoolScale), string(OpNodepoolUpgrade), string(OpAccountSet),
-		string(OpLogin),
+		string(OpNodepoolScale), string(OpNodepoolUpgrade),
 	}
 
 	adminOps := []string{
-		string(OpClusterGetCredentials),
+		string(OpClusterGetCredentials), string(OpAccountSet), string(OpLogin),
 	}
 
 	if slices.Contains(readOnlyOps, operation) {
