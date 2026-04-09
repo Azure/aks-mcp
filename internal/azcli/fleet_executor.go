@@ -115,8 +115,16 @@ func (e *FleetExecutor) validateCombination(operation, resource string) error {
 
 // checkAccessLevel ensures the operation is allowed for the current access level
 func (e *FleetExecutor) checkAccessLevel(operation, resource string, accessLevel string) error {
+	// get-credentials writes kubeconfig to disk — require admin, consistent with az aks get-credentials
+	if operation == "get-credentials" {
+		if accessLevel != "admin" {
+			return fmt.Errorf("operation 'get-credentials' requires admin access level, current level is %s", accessLevel)
+		}
+		return nil
+	}
+
 	// Read-only operations are allowed for all access levels
-	readOnlyOps := []string{"list", "show", "get", "get-credentials"}
+	readOnlyOps := []string{"list", "show", "get"}
 	for _, op := range readOnlyOps {
 		if operation == op {
 			return nil
