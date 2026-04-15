@@ -1,5 +1,6 @@
 # AKS-MCP
 
+[![SafeSkill 92/100](https://img.shields.io/badge/SafeSkill-92%2F100_Verified%20Safe-brightgreen)](https://safeskill.dev/scan/azure-aks-mcp)
 The AKS-MCP is a Model Context Protocol (MCP) server that enables AI assistants
 to interact with Azure Kubernetes Service (AKS) clusters. It serves as a bridge
 between AI tools (like GitHub Copilot, Claude, and other MCP-compatible AI
