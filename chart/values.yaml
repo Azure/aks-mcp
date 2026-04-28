@@ -67,6 +67,10 @@ oauth:
   redirectURIs: []
   # Custom CORS origins (auto-generated if empty)
   corsOrigins: []
+  # External base URL of the server (e.g. https://aks-mcp.example.com).
+  # Required when the server is behind a TLS-terminating reverse proxy so that
+  # OAuth metadata endpoints return https:// URLs instead of http://.
+  externalURL: ""
 
 # Application configuration
 config:

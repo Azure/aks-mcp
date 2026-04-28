@@ -144,19 +144,25 @@ func (em *EndpointManager) authServerMetadataProxyHandler() http.HandlerFunc {
 		// Get metadata from Azure AD
 		provider := em.provider
 
-		// Build server URL based on the request
-		scheme := "http"
-		if r.TLS != nil {
-			scheme = "https"
-		}
+		// Build server URL: prefer ExternalURL (needed behind TLS-terminating proxies
+		// where r.TLS is always nil), otherwise derive from the request.
+		var serverURL string
+		if em.provider.config.ExternalURL != "" {
+			serverURL = em.provider.config.ExternalURL
+		} else {
+			// Build server URL based on the request
+			scheme := "http"
+			if r.TLS != nil {
+				scheme = "https"
+			}
 
-		// Use the Host header from the request
-		host := r.Host
-		if host == "" {
-			host = r.URL.Host
+			// Use the Host header from the request
+			host := r.Host
+			if host == "" {
+				host = r.URL.Host
+			}
+			serverURL = fmt.Sprintf("%s://%s", scheme, host)
 		}
-
-		serverURL := fmt.Sprintf("%s://%s", scheme, host)
 
 		metadata, err := provider.GetAuthorizationServerMetadata(serverURL)
 		if err != nil {
@@ -392,18 +398,6 @@ func (em *EndpointManager) protectedResourceMetadataHandler() http.HandlerFunc {
 			return
 		}
 
-		// Build resource URL based on the request
-		scheme := "http"
-		if r.TLS != nil {
-			scheme = "https"
-		}
-
-		// Use the Host header from the request
-		host := r.Host
-		if host == "" {
-			host = r.URL.Host
-		}
-
 		// Build the resource URL with correct MCP endpoint path based on transport
 		var mcpPath string
 		switch em.cfg.Transport {
@@ -415,7 +409,25 @@ func (em *EndpointManager) protectedResourceMetadataHandler() http.HandlerFunc {
 			mcpPath = ""
 		}
 
-		resourceURL := fmt.Sprintf("%s://%s%s", scheme, host, mcpPath)
+		// Build resource URL: prefer ExternalURL (needed behind TLS-terminating proxies
+		// where r.TLS is always nil), otherwise derive from the request.
+		var resourceURL string
+		if em.provider.config.ExternalURL != "" {
+			resourceURL = em.provider.config.ExternalURL + mcpPath
+		} else {
+			// Build resource URL based on the request
+			scheme := "http"
+			if r.TLS != nil {
+				scheme = "https"
+			}
+
+			// Use the Host header from the request
+			host := r.Host
+			if host == "" {
+				host = r.URL.Host
+			}
+			resourceURL = fmt.Sprintf("%s://%s%s", scheme, host, mcpPath)
+		}
 		logger.Debugf("OAuth DEBUG: Building protected resource metadata for URL: %s (transport: %s)", resourceURL, em.cfg.Transport)
 
 		provider := em.provider

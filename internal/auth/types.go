@@ -25,6 +25,12 @@ type OAuthConfig struct {
 	// Allowed CORS origins for OAuth endpoints (for security, wildcard "*" should be avoided)
 	AllowedOrigins []string `json:"allowed_origins"`
 
+	// ExternalURL overrides the server URL used in OAuth metadata responses.
+	// Required when the server is behind a TLS-terminating reverse proxy (e.g. Envoy Gateway),
+	// because r.TLS is always nil in that case and http:// URLs would be returned otherwise.
+	// Example: "https://aks-mcp.platform.example.com"
+	ExternalURL string `json:"external_url"`
+
 	// Token validation settings
 	TokenValidation TokenValidationConfig `json:"token_validation"`
 }

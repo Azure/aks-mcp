@@ -77,6 +77,10 @@ spec:
             - "--oauth-cors-origins"
             - {{ $corsOrigins | quote }}
             {{- end }}
+            {{- if .Values.oauth.externalURL }}
+            - "--oauth-external-url"
+            - {{ .Values.oauth.externalURL | quote }}
+            {{- end }}
             {{- end }}
             {{- if .Values.app.logLevel }}
             - "--log-level"

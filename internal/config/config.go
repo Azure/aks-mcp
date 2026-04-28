@@ -123,6 +123,10 @@ func (cfg *ConfigData) ParseFlags() {
 	allowedCORSOrigins := flag.String("oauth-cors-origins", "",
 		"Comma-separated list of allowed CORS origins for OAuth endpoints (e.g. http://localhost:6274). If empty, no cross-origin requests are allowed for security")
 
+	// OAuth external URL configuration
+	flag.StringVar(&cfg.OAuthConfig.ExternalURL, "oauth-external-url", "",
+		"External base URL of the server (e.g. https://aks-mcp.example.com). Required when behind a TLS-terminating reverse proxy to ensure OAuth metadata uses https:// URLs. Falls back to OAUTH_EXTERNAL_URL env var.")
+
 	// OAuth scopes configuration
 	oauthScopes := flag.String("oauth-scopes", "",
 		"Comma-separated list of OAuth scopes to require (e.g. api://your-app-id/.default). If empty, defaults to https://management.azure.com/.default")
@@ -215,6 +219,14 @@ func (cfg *ConfigData) parseOAuthConfig(additionalRedirectURIs, allowedCORSOrigi
 			audience = strings.TrimSuffix(audience, "/")
 			cfg.OAuthConfig.TokenValidation.ExpectedAudience = audience
 			logger.Infof("OAuth Config: Using custom scopes %v with audience %s", cfg.OAuthConfig.RequiredScopes, audience)
+		}
+	}
+
+	// Load external URL from environment variable if not set via CLI
+	if cfg.OAuthConfig.ExternalURL == "" {
+		if externalURL := os.Getenv("OAUTH_EXTERNAL_URL"); externalURL != "" {
+			cfg.OAuthConfig.ExternalURL = externalURL
+			logger.Debugf("OAuth Config: Using external URL from environment variable OAUTH_EXTERNAL_URL")
 		}
 	}
 
