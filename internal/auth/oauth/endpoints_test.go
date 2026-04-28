@@ -555,6 +555,75 @@ func TestProtectedResourceMetadataEndpointTransportPaths(t *testing.T) {
 	}
 }
 
+func TestProtectedResourceMetadataEndpointExternalURL(t *testing.T) {
+	tests := []struct {
+		name                string
+		externalURL         string
+		transport           string
+		expectedResourceURL string
+		// r.TLS is nil and Host is empty — without ExternalURL this would produce http://example.com
+	}{
+		{
+			name:                "externalURL overrides scheme and host for streamable-http",
+			externalURL:         "https://aks-mcp.platform.example.com",
+			transport:           "streamable-http",
+			expectedResourceURL: "https://aks-mcp.platform.example.com/mcp",
+		},
+		{
+			name:                "externalURL overrides scheme and host for sse",
+			externalURL:         "https://aks-mcp.platform.example.com",
+			transport:           "sse",
+			expectedResourceURL: "https://aks-mcp.platform.example.com/sse",
+		},
+		{
+			name:                "externalURL with no transport path",
+			externalURL:         "https://aks-mcp.platform.example.com",
+			transport:           "",
+			expectedResourceURL: "https://aks-mcp.platform.example.com",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := createTestConfig()
+			cfg.Transport = tt.transport
+			cfg.OAuthConfig.ExternalURL = tt.externalURL
+
+			provider, _ := NewAzureOAuthProvider(cfg.OAuthConfig)
+			manager := NewEndpointManager(provider, cfg)
+
+			// Request has no TLS and no meaningful Host — ExternalURL must take precedence
+			req := httptest.NewRequest("GET", "/.well-known/oauth-protected-resource", nil)
+			req.Host = ""
+
+			w := httptest.NewRecorder()
+			handler := manager.protectedResourceMetadataHandler()
+			handler(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Errorf("Expected status 200, got %d", w.Code)
+			}
+
+			var metadata ProtectedResourceMetadata
+			if err := json.Unmarshal(w.Body.Bytes(), &metadata); err != nil {
+				t.Fatalf("Failed to parse response: %v", err)
+			}
+
+			if metadata.Resource != tt.expectedResourceURL {
+				t.Errorf("Expected resource URL %s, got %s", tt.expectedResourceURL, metadata.Resource)
+			}
+
+			// Authorization server URL should use ExternalURL as base (not http://)
+			if len(metadata.AuthorizationServers) != 1 {
+				t.Fatalf("Expected 1 authorization server, got %d", len(metadata.AuthorizationServers))
+			}
+			if !strings.HasPrefix(metadata.AuthorizationServers[0], "https://") {
+				t.Errorf("Expected authorization server URL to use https://, got %s", metadata.AuthorizationServers[0])
+			}
+		})
+	}
+}
+
 func TestProtectedResourceMetadataEndpointHostHeaders(t *testing.T) {
 	tests := []struct {
 		name        string
