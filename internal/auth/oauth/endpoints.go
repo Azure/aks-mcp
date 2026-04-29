@@ -1,17 +1,15 @@
 package oauth
 
 import (
-	"crypto/rand"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
-	"github.com/Azure/aks-mcp/internal/auth"
 	"github.com/Azure/aks-mcp/internal/config"
 	"github.com/Azure/aks-mcp/internal/logger"
 )
@@ -43,15 +41,18 @@ func validateAzureADURL(tokenURL string) error {
 
 // EndpointManager manages OAuth-related HTTP endpoints
 type EndpointManager struct {
-	provider *AzureOAuthProvider
-	cfg      *config.ConfigData
+	provider      *AzureOAuthProvider
+	cfg           *config.ConfigData
+	mu            sync.Mutex
+	pendingStates map[string]string // state → original client redirect_uri
 }
 
 // NewEndpointManager creates a new OAuth endpoint manager
 func NewEndpointManager(provider *AzureOAuthProvider, cfg *config.ConfigData) *EndpointManager {
 	return &EndpointManager{
-		provider: provider,
-		cfg:      cfg,
+		provider:      provider,
+		cfg:           cfg,
+		pendingStates: make(map[string]string),
 	}
 }
 
@@ -547,6 +548,38 @@ func (em *EndpointManager) authorizationProxyHandler() http.HandlerFunc {
 		query.Set("scope", finalScopeString)
 		logger.Debugf("OAuth DEBUG: Setting final scope for Azure AD: %s", finalScopeString)
 
+		// Store state → client redirect_uri so the callback handler can relay the
+		// authorization code back to the MCP client after Azure AD redirects to our
+		// /oauth/callback endpoint. This is client-agnostic: any OAuth 2.1 client
+		// (Claude.ai, VS Code, MCP Inspector, etc.) works as long as its redirect_uri
+		// is in the configured allowed list.
+		state := query.Get("state")
+		if state != "" {
+			em.mu.Lock()
+			em.pendingStates[state] = redirectURI
+			em.mu.Unlock()
+		}
+
+		// Replace redirect_uri with the server's own callback URL. Azure AD must
+		// redirect to a URI registered in the app registration (our server), not
+		// directly to the MCP client.
+		var serverCallbackURL string
+		if em.provider.config.ExternalURL != "" {
+			serverCallbackURL = em.provider.config.ExternalURL + "/oauth/callback"
+		} else {
+			scheme := "http"
+			if r.TLS != nil {
+				scheme = "https"
+			}
+			host := r.Host
+			if host == "" {
+				host = r.URL.Host
+			}
+			serverCallbackURL = fmt.Sprintf("%s://%s/oauth/callback", scheme, host)
+		}
+		query.Set("redirect_uri", serverCallbackURL)
+		logger.Debugf("OAuth DEBUG: Using server callback URL for Azure AD: %s", serverCallbackURL)
+
 		// Build the Azure AD authorization URL
 		azureAuthURL := fmt.Sprintf("https://login.microsoftonline.com/%s/oauth2/v2.0/authorize", em.cfg.OAuthConfig.TenantID)
 
@@ -559,7 +592,12 @@ func (em *EndpointManager) authorizationProxyHandler() http.HandlerFunc {
 	}
 }
 
-// callbackHandler handles OAuth 2.0 Authorization Code flow callback
+// callbackHandler handles OAuth 2.0 Authorization Code flow callback.
+//
+// The server acts as a proxy: Azure AD redirects here with the authorization
+// code, and we relay the code back to the original MCP client redirect_uri
+// that was stored during /authorize. The MCP client then exchanges the code
+// directly with Azure AD (using its PKCE verifier) via /oauth2/v2.0/token.
 func (em *EndpointManager) callbackHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		logger.Debugf("OAuth DEBUG: Received callback request: %s %s", r.Method, r.URL.Path)
@@ -579,66 +617,49 @@ func (em *EndpointManager) callbackHandler() http.HandlerFunc {
 			return
 		}
 
-		// Parse query parameters
 		query := r.URL.Query()
+		code := query.Get("code")
+		state := query.Get("state")
+		errParam := query.Get("error")
+		errDesc := query.Get("error_description")
 
-		// Check for error response from authorization server
-		if authError := query.Get("error"); authError != "" {
-			errorDesc := query.Get("error_description")
-			logger.Errorf("OAuth ERROR: Authorization server returned error: %s - %s", authError, errorDesc)
-			em.writeCallbackErrorResponse(w, fmt.Sprintf("Authorization failed: %s - %s", authError, errorDesc))
+		// Look up and consume the client redirect_uri stored during /authorize.
+		em.mu.Lock()
+		redirectURI, ok := em.pendingStates[state]
+		delete(em.pendingStates, state)
+		em.mu.Unlock()
+
+		if !ok || redirectURI == "" {
+			logger.Errorf("OAuth ERROR: No pending state found for state=%q", state)
+			http.Error(w, "invalid or expired state", http.StatusBadRequest)
 			return
 		}
 
-		// Get authorization code
-		code := query.Get("code")
+		// Forward any upstream error from Azure AD back to the MCP client.
+		if errParam != "" {
+			logger.Errorf("OAuth ERROR: Authorization server returned error: %s - %s", errParam, errDesc)
+			target := redirectURI +
+				"?error=" + url.QueryEscape(errParam) +
+				"&error_description=" + url.QueryEscape(errDesc) +
+				"&state=" + url.QueryEscape(state)
+			http.Redirect(w, r, target, http.StatusFound)
+			return
+		}
+
 		if code == "" {
 			logger.Errorf("OAuth ERROR: Missing authorization code in callback")
-			em.writeCallbackErrorResponse(w, "Missing authorization code")
+			http.Error(w, "missing code parameter", http.StatusBadRequest)
 			return
 		}
 
-		// Get state parameter for CSRF protection
-		state := query.Get("state")
-		if state == "" {
-			logger.Errorf("OAuth ERROR: Missing state parameter in callback")
-			em.writeCallbackErrorResponse(w, "Missing state parameter")
-			return
-		}
+		logger.Debugf("OAuth DEBUG: Relaying authorization code to client redirect_uri, state: %s", state)
 
-		logger.Debugf("OAuth DEBUG: Callback parameters validated - has_code: true, state: %s", state)
-
-		// Validate redirect URI for security - construct expected URI and validate it
-		expectedRedirectURI := fmt.Sprintf("http://%s:%d/oauth/callback", em.cfg.Host, em.cfg.Port)
-		if err := em.validateRedirectURI(expectedRedirectURI); err != nil {
-			logger.Errorf("OAuth ERROR: Redirect URI validation failed: %v", err)
-			em.writeCallbackErrorResponse(w, "Invalid redirect URI")
-			return
-		}
-
-		// Exchange authorization code for access token
-		tokenResponse, err := em.exchangeCodeForToken(code, state)
-		if err != nil {
-			logger.Errorf("OAuth ERROR: Failed to exchange authorization code for token: %v", err)
-			em.writeCallbackErrorResponse(w, fmt.Sprintf("Failed to exchange code for token: %v", err))
-			return
-		}
-
-		// Skip token validation in callback - validation happens during MCP requests
-		// Create minimal token info for callback success page
-		tokenInfo := &auth.TokenInfo{
-			AccessToken: tokenResponse.AccessToken,
-			TokenType:   "Bearer",
-			ExpiresAt:   time.Now().Add(time.Hour),         // Default 1 hour expiration
-			Scope:       em.cfg.OAuthConfig.RequiredScopes, // Use configured scopes
-			Subject:     "authenticated_user",              // Placeholder
-			Audience:    []string{fmt.Sprintf("https://sts.windows.net/%s/", em.cfg.OAuthConfig.TenantID)},
-			Issuer:      fmt.Sprintf("https://sts.windows.net/%s/", em.cfg.OAuthConfig.TenantID),
-			Claims:      make(map[string]interface{}),
-		}
-
-		// Return success response with token information
-		em.writeCallbackSuccessResponse(w, tokenResponse, tokenInfo)
+		// Relay the authorization code to the MCP client. The client holds the
+		// PKCE code_verifier and will exchange the code directly with Azure AD.
+		target := redirectURI +
+			"?code=" + url.QueryEscape(code) +
+			"&state=" + url.QueryEscape(state)
+		http.Redirect(w, r, target, http.StatusFound)
 	}
 }
 
@@ -649,172 +670,6 @@ type TokenResponse struct {
 	ExpiresIn    int    `json:"expires_in"`
 	RefreshToken string `json:"refresh_token,omitempty"` // #nosec G117 -- Standard OAuth2 field name
 	Scope        string `json:"scope,omitempty"`
-}
-
-// exchangeCodeForToken exchanges authorization code for access token
-func (em *EndpointManager) exchangeCodeForToken(code, state string) (*TokenResponse, error) {
-	// Prepare token exchange request
-	tokenURL := fmt.Sprintf("https://login.microsoftonline.com/%s/oauth2/v2.0/token", em.cfg.OAuthConfig.TenantID)
-
-	// Validate URL for security
-	if err := validateAzureADURL(tokenURL); err != nil {
-		return nil, fmt.Errorf("invalid token URL: %w", err)
-	}
-
-	// Use default callback redirect URI for token exchange
-	redirectURI := fmt.Sprintf("http://%s:%d/oauth/callback", em.cfg.Host, em.cfg.Port)
-
-	// Prepare form data
-	data := url.Values{}
-	data.Set("grant_type", "authorization_code")
-	data.Set("client_id", em.cfg.OAuthConfig.ClientID)
-	data.Set("code", code)
-	data.Set("redirect_uri", redirectURI)
-	data.Set("scope", strings.Join(em.cfg.OAuthConfig.RequiredScopes, " "))
-
-	// Note: Azure AD v2.0 doesn't support the 'resource' parameter in token requests
-	// It uses scope-based resource identification instead
-	// For MCP compliance, we handle resource binding through audience validation
-
-	// Make token exchange request
-	resp, err := http.PostForm(tokenURL, data) // #nosec G107,G704 -- URL is validated above
-	if err != nil {
-		return nil, fmt.Errorf("token exchange request failed: %w", err)
-	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			logger.Errorf("Failed to close response body: %v", err)
-		}
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("token exchange failed with status %d: %s", resp.StatusCode, string(body))
-	}
-
-	// Parse token response
-	var tokenResponse TokenResponse
-	if err := json.NewDecoder(resp.Body).Decode(&tokenResponse); err != nil {
-		return nil, fmt.Errorf("failed to parse token response: %w", err)
-	}
-
-	return &tokenResponse, nil
-}
-
-// writeCallbackErrorResponse writes an error response for callback
-func (em *EndpointManager) writeCallbackErrorResponse(w http.ResponseWriter, message string) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.WriteHeader(http.StatusBadRequest)
-
-	html := fmt.Sprintf(`
-<!DOCTYPE html>
-<html>
-<head>
-    <title>OAuth Authentication Error</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 40px; }
-        .error { background-color: #fee; border: 1px solid #fcc; padding: 20px; border-radius: 5px; }
-        .error h1 { color: #c33; margin-top: 0; }
-    </style>
-</head>
-<body>
-    <div class="error">
-        <h1>Authentication Error</h1>
-        <p>%s</p>
-        <p>Please try again or contact your administrator.</p>
-    </div>
-</body>
-</html>`, message)
-
-	if _, err := w.Write([]byte(html)); err != nil {
-		logger.Errorf("Failed to write error response: %v", err)
-	}
-}
-
-// writeCallbackSuccessResponse writes a success response for callback
-func (em *EndpointManager) writeCallbackSuccessResponse(w http.ResponseWriter, tokenResponse *TokenResponse, tokenInfo *auth.TokenInfo) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-
-	// Generate a secure session token for the client to use
-	_, err := em.generateSessionToken()
-	if err != nil {
-		em.writeCallbackErrorResponse(w, "Failed to generate session token")
-		return
-	}
-
-	html := fmt.Sprintf(`
-<!DOCTYPE html>
-<html>
-<head>
-    <title>OAuth Authentication Success</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 40px; }
-        .success { background-color: #efe; border: 1px solid #cfc; padding: 20px; border-radius: 5px; }
-        .success h1 { color: #3c3; margin-top: 0; }
-        .token-info { background-color: #f9f9f9; border: 1px solid #ddd; padding: 15px; margin: 15px 0; border-radius: 3px; }
-        .token { font-family: monospace; word-break: break-all; background-color: #f5f5f5; padding: 10px; border-radius: 3px; }
-        .copy-btn { background-color: #007cba; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; }
-    </style>
-</head>
-<body>
-    <div class="success">
-        <h1>Authentication Successful</h1>
-        <p>You have been successfully authenticated with Azure AD.</p>
-        
-        <div class="token-info">
-            <h3>Access Token (use as Bearer token):</h3>
-            <div class="token" id="accessToken">%s</div>
-            <button class="copy-btn" onclick="copyToClipboard('accessToken')">Copy Token</button>
-        </div>
-        
-        <div class="token-info">
-            <h3>Token Information:</h3>
-            <ul>
-                <li><strong>Subject:</strong> %s</li>
-                <li><strong>Audience:</strong> %s</li>
-                <li><strong>Scope:</strong> %s</li>
-                <li><strong>Expires:</strong> %s</li>
-            </ul>
-        </div>
-        
-        <div class="token-info">
-            <h3>For MCP Client Usage:</h3>
-            <p>Use this token in the Authorization header:</p>
-            <div class="token">Authorization: Bearer %s</div>
-            <button class="copy-btn" onclick="copyToClipboard('bearerToken')">Copy Authorization Header</button>
-        </div>
-    </div>
-    
-    <script>
-        function copyToClipboard(elementId) {
-            const element = document.getElementById(elementId);
-            const text = elementId === 'bearerToken' ? 'Bearer ' + element.textContent : element.textContent;
-            navigator.clipboard.writeText(text).then(function() {
-                alert('Copied to clipboard!');
-            });
-        }
-        
-        // Set hidden bearer token element
-        const bearerTokenElement = document.createElement('div');
-        bearerTokenElement.id = 'bearerToken';
-        bearerTokenElement.style.display = 'none';
-        bearerTokenElement.textContent = '%s';
-        document.body.appendChild(bearerTokenElement);
-    </script>
-</body>
-</html>`,
-		tokenResponse.AccessToken,
-		tokenInfo.Subject,
-		strings.Join(tokenInfo.Audience, ", "),
-		strings.Join(tokenInfo.Scope, ", "),
-		tokenInfo.ExpiresAt.Format("2006-01-02 15:04:05 UTC"),
-		tokenResponse.AccessToken,
-		tokenResponse.AccessToken)
-
-	if _, err := w.Write([]byte(html)); err != nil {
-		logger.Errorf("Failed to write success response: %v", err)
-	}
 }
 
 // isValidClientID validates if a client ID is acceptable
@@ -828,15 +683,6 @@ func (em *EndpointManager) isValidClientID(clientID string) bool {
 	// But for Azure AD integration, we primarily use the configured client ID
 
 	return false
-}
-
-// generateSessionToken generates a secure random session token
-func (em *EndpointManager) generateSessionToken() (string, error) {
-	bytes := make([]byte, 32)
-	if _, err := rand.Read(bytes); err != nil {
-		return "", err
-	}
-	return base64.URLEncoding.EncodeToString(bytes), nil
 }
 
 // tokenHandler handles OAuth 2.0 token endpoint requests (Authorization Code exchange)
