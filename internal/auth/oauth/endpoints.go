@@ -765,6 +765,27 @@ func (em *EndpointManager) tokenHandler() http.HandlerFunc {
 			return
 		}
 
+		// Azure AD requires the redirect_uri in the token request to exactly match
+		// the one used in the authorize request (RFC 6749 §4.1.3). The authorize
+		// handler substitutes the server's own callback URL before forwarding to
+		// Azure AD, so the token request must use the same URL. The client's
+		// redirect_uri has already been validated above.
+		var serverCallbackURL string
+		if em.provider.config.ExternalURL != "" {
+			serverCallbackURL = em.provider.config.ExternalURL + "/oauth/callback"
+		} else {
+			scheme := "http"
+			if r.TLS != nil {
+				scheme = "https"
+			}
+			host := r.Host
+			if host == "" {
+				host = r.URL.Host
+			}
+			serverCallbackURL = fmt.Sprintf("%s://%s/oauth/callback", scheme, host)
+		}
+		logger.Debugf("OAuth DEBUG: Using server callback URL for token exchange: %s", serverCallbackURL)
+
 		// Extract scope from the token request (MCP client should send the same scope)
 		requestedScope := r.FormValue("scope")
 		if requestedScope == "" {
@@ -775,7 +796,7 @@ func (em *EndpointManager) tokenHandler() http.HandlerFunc {
 		logger.Debugf("OAuth DEBUG: Exchanging authorization code for access token with Azure AD, scope: %s", requestedScope)
 
 		// Exchange authorization code for access token with Azure AD
-		tokenResponse, err := em.exchangeCodeForTokenDirect(code, redirectURI, codeVerifier, requestedScope)
+		tokenResponse, err := em.exchangeCodeForTokenDirect(code, serverCallbackURL, codeVerifier, requestedScope)
 		if err != nil {
 			logger.Errorf("OAuth ERROR: Token exchange with Azure AD failed: %v", err)
 			em.writeErrorResponse(w, "invalid_grant", fmt.Sprintf("Authorization code exchange failed: %v", err), http.StatusBadRequest)

@@ -261,6 +261,12 @@ func TestOAuthScopesConfig(t *testing.T) {
 			expectedScopes:   []string{"api://my-app/.default", "https://management.azure.com/.default"},
 			expectedAudience: "api://my-app",
 		},
+		{
+			name:             "named permission scope strips permission suffix from audience",
+			oauthScopes:      "api://12345678-1234-1234-1234-123456789abc/access_as_user",
+			expectedScopes:   []string{"api://12345678-1234-1234-1234-123456789abc/access_as_user"},
+			expectedAudience: "api://12345678-1234-1234-1234-123456789abc",
+		},
 	}
 
 	for _, tt := range tests {

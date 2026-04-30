@@ -211,12 +211,22 @@ func (cfg *ConfigData) parseOAuthConfig(additionalRedirectURIs, allowedCORSOrigi
 				cfg.OAuthConfig.RequiredScopes = append(cfg.OAuthConfig.RequiredScopes, trimmedScope)
 			}
 		}
-		// Update expected audience to match the custom scope resource
+		// Update expected audience to match the custom scope resource.
+		// For api:// scopes the audience is the app URI (api://<app-id>),
+		// regardless of the permission suffix (/.default, /access_as_user, etc.).
 		if len(cfg.OAuthConfig.RequiredScopes) > 0 {
-			// Extract audience from scope (e.g., "api://my-app" from "api://my-app/.default")
 			firstScope := cfg.OAuthConfig.RequiredScopes[0]
-			audience := strings.TrimSuffix(firstScope, "/.default")
-			audience = strings.TrimSuffix(audience, "/")
+			var audience string
+			if strings.HasPrefix(firstScope, "api://") {
+				// Strip permission suffix: "api://app-id/permission" → "api://app-id"
+				withoutScheme := strings.TrimPrefix(firstScope, "api://")
+				appID := strings.SplitN(withoutScheme, "/", 2)[0]
+				audience = "api://" + appID
+			} else {
+				// For https:// scopes (e.g. https://management.azure.com/.default)
+				audience = strings.TrimSuffix(firstScope, "/.default")
+				audience = strings.TrimSuffix(audience, "/")
+			}
 			cfg.OAuthConfig.TokenValidation.ExpectedAudience = audience
 			logger.Infof("OAuth Config: Using custom scopes %v with audience %s", cfg.OAuthConfig.RequiredScopes, audience)
 		}

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -831,6 +832,111 @@ func TestAuthorizationProxyRedirectURIValidation(t *testing.T) {
 				if !strings.Contains(location, "login.microsoftonline.com") {
 					t.Errorf("Expected redirect to Azure AD, got: %s", location)
 				}
+			}
+		})
+	}
+}
+
+func TestTokenHandlerValidation(t *testing.T) {
+	cfg := createTestConfig()
+	provider, _ := NewAzureOAuthProvider(cfg.OAuthConfig)
+	manager := NewEndpointManager(provider, cfg)
+	handler := manager.tokenHandler()
+
+	tests := []struct {
+		name       string
+		formValues map[string]string
+		expectCode int
+		expectErr  string
+	}{
+		{
+			name: "missing code",
+			formValues: map[string]string{
+				"grant_type":    "authorization_code",
+				"client_id":     "test-client",
+				"redirect_uri":  "http://127.0.0.1:8000/oauth/callback",
+				"code_verifier": "verifier",
+			},
+			expectCode: http.StatusBadRequest,
+			expectErr:  "authorization code",
+		},
+		{
+			name: "missing client_id",
+			formValues: map[string]string{
+				"grant_type":    "authorization_code",
+				"code":          "test-code",
+				"redirect_uri":  "http://127.0.0.1:8000/oauth/callback",
+				"code_verifier": "verifier",
+			},
+			expectCode: http.StatusBadRequest,
+			expectErr:  "client_id",
+		},
+		{
+			name: "missing redirect_uri",
+			formValues: map[string]string{
+				"grant_type":    "authorization_code",
+				"code":          "test-code",
+				"client_id":     "test-client",
+				"code_verifier": "verifier",
+			},
+			expectCode: http.StatusBadRequest,
+			expectErr:  "redirect_uri",
+		},
+		{
+			name: "missing code_verifier",
+			formValues: map[string]string{
+				"grant_type":   "authorization_code",
+				"code":         "test-code",
+				"client_id":    "test-client",
+				"redirect_uri": "http://127.0.0.1:8000/oauth/callback",
+			},
+			expectCode: http.StatusBadRequest,
+			expectErr:  "code_verifier",
+		},
+		{
+			name: "invalid redirect_uri",
+			formValues: map[string]string{
+				"grant_type":    "authorization_code",
+				"code":          "test-code",
+				"client_id":     "test-client",
+				"redirect_uri":  "http://malicious.com/callback",
+				"code_verifier": "verifier",
+			},
+			expectCode: http.StatusBadRequest,
+			expectErr:  "redirect_uri",
+		},
+		{
+			name: "unsupported grant type",
+			formValues: map[string]string{
+				"grant_type":    "client_credentials",
+				"code":          "test-code",
+				"client_id":     "test-client",
+				"redirect_uri":  "http://127.0.0.1:8000/oauth/callback",
+				"code_verifier": "verifier",
+			},
+			expectCode: http.StatusBadRequest,
+			expectErr:  "grant",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			vals := url.Values{}
+			for k, v := range tt.formValues {
+				vals.Set(k, v)
+			}
+			req := httptest.NewRequest("POST", "/oauth2/v2.0/token", strings.NewReader(vals.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			w := httptest.NewRecorder()
+
+			handler(w, req)
+
+			if w.Code != tt.expectCode {
+				t.Errorf("Expected status %d, got %d", tt.expectCode, w.Code)
+			}
+			body := w.Body.String()
+			if !strings.Contains(strings.ToLower(body), strings.ToLower(tt.expectErr)) {
+				t.Errorf("Expected error body to contain %q, got: %s", tt.expectErr, body)
 			}
 		})
 	}
