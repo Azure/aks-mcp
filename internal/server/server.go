@@ -19,6 +19,7 @@ import (
 	"github.com/Azure/aks-mcp/internal/components/compute"
 	"github.com/Azure/aks-mcp/internal/components/detectors"
 	"github.com/Azure/aks-mcp/internal/components/fleet"
+	"github.com/Azure/aks-mcp/internal/components/grafana"
 	"github.com/Azure/aks-mcp/internal/components/inspektorgadget"
 	"github.com/Azure/aks-mcp/internal/components/monitor"
 	"github.com/Azure/aks-mcp/internal/components/network"
@@ -463,6 +464,11 @@ func (s *Service) registerAzureComponents() {
 		}
 	}
 
+	// Grafana LGTM Observability Component
+	if components.IsComponentEnabled("grafana", s.cfg.EnabledComponents) {
+		s.registerGrafanaComponent()
+	}
+
 	// Monitoring Component
 	if components.IsComponentEnabled("monitor", s.cfg.EnabledComponents) {
 		s.registerMonitoringComponent()
@@ -598,6 +604,13 @@ func (s *Service) registerAksOpsComponent() {
 	logger.Debugf("Registering AKS operations tool: az_aks_operations")
 	aksOperationsTool := azaks.RegisterAzAksOperations(s.cfg)
 	s.mcpServer.AddTool(aksOperationsTool, tools.CreateToolHandler(azaks.NewAksOperationsExecutor(), s.cfg))
+}
+
+// registerGrafanaComponent registers the Grafana LGTM observability tool
+func (s *Service) registerGrafanaComponent() {
+	logger.Debugf("Registering Grafana observability tool: grafana_observability")
+	grafanaTool := grafana.RegisterGrafanaObservability()
+	s.mcpServer.AddTool(grafanaTool, tools.CreateResourceHandler(grafana.GetGrafanaHandler(s.cfg), s.cfg))
 }
 
 // registerMonitoringComponent registers Azure monitoring tools

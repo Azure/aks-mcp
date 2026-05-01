@@ -79,6 +79,17 @@ type ConfigData struct {
 	// When enabled, supported tools (e.g., kubectl) are executed via Azure AKS RunCommand API using user-provided tokens
 	// When disabled (default), tools are executed locally with default authentication (e.g., kubeconfig for Kubernetes tools)
 	TokenAuthOnly bool
+
+	// Grafana LGTM observability configuration (loaded from environment variables)
+	GrafanaURL    string
+	GrafanaToken  string
+	LokiURL       string
+	LokiUsername  string
+	LokiPassword  string
+	MimirURL      string
+	MimirUsername string
+	MimirPassword string
+	TempoURL      string
 }
 
 // NewConfig creates and returns a new configuration instance
@@ -96,6 +107,15 @@ func NewConfig() *ConfigData {
 		LogLevel:          "info",
 		UseLegacyTools:    os.Getenv("USE_LEGACY_TOOLS") == "true",
 		TokenAuthOnly:     false,
+		GrafanaURL:        os.Getenv("GRAFANA_URL"),
+		GrafanaToken:      os.Getenv("GRAFANA_TOKEN"),
+		LokiURL:           os.Getenv("LOKI_URL"),
+		LokiUsername:      os.Getenv("LOKI_USERNAME"),
+		LokiPassword:      os.Getenv("LOKI_PASSWORD"),
+		MimirURL:          os.Getenv("MIMIR_URL"),
+		MimirUsername:     os.Getenv("MIMIR_USERNAME"),
+		MimirPassword:     os.Getenv("MIMIR_PASSWORD"),
+		TempoURL:          os.Getenv("TEMPO_URL"),
 	}
 }
 

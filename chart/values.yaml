@@ -75,7 +75,9 @@ oauth:
 # Application configuration
 config:
   # Enabled components (empty means all components enabled)
-  # Available components: az_cli, monitor, fleet, network, compute, detectors, advisor, inspektorgadget, kubectl, helm, cilium, hubble
+  # Available components: az_cli, monitor, fleet, network, compute, detectors, advisor, inspektorgadget, kubectl, helm, cilium, hubble, grafana
+  # The grafana component requires GRAFANA_URL/GRAFANA_TOKEN, LOKI_URL/LOKI_USERNAME/LOKI_PASSWORD,
+  # MIMIR_URL/MIMIR_USERNAME/MIMIR_PASSWORD, and TEMPO_URL — set via extraEnv (use secretKeyRef for credentials)
   enabledComponents: []
   # Allowed Kubernetes namespaces (empty means all)
   allowNamespaces: []

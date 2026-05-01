@@ -24,6 +24,9 @@ func GetAllComponents() []Component {
 		{Name: "advisor", Description: "Azure Advisor recommendations for AKS"},
 		{Name: "inspektorgadget", Description: "eBPF-based observability tools"},
 
+		// Observability Components
+		{Name: "grafana", Description: "Grafana LGTM stack observability: Loki logs, Mimir metrics, Tempo traces, Alertmanager alerts"},
+
 		// Kubernetes Components
 		{Name: "kubectl", Description: "Core Kubernetes operations"},
 		{Name: "helm", Description: "Helm package management"},
