@@ -20,6 +20,9 @@ spec:
         {{- end }}
       labels:
         {{- include "aks-mcp.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
         {{- if .Values.workloadIdentity.enabled }}
         azure.workload.identity/use: "true"
         {{- end }}

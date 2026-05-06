@@ -166,6 +166,7 @@ extraVolumeMounts: []
 extraEnv: []
 
 # Optional Kubernetes scheduling
+podLabels: {}
 podAnnotations: {}
 nodeSelector: {}
 tolerations: []

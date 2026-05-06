@@ -51,6 +51,22 @@ func validateAzCommand(cliCommand string) error {
 		}
 	}
 
+	// Block credential-bearing commands: these return live Azure tokens, kubeconfig
+	// material, or service principal secrets.
+	credentialDenyPrefixes := []string{
+		"az account get-access-token",
+		"az aks get-credentials",
+		"az fleet get-credentials",
+		"az ad app credential",
+		"az ad sp credential",
+	}
+	normalizedCmd := strings.Join(strings.Fields(cliCommand), " ")
+	for _, prefix := range credentialDenyPrefixes {
+		if strings.HasPrefix(normalizedCmd, prefix) {
+			return fmt.Errorf("command returns credential material and is blocked as a security measure")
+		}
+	}
+
 	tokens := strings.Fields(cliCommand)
 
 	// Only inspect "az rest" commands for URL validation

@@ -479,6 +479,69 @@ func TestValidateAzCommand(t *testing.T) {
 	}
 }
 
+func TestValidateAzCommand_CredentialBearingCommands(t *testing.T) {
+	credentialCommands := []struct {
+		name  string
+		input string
+	}{
+		{"get-access-token", "az account get-access-token"},
+		{"get-access-token with flags", "az account get-access-token --resource https://management.azure.com/"},
+		{"aks get-credentials", "az aks get-credentials --resource-group rg --name cluster"},
+		{"aks get-credentials with file", "az aks get-credentials --resource-group rg --name cluster --file /tmp/kube"},
+		{"fleet get-credentials", "az fleet get-credentials --resource-group rg --name fleet"},
+		{"ad app credential", "az ad app credential list --id abc"},
+		{"ad sp credential", "az ad sp credential list --id xyz"},
+	}
+
+	for _, tt := range credentialCommands {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateAzCommand(tt.input)
+			if err == nil {
+				t.Errorf("validateAzCommand(%q) expected error (credential command), got nil", tt.input)
+			}
+		})
+	}
+}
+
+func TestAzApiHandler_RejectsCredentialBearingCommands(t *testing.T) {
+	credentialCommands := []string{
+		"az account get-access-token",
+		"az account get-access-token --resource https://management.azure.com/",
+		"az aks get-credentials --resource-group rg --name cluster",
+		"az fleet get-credentials --resource-group rg --name fleet",
+	}
+
+	for _, cmd := range credentialCommands {
+		t.Run(cmd, func(t *testing.T) {
+			mockClient := &mockAzClient{
+				executeFunc: func(ctx context.Context, command string) (*azcli.Result, error) {
+					t.Fatal("ExecuteCommand should not be called for blocked credential commands")
+					return nil, nil
+				},
+			}
+			cfg := newTestConfig(30)
+			handler := AzApiHandler(mockClient, cfg)
+
+			req := mcp.CallToolRequest{
+				Params: mcp.CallToolParams{
+					Name: "call_az",
+					Arguments: map[string]interface{}{
+						"cli_command": cmd,
+					},
+				},
+			}
+
+			result, err := handler(context.Background(), req)
+			if err != nil {
+				t.Fatalf("expected no error, got %v", err)
+			}
+			if !result.IsError {
+				t.Errorf("expected error result for credential command: %s", cmd)
+			}
+		})
+	}
+}
+
 func TestAzApiHandler_RejectsTokenExfiltration(t *testing.T) {
 	mockClient := &mockAzClient{
 		executeFunc: func(ctx context.Context, command string) (*azcli.Result, error) {
