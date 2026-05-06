@@ -52,9 +52,7 @@ func validateAzCommand(cliCommand string) error {
 	}
 
 	// Block credential-bearing commands: these return live Azure tokens, kubeconfig
-	// material, or service principal secrets. Blocking unconditionally (regardless of
-	// access level) provides defense-in-depth — even if azure-api-mcp's readonly
-	// patterns are misconfigured, these commands never reach execution.
+	// material, or service principal secrets.
 	credentialDenyPrefixes := []string{
 		"az account get-access-token",
 		"az aks get-credentials",
