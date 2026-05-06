@@ -60,8 +60,9 @@ func validateAzCommand(cliCommand string) error {
 		"az ad app credential",
 		"az ad sp credential",
 	}
+	normalizedCmd := strings.Join(strings.Fields(cliCommand), " ")
 	for _, prefix := range credentialDenyPrefixes {
-		if strings.HasPrefix(strings.TrimSpace(cliCommand), prefix) {
+		if strings.HasPrefix(normalizedCmd, prefix) {
 			return fmt.Errorf("command returns credential material and is blocked as a security measure")
 		}
 	}
