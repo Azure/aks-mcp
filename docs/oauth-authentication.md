@@ -271,6 +271,38 @@ curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8000/mcp
 - `--oauth-redirects`: Comma-separated list of allowed redirect URIs (required when OAuth enabled)
 - `--oauth-cors-origins`: Comma-separated list of allowed CORS origins for OAuth endpoints (e.g. http://localhost:6274 for MCP Inspector). If empty, no cross-origin requests are allowed for security
 - `--oauth-scopes`: Comma-separated list of OAuth scopes to require (e.g., `api://your-app-id/.default`). If empty, defaults to `https://management.azure.com/.default`
+- `--oauth-external-url`: External base URL of the server (e.g. `https://aks-mcp.example.com`, no trailing slash). Required when running behind a TLS-terminating reverse proxy (Envoy Gateway, AGIC, nginx-ingress, etc.)
+
+## Deploying Behind a TLS-Terminating Reverse Proxy
+
+When running behind Envoy Gateway, AGIC, or any TLS-terminating reverse proxy, set `--oauth-external-url` to the public HTTPS base URL of the server (no trailing slash):
+
+```bash
+./aks-mcp \
+  --transport=streamable-http \
+  --port=8000 \
+  --oauth-enabled \
+  --oauth-tenant-id="$AZURE_TENANT_ID" \
+  --oauth-client-id="$AZURE_CLIENT_ID" \
+  --oauth-redirects="https://aks-mcp.example.com/oauth/callback" \
+  --oauth-external-url="https://aks-mcp.example.com" \
+  --access-level=readonly
+```
+
+The equivalent Helm chart value is `oauth.externalURL`:
+
+```yaml
+# values.yaml
+oauth:
+  enabled: true
+  tenantId: "your-tenant-id"
+  clientId: "your-client-id"
+  redirectURIs:
+    - "https://aks-mcp.example.com/oauth/callback"
+  externalURL: "https://aks-mcp.example.com"
+```
+
+The value can also be set via the `OAUTH_EXTERNAL_URL` environment variable.
 
 ## Restricted Scope Authentication (Assignment Required)
 

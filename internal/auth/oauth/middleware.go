@@ -316,16 +316,22 @@ func (m *AuthMiddleware) handleAuthError(w http.ResponseWriter, r *http.Request,
 
 	// Add WWW-Authenticate header for 401 responses (RFC 9728 Section 5.1)
 	if authResult.StatusCode == http.StatusUnauthorized {
-		// Build the resource metadata URL
-		scheme := "http"
-		if r.TLS != nil {
-			scheme = "https"
+		// Build the resource metadata URL: prefer ExternalURL (needed behind TLS-terminating
+		// proxies where r.TLS is always nil), otherwise derive from the request.
+		var serverURL string
+		if m.provider.config.ExternalURL != "" {
+			serverURL = m.provider.config.ExternalURL
+		} else {
+			scheme := "http"
+			if r.TLS != nil {
+				scheme = "https"
+			}
+			host := r.Host
+			if host == "" {
+				host = r.URL.Host
+			}
+			serverURL = fmt.Sprintf("%s://%s", scheme, host)
 		}
-		host := r.Host
-		if host == "" {
-			host = r.URL.Host
-		}
-		serverURL := fmt.Sprintf("%s://%s", scheme, host)
 		resourceMetadataURL := fmt.Sprintf("%s/.well-known/oauth-protected-resource", serverURL)
 
 		// RFC 9728 compliant WWW-Authenticate header
