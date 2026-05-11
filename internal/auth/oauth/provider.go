@@ -495,6 +495,69 @@ func (p *AzureOAuthProvider) getPublicKey(kid string, issuer string) (*rsa.Publi
 	return nil, fmt.Errorf("key with ID %s not found in JWKS (available: %v)", kid, foundKeyIds)
 }
 
+// ExchangeOBO exchanges a user's bearer token for a token scoped to the given resource using the
+// Azure AD On-Behalf-Of flow.
+func (p *AzureOAuthProvider) ExchangeOBO(ctx context.Context, userToken string, scope string) (string, error) {
+	if p.config.ClientSecret == "" {
+		return "", fmt.Errorf("OBO exchange requires a client secret (set AZURE_CLIENT_SECRET)")
+	}
+
+	tokenURL := fmt.Sprintf("https://login.microsoftonline.com/%s/oauth2/v2.0/token", p.config.TenantID)
+
+	data := url.Values{}
+	data.Set("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer")
+	data.Set("assertion", userToken)
+	data.Set("client_id", p.config.ClientID)
+	data.Set("client_secret", p.config.ClientSecret)
+	data.Set("scope", scope)
+	data.Set("requested_token_use", "on_behalf_of")
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tokenURL, strings.NewReader(data.Encode()))
+	if err != nil {
+		return "", fmt.Errorf("failed to create OBO request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := p.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("OBO token request failed: %w", err)
+	}
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			logger.Errorf("Failed to close OBO response body: %v", err)
+		}
+	}()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read OBO response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		var errResp struct {
+			Error            string `json:"error"`
+			ErrorDescription string `json:"error_description"`
+		}
+		if jsonErr := json.Unmarshal(body, &errResp); jsonErr == nil && errResp.Error != "" {
+			return "", fmt.Errorf("OBO exchange failed: %s - %s", errResp.Error, errResp.ErrorDescription)
+		}
+		return "", fmt.Errorf("OBO exchange failed with status %d", resp.StatusCode)
+	}
+
+	var tokenResp struct {
+		AccessToken string `json:"access_token"` // #nosec G101
+	}
+	if err := json.Unmarshal(body, &tokenResp); err != nil {
+		return "", fmt.Errorf("failed to parse OBO token response: %w", err)
+	}
+	if tokenResp.AccessToken == "" {
+		return "", fmt.Errorf("OBO exchange returned empty access token")
+	}
+
+	logger.Debugf("OBO exchange successful for scope %s", scope)
+	return tokenResp.AccessToken, nil
+}
+
 // parseRSAPublicKey parses RSA public key from JWK format
 func parseRSAPublicKey(nStr, eStr string) (*rsa.PublicKey, error) {
 	// Decode base64url-encoded modulus

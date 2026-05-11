@@ -16,6 +16,13 @@ type OAuthConfig struct {
 	// Azure AD application (client) ID
 	ClientID string `json:"client_id"`
 
+	// Azure AD application client secret (required for OBO flow)
+	ClientSecret string `json:"client_secret"` // #nosec G101
+
+	// Enable On-Behalf-Of token exchange: exchanges the user's MCP bearer token for an
+	// Azure Resource Manager token so tokenAuthOnly tools can run as the calling user.
+	OBOEnabled bool `json:"obo_enabled"`
+
 	// Required OAuth scopes for accessing AKS-MCP
 	RequiredScopes []string `json:"required_scopes"`
 
@@ -89,6 +96,13 @@ type AuthResult struct {
 
 	// Token information (if authenticated)
 	TokenInfo *TokenInfo `json:"token_info,omitempty"`
+
+	// AzureToken is an ARM-scoped token obtained via OBO exchange, ready for AKS RunCommand calls.
+	AzureToken string `json:"azure_token,omitempty"` // #nosec G101
+
+	// AzureClusterToken is an AKS-scoped token (audience: 6dae42f8-4368-4678-94ff-3960e28e3630)
+	// used as the clusterToken in RunCommand requests against AAD + Kubernetes RBAC clusters.
+	AzureClusterToken string `json:"azure_cluster_token,omitempty"` // #nosec G101
 
 	// Error message (if authentication failed)
 	Error string `json:"error,omitempty"`

@@ -3,6 +3,7 @@ package k8s
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -23,10 +24,11 @@ func NewRunCommandExecutor() *RunCommandExecutor {
 }
 
 type RequestContext struct {
-	AzureToken     string `json:"azure_token"`
-	SubscriptionID string `json:"subscription_id"`
-	ResourceGroup  string `json:"resource_group"`
-	ClusterName    string `json:"cluster_name"`
+	AzureToken        string `json:"azure_token"`
+	AzureClusterToken string `json:"azure_cluster_token"`
+	SubscriptionID    string `json:"subscription_id"`
+	ResourceGroup     string `json:"resource_group"`
+	ClusterName       string `json:"cluster_name"`
 }
 
 func extractRequestContext(c context.Context, params map[string]interface{}) (*RequestContext, error) {
@@ -38,10 +40,18 @@ func extractRequestContext(c context.Context, params map[string]interface{}) (*R
 	var reqCtx RequestContext
 	reqCtx.AzureToken = tokenStr
 
-	// Extract aks_resource_id from params
-	aksResourceID, ok := params["aks_resource_id"].(string)
-	if !ok || aksResourceID == "" {
-		return nil, fmt.Errorf("aks_resource_id not found in params or empty")
+	// Cluster token is optional — only required for AAD + Kubernetes RBAC clusters.
+	if clusterToken, ok := c.Value(ctx.AzureClusterTokenKey).(string); ok {
+		reqCtx.AzureClusterToken = clusterToken
+	}
+
+	// Extract aks_resource_id from params, falling back to the configured default
+	aksResourceID, _ := params["aks_resource_id"].(string)
+	if aksResourceID == "" {
+		aksResourceID = os.Getenv("AZURE_AKS_RESOURCE_ID")
+	}
+	if aksResourceID == "" {
+		return nil, fmt.Errorf("aks_resource_id not found in params and AZURE_AKS_RESOURCE_ID is not set")
 	}
 
 	// Parse Azure Resource ID: /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.ContainerService/managedClusters/{cluster}
@@ -98,8 +108,16 @@ func (e *RunCommandExecutor) Execute(ctx context.Context, params map[string]inte
 
 	managedClustersClient := clientFactory.NewManagedClustersClient()
 
+	// For AAD + Kubernetes RBAC clusters a dedicated cluster token is required.
+	// For Azure RBAC clusters the ARM token doubles as the cluster token.
+	clusterToken := reqCtx.AzureClusterToken
+	if clusterToken == "" {
+		clusterToken = reqCtx.AzureToken
+	}
+
 	runCommandRequest := armcontainerservice.RunCommandRequest{
-		Command: &command,
+		Command:      &command,
+		ClusterToken: &clusterToken,
 	}
 
 	poller, err := managedClustersClient.BeginRunCommand(ctx, reqCtx.ResourceGroup, reqCtx.ClusterName, runCommandRequest, nil)

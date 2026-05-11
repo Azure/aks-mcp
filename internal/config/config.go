@@ -79,6 +79,10 @@ type ConfigData struct {
 	// When enabled, supported tools (e.g., kubectl) are executed via Azure AKS RunCommand API using user-provided tokens
 	// When disabled (default), tools are executed locally with default authentication (e.g., kubeconfig for Kubernetes tools)
 	TokenAuthOnly bool
+
+	// DefaultAKSResourceID is the default AKS cluster resource ID used when aks_resource_id is not provided by the caller.
+	// Set via --default-aks-resource-id flag or AZURE_AKS_RESOURCE_ID environment variable.
+	DefaultAKSResourceID string
 }
 
 // NewConfig creates and returns a new configuration instance
@@ -131,6 +135,10 @@ func (cfg *ConfigData) ParseFlags() {
 	oauthScopes := flag.String("oauth-scopes", "",
 		"Comma-separated list of OAuth scopes to require (e.g. api://your-app-id/.default). If empty, defaults to https://management.azure.com/.default")
 
+	// OBO configuration
+	flag.BoolVar(&cfg.OAuthConfig.OBOEnabled, "oauth-obo-enabled", false,
+		"Enable On-Behalf-Of token exchange: trades the user's MCP bearer token for an ARM token so tokenAuthOnly tools run as the calling user (requires AZURE_CLIENT_SECRET)")
+
 	// Component configuration
 	enabledComponents := flag.String("enabled-components", "",
 		"Comma-separated list of enabled components (empty means all components enabled). Available: az_cli,monitor,fleet,network,compute,detectors,advisor,inspektorgadget,kubectl,helm,cilium,hubble")
@@ -142,6 +150,10 @@ func (cfg *ConfigData) ParseFlags() {
 	// Token-only authentication configuration
 	flag.BoolVar(&cfg.TokenAuthOnly, "token-auth-only", false,
 		"Enable token-only authentication mode for supported tools (e.g., kubectl uses Azure AKS RunCommand API with user-provided tokens instead of local kubeconfig)")
+
+	// Default AKS resource ID
+	flag.StringVar(&cfg.DefaultAKSResourceID, "default-aks-resource-id", "",
+		"Default AKS cluster resource ID used when aks_resource_id is not supplied by the caller (e.g. /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.ContainerService/managedClusters/{cluster}). Falls back to AZURE_AKS_RESOURCE_ID env var.")
 
 	// Logging settings
 	flag.StringVar(&cfg.LogLevel, "log-level", "info", "Log level (debug, info, warn, error)")
@@ -185,6 +197,11 @@ func (cfg *ConfigData) ParseFlags() {
 	if err := cfg.parseOAuthConfig(*additionalRedirectURIs, *allowedCORSOrigins, *oauthScopes); err != nil {
 		fmt.Printf("OAuth configuration error: %v\n", err)
 		os.Exit(1)
+	}
+
+	// Fall back to environment variable for default AKS resource ID
+	if cfg.DefaultAKSResourceID == "" {
+		cfg.DefaultAKSResourceID = os.Getenv("AZURE_AKS_RESOURCE_ID")
 	}
 
 	// Parse enabled components
@@ -237,6 +254,14 @@ func (cfg *ConfigData) parseOAuthConfig(additionalRedirectURIs, allowedCORSOrigi
 		if externalURL := os.Getenv("OAUTH_EXTERNAL_URL"); externalURL != "" {
 			cfg.OAuthConfig.ExternalURL = externalURL
 			logger.Debugf("OAuth Config: Using external URL from environment variable OAUTH_EXTERNAL_URL")
+		}
+	}
+
+	// Load client secret for OBO flow from environment variable
+	if cfg.OAuthConfig.ClientSecret == "" {
+		if secret := os.Getenv("AZURE_CLIENT_SECRET"); secret != "" {
+			cfg.OAuthConfig.ClientSecret = secret
+			logger.Debugf("OAuth Config: Using client secret from environment variable AZURE_CLIENT_SECRET")
 		}
 	}
 

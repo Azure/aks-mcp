@@ -84,6 +84,10 @@ spec:
             - "--oauth-external-url"
             - {{ .Values.oauth.externalURL | quote }}
             {{- end }}
+            {{- if .Values.oauth.oboEnabled }}
+            - "--oauth-obo-enabled"
+            - "true"
+            {{- end }}
             {{- end }}
             {{- if .Values.app.logLevel }}
             - "--log-level"

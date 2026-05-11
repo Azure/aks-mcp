@@ -30,6 +30,7 @@ This document describes the configuration parameters for the AKS-MCP Helm chart.
 | `app.timeout` | Command execution timeout in seconds | `600` |
 | `app.logLevel` | Log level (debug, info, warn, error) | `info` |
 | `app.cache` | Enable cache for better performance | `true` |
+| `app.tokenAuthOnly` | Execute kubectl via Azure AKS RunCommand API using user-provided tokens instead of a local kubeconfig. Required for browser-based MCP clients (e.g. Claude Web). Incompatible with `stdio` transport. | `false` |
 
 ### Azure Authentication
 
@@ -59,8 +60,9 @@ This document describes the configuration parameters for the AKS-MCP Helm chart.
 | `oauth.scopes` | Custom OAuth scopes (e.g., `["api://your-app-id/.default"]`). Use custom App ID URI scope to enforce "Assignment Required" in Azure AD. If empty, defaults to `https://management.azure.com/.default` | `[]` |
 | `oauth.redirectURIs` | Custom redirect URIs | `[]` |
 | `oauth.corsOrigins` | Custom CORS origins | `[]` |
+| `oauth.oboEnabled` | Enable On-Behalf-Of token exchange. Exchanges the user's MCP bearer token for Azure ARM and AKS cluster tokens server-side, allowing browser-based MCP clients (e.g. Claude Web) to run `tokenAuthOnly` tools as the authenticated user. Requires `azure.clientSecret` and the `Azure Service Management > user_impersonation` delegated permission on the app registration. | `false` |
 
-**Note:** See [oauth-authentication.md](./oauth-authentication.md) for detailed OAuth setup instructions, including how to configure restricted scope authentication.
+**Note:** See [oauth-authentication.md](./oauth-authentication.md) for detailed OAuth setup instructions, including how to configure restricted scope authentication and the OBO flow for browser-based clients.
 
 ### Ingress Configuration
 

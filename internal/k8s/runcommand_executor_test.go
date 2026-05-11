@@ -75,6 +75,8 @@ func TestExtractRequestContext_EmptyToken(t *testing.T) {
 }
 
 func TestExtractRequestContext_MissingResourceID(t *testing.T) {
+	t.Setenv("AZURE_AKS_RESOURCE_ID", "") // ensure env var doesn't mask the error
+
 	c := context.WithValue(context.Background(), ctx.AzureTokenKey, "test-token-123")
 
 	params := map[string]interface{}{}
@@ -84,13 +86,15 @@ func TestExtractRequestContext_MissingResourceID(t *testing.T) {
 		t.Fatal("Expected error for missing resource ID, got nil")
 	}
 
-	expectedMsg := "aks_resource_id not found in params or empty"
+	expectedMsg := "aks_resource_id not found in params and AZURE_AKS_RESOURCE_ID is not set"
 	if err.Error() != expectedMsg {
 		t.Errorf("Expected error '%s', got '%s'", expectedMsg, err.Error())
 	}
 }
 
 func TestExtractRequestContext_EmptyResourceID(t *testing.T) {
+	t.Setenv("AZURE_AKS_RESOURCE_ID", "") // ensure env var doesn't mask the error
+
 	c := context.WithValue(context.Background(), ctx.AzureTokenKey, "test-token-123")
 
 	params := map[string]interface{}{
@@ -102,7 +106,7 @@ func TestExtractRequestContext_EmptyResourceID(t *testing.T) {
 		t.Fatal("Expected error for empty resource ID, got nil")
 	}
 
-	expectedMsg := "aks_resource_id not found in params or empty"
+	expectedMsg := "aks_resource_id not found in params and AZURE_AKS_RESOURCE_ID is not set"
 	if err.Error() != expectedMsg {
 		t.Errorf("Expected error '%s', got '%s'", expectedMsg, err.Error())
 	}
@@ -230,6 +234,8 @@ func TestExecute_MissingContext(t *testing.T) {
 }
 
 func TestExecute_InvalidParams(t *testing.T) {
+	t.Setenv("AZURE_AKS_RESOURCE_ID", "") // ensure env var doesn't interfere
+
 	executor := &RunCommandExecutor{}
 
 	c := context.WithValue(context.Background(), ctx.AzureTokenKey, "test-token-123")
@@ -244,7 +250,7 @@ func TestExecute_InvalidParams(t *testing.T) {
 			params: map[string]interface{}{
 				"command": "kubectl get pods",
 			},
-			expectedErr: "failed to extract request context: aks_resource_id not found in params or empty",
+			expectedErr: "failed to extract request context: aks_resource_id not found in params and AZURE_AKS_RESOURCE_ID is not set",
 		},
 		{
 			name: "Invalid aks_resource_id",
@@ -573,5 +579,88 @@ func TestValidateCommand_Combined(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestExtractRequestContext_WithClusterToken(t *testing.T) {
+	c := context.WithValue(context.Background(), ctx.AzureTokenKey, "arm-token")
+	c = context.WithValue(c, ctx.AzureClusterTokenKey, "cluster-token-abc")
+
+	params := map[string]interface{}{
+		"aks_resource_id": "/subscriptions/sub-123/resourceGroups/rg-test/providers/Microsoft.ContainerService/managedClusters/cluster-test",
+	}
+
+	reqCtx, err := extractRequestContext(c, params)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if reqCtx.AzureClusterToken != "cluster-token-abc" {
+		t.Errorf("expected cluster-token-abc, got %q", reqCtx.AzureClusterToken)
+	}
+}
+
+func TestExtractRequestContext_ClusterTokenAbsentIsEmpty(t *testing.T) {
+	c := context.WithValue(context.Background(), ctx.AzureTokenKey, "arm-token")
+
+	params := map[string]interface{}{
+		"aks_resource_id": "/subscriptions/sub-123/resourceGroups/rg-test/providers/Microsoft.ContainerService/managedClusters/cluster-test",
+	}
+
+	reqCtx, err := extractRequestContext(c, params)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if reqCtx.AzureClusterToken != "" {
+		t.Errorf("expected empty cluster token when not in context, got %q", reqCtx.AzureClusterToken)
+	}
+}
+
+func TestExtractRequestContext_EnvVarFallbackForResourceID(t *testing.T) {
+	t.Setenv("AZURE_AKS_RESOURCE_ID", "/subscriptions/env-sub/resourceGroups/env-rg/providers/Microsoft.ContainerService/managedClusters/env-cluster")
+
+	c := context.WithValue(context.Background(), ctx.AzureTokenKey, "arm-token")
+	params := map[string]interface{}{} // no aks_resource_id in params
+
+	reqCtx, err := extractRequestContext(c, params)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if reqCtx.SubscriptionID != "env-sub" {
+		t.Errorf("expected env-sub from env var, got %q", reqCtx.SubscriptionID)
+	}
+	if reqCtx.ResourceGroup != "env-rg" {
+		t.Errorf("expected env-rg from env var, got %q", reqCtx.ResourceGroup)
+	}
+	if reqCtx.ClusterName != "env-cluster" {
+		t.Errorf("expected env-cluster from env var, got %q", reqCtx.ClusterName)
+	}
+}
+
+func TestExtractRequestContext_ParamTakesPrecedenceOverEnvVar(t *testing.T) {
+	t.Setenv("AZURE_AKS_RESOURCE_ID", "/subscriptions/env-sub/resourceGroups/env-rg/providers/Microsoft.ContainerService/managedClusters/env-cluster")
+
+	c := context.WithValue(context.Background(), ctx.AzureTokenKey, "arm-token")
+	params := map[string]interface{}{
+		"aks_resource_id": "/subscriptions/param-sub/resourceGroups/param-rg/providers/Microsoft.ContainerService/managedClusters/param-cluster",
+	}
+
+	reqCtx, err := extractRequestContext(c, params)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if reqCtx.SubscriptionID != "param-sub" {
+		t.Errorf("param should take precedence over env var, got %q", reqCtx.SubscriptionID)
+	}
+}
+
+func TestExtractRequestContext_NoResourceIDAnywhere(t *testing.T) {
+	t.Setenv("AZURE_AKS_RESOURCE_ID", "")
+
+	c := context.WithValue(context.Background(), ctx.AzureTokenKey, "arm-token")
+	params := map[string]interface{}{}
+
+	_, err := extractRequestContext(c, params)
+	if err == nil {
+		t.Fatal("expected error when no resource ID in params or env var")
 	}
 }

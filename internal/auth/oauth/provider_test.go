@@ -386,3 +386,197 @@ type roundTripperFunc struct {
 func (f *roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f.fn(req)
 }
+
+func oboConfig() *auth.OAuthConfig {
+	return &auth.OAuthConfig{
+		Enabled:      true,
+		TenantID:     "test-tenant",
+		ClientID:     "test-client",
+		ClientSecret: "test-secret",
+		TokenValidation: auth.TokenValidationConfig{
+			ValidateJWT:      false,
+			ValidateAudience: false,
+			ExpectedAudience: "https://management.azure.com/",
+			CacheTTL:         5 * time.Minute,
+			ClockSkew:        1 * time.Minute,
+		},
+	}
+}
+
+func newProviderWithTransport(t *testing.T, cfg *auth.OAuthConfig, handler http.Handler) *AzureOAuthProvider {
+	t.Helper()
+	p, err := NewAzureOAuthProvider(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create provider: %v", err)
+	}
+	p.httpClient = &http.Client{
+		Transport: &roundTripperFunc{
+			fn: func(req *http.Request) (*http.Response, error) {
+				w := httptest.NewRecorder()
+				handler.ServeHTTP(w, req)
+				return w.Result(), nil
+			},
+		},
+	}
+	return p
+}
+
+func TestExchangeOBO(t *testing.T) {
+	tests := []struct {
+		name          string
+		clientSecret  string
+		scope         string
+		handlerStatus int
+		handlerBody   string
+		wantToken     string
+		wantErrSubstr string
+	}{
+		{
+			name:          "success returns access token",
+			clientSecret:  "secret",
+			scope:         "https://management.azure.com/user_impersonation",
+			handlerStatus: http.StatusOK,
+			handlerBody:   `{"access_token":"arm-token-xyz","token_type":"Bearer"}`,
+			wantToken:     "arm-token-xyz",
+		},
+		{
+			name:          "success with cluster scope",
+			clientSecret:  "secret",
+			scope:         "6dae42f8-4368-4678-94ff-3960e28e3630/.default",
+			handlerStatus: http.StatusOK,
+			handlerBody:   `{"access_token":"cluster-token-abc","token_type":"Bearer"}`,
+			wantToken:     "cluster-token-abc",
+		},
+		{
+			name:          "missing client secret errors immediately",
+			clientSecret:  "",
+			scope:         "https://management.azure.com/user_impersonation",
+			wantErrSubstr: "client secret",
+		},
+		{
+			name:          "azure ad error response",
+			clientSecret:  "secret",
+			scope:         "https://management.azure.com/user_impersonation",
+			handlerStatus: http.StatusBadRequest,
+			handlerBody:   `{"error":"invalid_grant","error_description":"Token is expired"}`,
+			wantErrSubstr: "invalid_grant",
+		},
+		{
+			name:          "non-json error response",
+			clientSecret:  "secret",
+			scope:         "https://management.azure.com/user_impersonation",
+			handlerStatus: http.StatusInternalServerError,
+			handlerBody:   `internal server error`,
+			wantErrSubstr: "status 500",
+		},
+		{
+			name:          "empty access token in response",
+			clientSecret:  "secret",
+			scope:         "https://management.azure.com/user_impersonation",
+			handlerStatus: http.StatusOK,
+			handlerBody:   `{"token_type":"Bearer"}`,
+			wantErrSubstr: "empty access token",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := oboConfig()
+			cfg.ClientSecret = tt.clientSecret
+
+			var p *AzureOAuthProvider
+			if tt.clientSecret != "" {
+				handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if err := r.ParseForm(); err != nil {
+						t.Errorf("Failed to parse form: %v", err)
+					}
+					if r.FormValue("grant_type") != "urn:ietf:params:oauth:grant-type:jwt-bearer" {
+						t.Errorf("Expected OBO grant type, got %s", r.FormValue("grant_type"))
+					}
+					if r.FormValue("scope") != tt.scope {
+						t.Errorf("Expected scope %q, got %q", tt.scope, r.FormValue("scope"))
+					}
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(tt.handlerStatus)
+					_, _ = fmt.Fprint(w, tt.handlerBody)
+				})
+				p = newProviderWithTransport(t, cfg, handler)
+			} else {
+				var err error
+				p, err = NewAzureOAuthProvider(cfg)
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+			}
+
+			got, err := p.ExchangeOBO(context.Background(), "user-bearer-token", tt.scope)
+
+			if tt.wantErrSubstr != "" {
+				if err == nil {
+					t.Fatalf("expected error containing %q, got nil", tt.wantErrSubstr)
+				}
+				if !contains(err.Error(), tt.wantErrSubstr) {
+					t.Errorf("expected error containing %q, got %q", tt.wantErrSubstr, err.Error())
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tt.wantToken {
+				t.Errorf("expected token %q, got %q", tt.wantToken, got)
+			}
+		})
+	}
+}
+
+func TestExchangeOBO_RequestFields(t *testing.T) {
+	cfg := oboConfig()
+
+	var capturedForm map[string]string
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = r.ParseForm()
+		capturedForm = map[string]string{
+			"grant_type":          r.FormValue("grant_type"),
+			"assertion":           r.FormValue("assertion"),
+			"client_id":           r.FormValue("client_id"),
+			"client_secret":       r.FormValue("client_secret"),
+			"scope":               r.FormValue("scope"),
+			"requested_token_use": r.FormValue("requested_token_use"),
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = fmt.Fprint(w, `{"access_token":"tok"}`)
+	})
+	p := newProviderWithTransport(t, cfg, handler)
+
+	_, err := p.ExchangeOBO(context.Background(), "my-bearer", "https://management.azure.com/user_impersonation")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if capturedForm["grant_type"] != "urn:ietf:params:oauth:grant-type:jwt-bearer" {
+		t.Errorf("wrong grant_type: %s", capturedForm["grant_type"])
+	}
+	if capturedForm["assertion"] != "my-bearer" {
+		t.Errorf("wrong assertion: %s", capturedForm["assertion"])
+	}
+	if capturedForm["client_id"] != "test-client" {
+		t.Errorf("wrong client_id: %s", capturedForm["client_id"])
+	}
+	if capturedForm["requested_token_use"] != "on_behalf_of" {
+		t.Errorf("wrong requested_token_use: %s", capturedForm["requested_token_use"])
+	}
+}
+
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
+		func() bool {
+			for i := 0; i <= len(s)-len(substr); i++ {
+				if s[i:i+len(substr)] == substr {
+					return true
+				}
+			}
+			return false
+		}())
+}

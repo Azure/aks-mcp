@@ -532,7 +532,7 @@ func (s *Service) registerKubectlComponent() {
 	}
 
 	// Get kubectl tools filtered by access level and tool type
-	kubectlTools := k8s.RegisterKubectlTools(s.cfg.AccessLevel, useUnifiedTool, s.cfg.TokenAuthOnly)
+	kubectlTools := k8s.RegisterKubectlTools(s.cfg.AccessLevel, useUnifiedTool, s.cfg.TokenAuthOnly, s.cfg.DefaultAKSResourceID)
 
 	// Create a kubectl executor
 	kubectlExecutor := kubectl.NewKubectlToolExecutor()

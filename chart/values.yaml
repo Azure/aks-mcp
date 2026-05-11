@@ -71,6 +71,9 @@ oauth:
   # Required when the server is behind a TLS-terminating reverse proxy so that
   # OAuth metadata endpoints return https:// URLs instead of http://.
   externalURL: ""
+  # Enable On-Behalf-Of token exchange so tokenAuthOnly tools run as the calling user.
+  # Requires azure.clientSecret (or azure.existingSecret with a client-secret key) to be set.
+  oboEnabled: false
 
 # Application configuration
 config:
