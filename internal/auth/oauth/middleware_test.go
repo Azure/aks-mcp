@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -115,6 +116,77 @@ func TestAuthMiddleware(t *testing.T) {
 				if wwwAuth == "" {
 					t.Error("Expected WWW-Authenticate header for 401 response")
 				}
+			}
+		})
+	}
+}
+
+func TestHandleAuthErrorWWWAuthenticateExternalURL(t *testing.T) {
+	tests := []struct {
+		name            string
+		externalURL     string
+		expectedURLBase string
+		// r.TLS is nil and Host is set — without ExternalURL this would produce http://
+	}{
+		{
+			name:            "externalURL overrides http scheme from proxy request",
+			externalURL:     "https://aks-mcp.platform.example.com",
+			expectedURLBase: "https://aks-mcp.platform.example.com",
+		},
+		{
+			name:            "no externalURL falls back to request host",
+			externalURL:     "",
+			expectedURLBase: "http://aks-mcp.platform.example.com",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := &auth.OAuthConfig{
+				Enabled:        true,
+				TenantID:       "test-tenant",
+				ClientID:       "test-client",
+				ExternalURL:    tt.externalURL,
+				RequiredScopes: []string{"https://management.azure.com/.default"},
+				TokenValidation: auth.TokenValidationConfig{
+					ValidateJWT:      false,
+					ValidateAudience: false,
+					ExpectedAudience: "https://management.azure.com/",
+					CacheTTL:         5 * time.Minute,
+					ClockSkew:        1 * time.Minute,
+				},
+			}
+
+			provider, err := NewAzureOAuthProvider(config)
+			if err != nil {
+				t.Fatalf("Failed to create provider: %v", err)
+			}
+			middleware := NewAuthMiddleware(provider, "http://localhost:8000")
+
+			wrappedHandler := middleware.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			}))
+
+			// Simulate a request arriving at the pod with no TLS (proxy-terminated)
+			req := httptest.NewRequest("GET", "/mcp", nil)
+			req.Host = "aks-mcp.platform.example.com"
+			// r.TLS is nil — as it always is behind a TLS-terminating proxy
+
+			w := httptest.NewRecorder()
+			wrappedHandler.ServeHTTP(w, req)
+
+			if w.Code != http.StatusUnauthorized {
+				t.Fatalf("Expected 401, got %d", w.Code)
+			}
+
+			wwwAuth := w.Header().Get("WWW-Authenticate")
+			if wwwAuth == "" {
+				t.Fatal("Expected WWW-Authenticate header for 401 response")
+			}
+
+			expectedResourceMetadata := tt.expectedURLBase + "/.well-known/oauth-protected-resource"
+			if !strings.Contains(wwwAuth, expectedResourceMetadata) {
+				t.Errorf("Expected resource_metadata=%q in WWW-Authenticate, got: %s", expectedResourceMetadata, wwwAuth)
 			}
 		})
 	}
