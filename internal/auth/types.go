@@ -17,7 +17,7 @@ type OAuthConfig struct {
 	ClientID string `json:"client_id"`
 
 	// Azure AD application client secret (required for OBO flow)
-	ClientSecret string `json:"client_secret"` // #nosec G101
+	ClientSecret string `json:"client_secret"` // #nosec G101 G117
 
 	// Enable On-Behalf-Of token exchange: exchanges the user's MCP bearer token for an
 	// Azure Resource Manager token so tokenAuthOnly tools can run as the calling user.

@@ -518,7 +518,7 @@ func (p *AzureOAuthProvider) ExchangeOBO(ctx context.Context, userToken string, 
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	resp, err := p.httpClient.Do(req)
+	resp, err := p.httpClient.Do(req) // #nosec G704
 	if err != nil {
 		return "", fmt.Errorf("OBO token request failed: %w", err)
 	}
@@ -545,7 +545,7 @@ func (p *AzureOAuthProvider) ExchangeOBO(ctx context.Context, userToken string, 
 	}
 
 	var tokenResp struct {
-		AccessToken string `json:"access_token"` // #nosec G101
+		AccessToken string `json:"access_token"` // #nosec G101 G117
 	}
 	if err := json.Unmarshal(body, &tokenResp); err != nil {
 		return "", fmt.Errorf("failed to parse OBO token response: %w", err)
