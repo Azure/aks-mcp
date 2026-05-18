@@ -16,6 +16,7 @@ AKS-MCP now supports OAuth 2.1 authentication using Azure Active Directory as th
 - **Token Introspection**: Implements RFC 7662 token introspection
 - **Transport Support**: Works with both SSE and HTTP Streamable transports
 - **Flexible Configuration**: Supports environment variables and command-line configuration
+- **On-Behalf-Of (OBO) Flow**: Exchanges the user's MCP bearer token for Azure ARM and AKS cluster tokens server-side, enabling browser-based MCP clients (e.g. Claude Web) to run `tokenAuthOnly` kubectl tools as the authenticated user
 
 ## Managed Identity and Service Principal Support
 
@@ -272,6 +273,8 @@ curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8000/mcp
 - `--oauth-cors-origins`: Comma-separated list of allowed CORS origins for OAuth endpoints (e.g. http://localhost:6274 for MCP Inspector). If empty, no cross-origin requests are allowed for security
 - `--oauth-scopes`: Comma-separated list of OAuth scopes to require (e.g., `api://your-app-id/.default`). If empty, defaults to `https://management.azure.com/.default`
 - `--oauth-external-url`: External base URL of the server (e.g. `https://aks-mcp.example.com`, no trailing slash). Required when running behind a TLS-terminating reverse proxy (Envoy Gateway, AGIC, nginx-ingress, etc.)
+- `--oauth-obo-enabled`: Enable On-Behalf-Of token exchange (see below). Requires `AZURE_CLIENT_SECRET` to be set.
+- `--default-aks-resource-id`: Default AKS cluster resource ID used when `aks_resource_id` is not supplied by the caller. Falls back to `AZURE_AKS_RESOURCE_ID` env var.
 
 ## Deploying Behind a TLS-Terminating Reverse Proxy
 
@@ -303,6 +306,94 @@ oauth:
 ```
 
 The value can also be set via the `OAUTH_EXTERNAL_URL` environment variable.
+
+## On-Behalf-Of (OBO) Flow for Browser-Based MCP Clients
+
+### Why it is needed
+
+OAuth authentication controls *who can call the MCP server*. Tools that run in `tokenAuthOnly` mode (e.g. `call_kubectl`) execute kubectl commands via the Azure AKS RunCommand API and need an Azure Resource Manager token and an AKS cluster token — separate from the MCP bearer token.
+
+CLI-based clients (e.g. `az` scripts, VS Code with `az login`) can supply these tokens directly via the `X-Azure-Token` header. Browser-based clients such as Claude Web only send the standard `Authorization: Bearer` header and have no mechanism to supply additional Azure tokens.
+
+The OBO flow solves this by performing the token exchange server-side: after OAuth validates the user's bearer token, the server calls Azure AD's token endpoint to trade it for the required Azure tokens. This is transparent to the user.
+
+```
+User authenticates → Bearer token (access_as_user)
+  └─ OBO exchange 1 → ARM token  (https://management.azure.com/user_impersonation)
+  └─ OBO exchange 2 → AKS token  (6dae42f8-4368-4678-94ff-3960e28e3630/.default)
+       └─ injected into request context → call_kubectl succeeds
+```
+
+### Azure AD Application Requirements
+
+In addition to the standard OAuth setup, the app registration requires:
+
+1. **API permission**: `Azure Service Management → user_impersonation` (delegated)
+   ```
+   Azure Portal → App registrations → [Your App] → API permissions
+   → Add a permission → Azure Service Management → user_impersonation
+   → Grant admin consent
+   ```
+
+2. **Client secret**: Required for the OBO token exchange
+   ```
+   Azure Portal → App registrations → [Your App] → Certificates & secrets
+   → New client secret → copy the value
+   ```
+
+Store the client secret as `AZURE_CLIENT_SECRET` in the environment. With the Helm chart, use `azure.clientSecret` or `azure.existingSecret`.
+
+### Helm Chart Configuration
+
+```yaml
+app:
+  tokenAuthOnly: true
+
+oauth:
+  enabled: true
+  tenantId: "<your-tenant-id>"
+  clientId: "<your-app-client-id>"
+  oboEnabled: true
+  scopes:
+    - "api://<your-app-client-id>/access_as_user"
+
+azure:
+  clientSecret: "<your-client-secret>"  # or use existingSecret
+
+extraEnv:
+  - name: AZURE_AKS_RESOURCE_ID
+    value: "/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.ContainerService/managedClusters/<cluster>"
+```
+
+`AZURE_AKS_RESOURCE_ID` pre-fills the default cluster so MCP clients do not need to supply the cluster resource ID on every request.
+
+### Session Caching
+
+Browser-based MCP clients authenticate once per session and do not re-send the `Authorization` header on follow-up requests. AKS-MCP caches the OBO tokens server-side for the duration of the session (bounded by the bearer token's lifetime, up to 24 hours).
+
+OBO tokens are refreshed proactively five minutes before they expire using the cached bearer token, so sessions remain active without the user needing to reconnect. If the underlying bearer token expires and cannot be refreshed, the session is invalidated and the user is prompted to re-authenticate.
+
+> **Note:** The session cache is in-memory and local to each pod. If you scale beyond a single replica, configure session affinity on your ingress or use a shared cache to avoid users being asked to reconnect when requests hit a different pod.
+
+### AAD-Enabled Clusters and the Cluster Token
+
+The AKS RunCommand API requires two tokens for AAD-enabled clusters:
+
+| Token | Audience | Purpose |
+|-------|----------|---------|
+| ARM token | `https://management.azure.com/` | Authenticates the RunCommand API call |
+| Cluster token | `6dae42f8-4368-4678-94ff-3960e28e3630` | Authorizes the kubectl command inside the cluster (Kubernetes RBAC clusters) |
+
+With OBO enabled, both are obtained automatically. For clusters using Azure RBAC (rather than Kubernetes RBAC), the ARM token is also accepted as the cluster token.
+
+### Troubleshooting OBO
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| `OBO exchange requires a client secret` | `AZURE_CLIENT_SECRET` not set | Add client secret to pod environment |
+| `OBO exchange failed: invalid_grant` | Bearer token expired or insufficient permissions | Re-authenticate in the MCP client; verify `user_impersonation` permission is granted |
+| `InvalidAADClusterToken` | Cluster token has wrong audience | Verify the app has `user_impersonation` on Azure Service Management |
+| `X-Azure-Token not found in context` | `--oauth-obo-enabled` flag not passed | Ensure `oauth.oboEnabled: true` in Helm values and chart is up to date |
 
 ## Restricted Scope Authentication (Assignment Required)
 

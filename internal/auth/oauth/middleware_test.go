@@ -2,6 +2,7 @@ package oauth
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Azure/aks-mcp/internal/auth"
+	appctx "github.com/Azure/aks-mcp/internal/ctx"
 )
 
 // GetTokenInfo extracts token information from request context (test helper)
@@ -322,4 +324,301 @@ func TestGetTokenInfo(t *testing.T) {
 	if ok {
 		t.Error("Expected not to find token info in empty context")
 	}
+}
+
+func newOBOMiddleware(t *testing.T, oboEnabled bool, oboHandler http.Handler) *AuthMiddleware {
+	t.Helper()
+	cfg := &auth.OAuthConfig{
+		Enabled:      true,
+		TenantID:     "test-tenant",
+		ClientID:     "test-client",
+		ClientSecret: "test-secret",
+		OBOEnabled:   oboEnabled,
+		TokenValidation: auth.TokenValidationConfig{
+			ValidateJWT:      false,
+			ValidateAudience: false,
+			ExpectedAudience: "https://management.azure.com/",
+		},
+	}
+	p, err := NewAzureOAuthProvider(cfg)
+	if err != nil {
+		t.Fatalf("failed to create provider: %v", err)
+	}
+	if oboHandler != nil {
+		p.httpClient = &http.Client{
+			Transport: &roundTripperFunc{
+				fn: func(req *http.Request) (*http.Response, error) {
+					w := httptest.NewRecorder()
+					oboHandler.ServeHTTP(w, req)
+					return w.Result(), nil
+				},
+			},
+		}
+	}
+	return NewAuthMiddleware(p, "http://localhost:8000")
+}
+
+func TestSessionCapturingWriter(t *testing.T) {
+	t.Run("captures session ID set in response header", func(t *testing.T) {
+		var captured string
+		scw := &sessionCapturingWriter{
+			ResponseWriter: httptest.NewRecorder(),
+			onSession:      func(id string) { captured = id },
+		}
+		scw.ResponseWriter.Header().Set("Mcp-Session-Id", "session-abc")
+		scw.WriteHeader(http.StatusOK)
+
+		if captured != "session-abc" {
+			t.Errorf("expected session-abc, got %q", captured)
+		}
+	})
+
+	t.Run("captures on Write when WriteHeader not called", func(t *testing.T) {
+		var captured string
+		rec := httptest.NewRecorder()
+		scw := &sessionCapturingWriter{
+			ResponseWriter: rec,
+			onSession:      func(id string) { captured = id },
+		}
+		rec.Header().Set("Mcp-Session-Id", "session-xyz")
+		_, _ = scw.Write([]byte("body"))
+
+		if captured != "session-xyz" {
+			t.Errorf("expected session-xyz, got %q", captured)
+		}
+	})
+
+	t.Run("does not capture when header absent", func(t *testing.T) {
+		called := false
+		scw := &sessionCapturingWriter{
+			ResponseWriter: httptest.NewRecorder(),
+			onSession:      func(_ string) { called = true },
+		}
+		scw.WriteHeader(http.StatusOK)
+
+		if called {
+			t.Error("onSession should not be called when Mcp-Session-Id is absent")
+		}
+	})
+
+	t.Run("only fires once despite multiple writes", func(t *testing.T) {
+		count := 0
+		rec := httptest.NewRecorder()
+		scw := &sessionCapturingWriter{
+			ResponseWriter: rec,
+			onSession:      func(_ string) { count++ },
+		}
+		rec.Header().Set("Mcp-Session-Id", "session-once")
+		scw.WriteHeader(http.StatusOK)
+		_, _ = scw.Write([]byte("a"))
+		_, _ = scw.Write([]byte("b"))
+
+		if count != 1 {
+			t.Errorf("expected onSession called once, got %d", count)
+		}
+	})
+}
+
+func TestSessionContinuation(t *testing.T) {
+	m := newOBOMiddleware(t, false, nil)
+
+	tokenInfo := &auth.TokenInfo{
+		AccessToken: "original-token",
+		Subject:     "user123",
+		ExpiresAt:   time.Now().Add(time.Hour),
+	}
+	sessionID := "mcp-session-test-123"
+	m.sessions.Store(sessionID, &sessionEntry{
+		tokenInfo:    tokenInfo,
+		azureToken:   "arm-token",
+		clusterToken: "cluster-token",
+		oboExpiresAt: time.Now().Add(55 * time.Minute),
+		expiresAt:    time.Now().Add(time.Hour),
+	})
+
+	var gotAzureToken, gotClusterToken string
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAzureToken, _ = r.Context().Value(appctx.AzureTokenKey).(string)
+		gotClusterToken, _ = r.Context().Value(appctx.AzureClusterTokenKey).(string)
+		w.WriteHeader(http.StatusOK)
+	})
+
+	req := httptest.NewRequest("POST", "/mcp", nil)
+	req.Header.Set("Mcp-Session-Id", sessionID)
+	w := httptest.NewRecorder()
+	m.Middleware(handler).ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+	if gotAzureToken != "arm-token" {
+		t.Errorf("expected arm-token in context, got %q", gotAzureToken)
+	}
+	if gotClusterToken != "cluster-token" {
+		t.Errorf("expected cluster-token in context, got %q", gotClusterToken)
+	}
+}
+
+func TestSessionContinuation_ExpiredSession(t *testing.T) {
+	m := newOBOMiddleware(t, false, nil)
+
+	sessionID := "mcp-session-expired"
+	m.sessions.Store(sessionID, &sessionEntry{
+		tokenInfo: &auth.TokenInfo{Subject: "user"},
+		expiresAt: time.Now().Add(-time.Minute), // already expired
+	})
+
+	req := httptest.NewRequest("POST", "/mcp", nil)
+	req.Header.Set("Mcp-Session-Id", sessionID)
+	w := httptest.NewRecorder()
+	m.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})).ServeHTTP(w, req)
+
+	// Expired session has no auth header → should be 401
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 for expired session, got %d", w.Code)
+	}
+	if _, ok := m.sessions.Load(sessionID); ok {
+		t.Error("expired session should have been deleted")
+	}
+}
+
+func TestSessionContinuation_UnknownSessionFallsThrough(t *testing.T) {
+	m := newOBOMiddleware(t, false, nil)
+
+	req := httptest.NewRequest("POST", "/mcp", nil)
+	req.Header.Set("Mcp-Session-Id", "unknown-session")
+	w := httptest.NewRecorder()
+	m.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})).ServeHTTP(w, req)
+
+	// No auth header and unknown session → 401
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 for unknown session, got %d", w.Code)
+	}
+}
+
+func TestOBOTokensInjectedInContext(t *testing.T) {
+	callCount := 0
+	oboHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		w.WriteHeader(http.StatusOK)
+		_, _ = fmt.Fprintf(w, `{"access_token":"obo-token-%d"}`, callCount)
+	})
+
+	m := newOBOMiddleware(t, true, oboHandler)
+
+	var gotAzure, gotCluster string
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAzure, _ = r.Context().Value(appctx.AzureTokenKey).(string)
+		gotCluster, _ = r.Context().Value(appctx.AzureClusterTokenKey).(string)
+		w.WriteHeader(http.StatusOK)
+	})
+
+	req := httptest.NewRequest("POST", "/mcp", nil)
+	req.Header.Set("Authorization", "Bearer header.payload.signature")
+	w := httptest.NewRecorder()
+	m.Middleware(handler).ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+	if gotAzure == "" {
+		t.Error("expected ARM token in context, got empty string")
+	}
+	if gotCluster == "" {
+		t.Error("expected cluster token in context, got empty string")
+	}
+	if callCount != 2 {
+		t.Errorf("expected 2 OBO calls (ARM + cluster), got %d", callCount)
+	}
+}
+
+func TestOBOARMFailureCauses401(t *testing.T) {
+	oboHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = fmt.Fprint(w, `{"error":"invalid_grant","error_description":"expired"}`)
+	})
+
+	m := newOBOMiddleware(t, true, oboHandler)
+
+	req := httptest.NewRequest("POST", "/mcp", nil)
+	req.Header.Set("Authorization", "Bearer header.payload.signature")
+	w := httptest.NewRecorder()
+	m.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})).ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 when OBO fails, got %d", w.Code)
+	}
+}
+
+func TestRefreshSessionOBO(t *testing.T) {
+	t.Run("success refreshes tokens and updates session", func(t *testing.T) {
+		callCount := 0
+		oboHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			callCount++
+			w.WriteHeader(http.StatusOK)
+			_, _ = fmt.Fprintf(w, `{"access_token":"refreshed-%d"}`, callCount)
+		})
+
+		m := newOBOMiddleware(t, true, oboHandler)
+		se := &sessionEntry{
+			bearerToken:  "header.payload.signature",
+			azureToken:   "old-arm",
+			clusterToken: "old-cluster",
+			oboExpiresAt: time.Now().Add(-time.Minute),
+			expiresAt:    time.Now().Add(time.Hour),
+		}
+
+		ok := m.refreshSessionOBO(context.Background(), se, "session-1")
+
+		if !ok {
+			t.Error("expected refresh to succeed")
+		}
+		if se.azureToken == "old-arm" {
+			t.Error("ARM token should have been updated")
+		}
+		if se.oboExpiresAt.Before(time.Now()) {
+			t.Error("oboExpiresAt should be in the future after refresh")
+		}
+		if callCount != 2 {
+			t.Errorf("expected 2 OBO calls, got %d", callCount)
+		}
+	})
+
+	t.Run("no bearer token returns false", func(t *testing.T) {
+		m := newOBOMiddleware(t, true, nil)
+		se := &sessionEntry{bearerToken: ""}
+
+		ok := m.refreshSessionOBO(context.Background(), se, "session-2")
+		if ok {
+			t.Error("expected false when no bearer token stored")
+		}
+	})
+
+	t.Run("ARM OBO failure returns false", func(t *testing.T) {
+		oboHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = fmt.Fprint(w, `{"error":"invalid_grant"}`)
+		})
+
+		m := newOBOMiddleware(t, true, oboHandler)
+		se := &sessionEntry{
+			bearerToken:  "header.payload.signature",
+			azureToken:   "old",
+			oboExpiresAt: time.Now().Add(-time.Minute),
+		}
+
+		ok := m.refreshSessionOBO(context.Background(), se, "session-3")
+		if ok {
+			t.Error("expected false when ARM OBO fails")
+		}
+		if se.azureToken != "old" {
+			t.Error("token should not be modified on failure")
+		}
+	})
 }

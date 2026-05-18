@@ -14,7 +14,7 @@ const (
 	AccessLevelReadWrite = "readwrite"
 )
 
-func createCallKubectlTool(accessLevel string) mcp.Tool {
+func createCallKubectlTool(accessLevel string, defaultAKSResourceID string) mcp.Tool {
 	var description string
 
 	readCommands := strings.Join(security.KubectlReadOperations, ", ")
@@ -70,23 +70,30 @@ Examples:
 - command='kubectl logs nginx-pod -f'`, readCommands)
 	}
 
+	resourceIDDesc := "Full Azure Resource ID of the AKS cluster (e.g., /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.ContainerService/managedClusters/{clusterName})"
+	if defaultAKSResourceID != "" {
+		resourceIDDesc = fmt.Sprintf("Full Azure Resource ID of the AKS cluster. Defaults to %s if not provided.", defaultAKSResourceID)
+	}
+
+	resourceIDOpts := []mcp.PropertyOption{mcp.Description(resourceIDDesc)}
+	if defaultAKSResourceID == "" {
+		resourceIDOpts = append(resourceIDOpts, mcp.Required())
+	}
+
 	return mcp.NewTool("call_kubectl",
 		mcp.WithDescription(description),
 		mcp.WithString("command",
 			mcp.Required(),
 			mcp.Description("Full kubectl command to execute (e.g., 'kubectl get pods -n default', 'kubectl describe deployment myapp', 'kubectl logs nginx-pod -f')"),
 		),
-		mcp.WithString("aks_resource_id",
-			mcp.Required(),
-			mcp.Description("Full Azure Resource ID of the AKS cluster (e.g., /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.ContainerService/managedClusters/{clusterName})"),
-		),
+		mcp.WithString("aks_resource_id", resourceIDOpts...),
 	)
 }
 
-func RegisterKubectlTools(accessLevel string, useUnifiedTool bool, tokenAuthOnly bool) []mcp.Tool {
+func RegisterKubectlTools(accessLevel string, useUnifiedTool bool, tokenAuthOnly bool, defaultAKSResourceID string) []mcp.Tool {
 	if tokenAuthOnly {
 		return []mcp.Tool{
-			createCallKubectlTool(accessLevel),
+			createCallKubectlTool(accessLevel, defaultAKSResourceID),
 		}
 	}
 
