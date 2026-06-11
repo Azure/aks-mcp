@@ -5,6 +5,8 @@ package k8s
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"github.com/Azure/aks-mcp/internal/config"
 	"github.com/Azure/aks-mcp/internal/tools"
@@ -12,6 +14,7 @@ import (
 	k8ssecurity "github.com/Azure/mcp-kubernetes/pkg/security"
 	k8stelemetry "github.com/Azure/mcp-kubernetes/pkg/telemetry"
 	k8stools "github.com/Azure/mcp-kubernetes/pkg/tools"
+	"github.com/google/shlex"
 )
 
 // ConvertConfig maps an aks-mcp ConfigData into the equivalent
@@ -79,10 +82,63 @@ type executorAdapter struct {
 // Execute adapts aks-mcp execution by converting its config
 // and delegating to the wrapped mcp-kubernetes executor or RunCommand executor.
 func (a *executorAdapter) Execute(ctx context.Context, params map[string]interface{}, cfg *config.ConfigData) (string, error) {
+	// Defense-in-depth: reject "kubectl auth reconcile" in readonly mode
+	// regardless of which downstream validator runs. The mcp-kubernetes
+	// readonly classifier groups all "auth" subcommands as read-only, but
+	// "auth reconcile" creates/updates RBAC objects and must not be reachable
+	// from a readonly access level. This check fails closed even if the
+	// dependency is downgraded or its classification regresses.
+	if cfg.AccessLevel == "readonly" {
+		if cmd, ok := params["command"].(string); ok {
+			if isKubectlAuthReconcile(cmd) {
+				return "", fmt.Errorf("security validation failed: kubectl auth reconcile is a write operation and cannot be executed in read-only mode")
+			}
+		}
+	}
+
 	if a.tokenAuthOnly {
 		k8sCfg := ConvertConfig(cfg)
 		return a.runCommandExecutor.Execute(ctx, params, k8sCfg)
 	}
 	k8sCfg := ConvertConfig(cfg)
 	return a.k8sExecutor.Execute(ctx, params, k8sCfg)
+}
+
+// isKubectlAuthReconcile reports whether the kubectl command string invokes
+// "auth reconcile". Tokenizes via shlex (matching the executor) so quoted or
+// tab-separated forms cannot bypass a literal substring check, then walks the
+// positional tokens skipping flags. Returns true only when the first
+// positional after "auth" is "reconcile".
+func isKubectlAuthReconcile(command string) bool {
+	tokens, err := shlex.Split(command)
+	if err != nil {
+		tokens = strings.Fields(command)
+	}
+	// Drop everything after a free-standing "--" so subprocess args
+	// (e.g. `kubectl exec ... -- auth reconcile`) are not misclassified.
+	for i, t := range tokens {
+		if t == "--" {
+			tokens = tokens[:i]
+			break
+		}
+	}
+	seenAuth := false
+	for _, t := range tokens {
+		if strings.HasPrefix(t, "-") {
+			continue
+		}
+		if t == "kubectl" {
+			continue
+		}
+		if !seenAuth {
+			if t == "auth" {
+				seenAuth = true
+				continue
+			}
+			// First positional is not "auth" — not an auth subcommand.
+			return false
+		}
+		return t == "reconcile"
+	}
+	return false
 }
