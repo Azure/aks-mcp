@@ -233,3 +233,120 @@ func BenchmarkConvertConfig(b *testing.B) {
 		benchOut = ConvertConfig(in)
 	}
 }
+
+// TestExecutorAdapter_BlocksAuthReconcileInReadonly verifies the
+// defense-in-depth check rejects "kubectl auth reconcile" when the access
+// level is readonly, without delegating to the underlying executor. The
+// "auth" verb is classified as read-only by the upstream validator (because
+// "auth can-i" / "auth whoami" are read-only), but "auth reconcile" creates
+// or updates RBAC objects and must not be reachable from readonly.
+func TestExecutorAdapter_BlocksAuthReconcileInReadonly(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		command string
+	}{
+		{"plain", "kubectl auth reconcile -f rbac.yaml"},
+		{"no-prefix", "auth reconcile -f rbac.yaml"},
+		{"with-leading-flag", "kubectl -v=2 auth reconcile -f rbac.yaml"},
+		{"tab-separated", "kubectl\tauth\treconcile\t-f\trbac.yaml"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fe := &fakeExecutor{out: "should-not-run"}
+			adapter := WrapK8sExecutor(fe, false)
+			cfg := &config.ConfigData{AccessLevel: "readonly"}
+			params := map[string]interface{}{"command": tc.command}
+
+			out, err := adapter.Execute(context.Background(), params, cfg)
+			if err == nil {
+				t.Fatalf("expected error for %q, got nil (out=%q)", tc.command, out)
+			}
+			if fe.lastParams != nil {
+				t.Fatalf("downstream executor should not have been invoked, got params=%v", fe.lastParams)
+			}
+		})
+	}
+}
+
+// TestExecutorAdapter_AllowsAuthReadInReadonly verifies the defense-in-depth
+// check does not over-block: "auth can-i" and "auth whoami" remain allowed
+// in readonly mode.
+func TestExecutorAdapter_AllowsAuthReadInReadonly(t *testing.T) {
+	t.Parallel()
+
+	cases := []string{
+		"kubectl auth can-i create pods",
+		"kubectl auth whoami",
+	}
+
+	for _, command := range cases {
+		t.Run(command, func(t *testing.T) {
+			fe := &fakeExecutor{out: "ok"}
+			adapter := WrapK8sExecutor(fe, false)
+			cfg := &config.ConfigData{AccessLevel: "readonly"}
+			params := map[string]interface{}{"command": command}
+
+			out, err := adapter.Execute(context.Background(), params, cfg)
+			if err != nil {
+				t.Fatalf("unexpected error for %q: %v", command, err)
+			}
+			mustEqual(t, out, "ok", "adapter output")
+		})
+	}
+}
+
+// TestExecutorAdapter_AllowsAuthReconcileInReadwrite verifies the
+// defense-in-depth check is gated on the readonly access level — reconcile
+// is a legitimate write operation and must work in readwrite/admin.
+func TestExecutorAdapter_AllowsAuthReconcileInReadwrite(t *testing.T) {
+	t.Parallel()
+
+	for _, level := range []string{"readwrite", "admin"} {
+		t.Run(level, func(t *testing.T) {
+			fe := &fakeExecutor{out: "ok"}
+			adapter := WrapK8sExecutor(fe, false)
+			cfg := &config.ConfigData{AccessLevel: level}
+			params := map[string]interface{}{"command": "kubectl auth reconcile -f rbac.yaml"}
+
+			out, err := adapter.Execute(context.Background(), params, cfg)
+			if err != nil {
+				t.Fatalf("unexpected error at access level %q: %v", level, err)
+			}
+			mustEqual(t, out, "ok", "adapter output")
+		})
+	}
+}
+
+// TestIsKubectlAuthReconcile covers the tokenizer edge cases directly.
+func TestIsKubectlAuthReconcile(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		command string
+		want    bool
+	}{
+		{"kubectl auth reconcile -f rbac.yaml", true},
+		{"auth reconcile -f rbac.yaml", true},
+		{"kubectl auth reconcile", true},
+		{"kubectl -v=2 auth reconcile", true},
+		{"kubectl auth can-i create pods", false},
+		{"kubectl auth whoami", false},
+		{"kubectl get pods", false},
+		{"kubectl exec mypod -- auth reconcile", false},
+		{"kubectl apply -f rbac.yaml", false},
+		{"", false},
+		{"kubectl", false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.command, func(t *testing.T) {
+			got := isKubectlAuthReconcile(tc.command)
+			if got != tc.want {
+				t.Fatalf("isKubectlAuthReconcile(%q) = %v, want %v", tc.command, got, tc.want)
+			}
+		})
+	}
+}
