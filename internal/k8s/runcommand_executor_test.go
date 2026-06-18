@@ -549,7 +549,7 @@ func TestValidateCommand_Combined(t *testing.T) {
 		},
 		{
 			name:              "admin with namespace restriction allows admin operation in allowed namespace",
-			command:           "kubectl drain node1",
+			command:           "kubectl drain node1 -n default",
 			accessLevel:       k8ssecurity.AccessLevelAdmin,
 			allowedNamespaces: "default",
 			expectError:       false,
