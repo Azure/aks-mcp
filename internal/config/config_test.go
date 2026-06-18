@@ -667,3 +667,68 @@ func TestValidateConfig_InvalidCombinations(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateConfig_PublicHTTPWithoutAuthOrAllowedHost(t *testing.T) {
+	tests := []struct {
+		name      string
+		transport string
+		host      string
+		wantErr   bool
+	}{
+		{name: "streamable-http on 0.0.0.0 without OAuth or allowed-host", transport: "streamable-http", host: "0.0.0.0", wantErr: true},
+		{name: "sse on 0.0.0.0 without OAuth or allowed-host", transport: "sse", host: "0.0.0.0", wantErr: true},
+		{name: "streamable-http on routable address without OAuth or allowed-host", transport: "streamable-http", host: "10.0.0.5", wantErr: true},
+		{name: "streamable-http on loopback (127.0.0.1) is allowed", transport: "streamable-http", host: "127.0.0.1", wantErr: false},
+		{name: "streamable-http on loopback (localhost) is allowed", transport: "streamable-http", host: "localhost", wantErr: false},
+		{name: "streamable-http on loopback (::1) is allowed", transport: "streamable-http", host: "::1", wantErr: false},
+		{name: "sse on loopback is allowed", transport: "sse", host: "127.0.0.1", wantErr: false},
+		{name: "stdio transport is never gated", transport: "stdio", host: "0.0.0.0", wantErr: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := NewConfig()
+			cfg.Transport = tt.transport
+			cfg.Host = tt.host
+			// OAuth disabled, no AllowedHosts.
+
+			err := cfg.ValidateConfig()
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("ValidateConfig() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.wantErr {
+				if !contains(err.Error(), "DNS-rebinding") {
+					t.Errorf("expected DNS-rebinding rejection, got: %v", err)
+				}
+			}
+		})
+	}
+}
+
+func TestValidateConfig_PublicHTTPSafeCombinations(t *testing.T) {
+	// All three safe combinations for a public HTTP bind must pass.
+	tests := []struct {
+		name         string
+		oauthEnabled bool
+		allowedHosts []string
+	}{
+		{name: "OAuth enabled", oauthEnabled: true, allowedHosts: nil},
+		{name: "Explicit allowed-host", oauthEnabled: false, allowedHosts: []string{"aks-mcp.example.com"}},
+		{name: "Wildcard allowed-host (reverse-proxy escape valve)", oauthEnabled: false, allowedHosts: []string{"*"}},
+		{name: "OAuth + explicit allowed-host", oauthEnabled: true, allowedHosts: []string{"aks-mcp.example.com"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := NewConfig()
+			cfg.Transport = "streamable-http"
+			cfg.Host = "0.0.0.0"
+			cfg.OAuthConfig.Enabled = tt.oauthEnabled
+			cfg.AllowedHosts = tt.allowedHosts
+
+			if err := cfg.ValidateConfig(); err != nil {
+				t.Fatalf("ValidateConfig() unexpected error: %v", err)
+			}
+		})
+	}
+}

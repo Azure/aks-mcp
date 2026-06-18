@@ -847,3 +847,82 @@ func TestJSONResponseFormat(t *testing.T) {
 		})
 	}
 }
+
+// TestStreamableHTTPHostOriginMiddleware verifies the host/origin security
+// middleware is mounted in front of /mcp on the streamable-http transport.
+// A foreign Host (DNS-rebinding shape) must be rejected with 403 before
+// the request reaches MCP session handling. A loopback Host (the default
+// allowlist) must pass the middleware.
+func TestStreamableHTTPHostOriginMiddleware(t *testing.T) {
+	cfg := createTestConfig("readonly", []string{})
+	service := NewService(cfg)
+	if err := service.Initialize(); err != nil {
+		t.Fatalf("Failed to initialize service: %v", err)
+	}
+
+	customServer := service.createCustomHTTPServerWithHelp404("127.0.0.1:8000")
+	mux, ok := customServer.Handler.(*http.ServeMux)
+	if !ok {
+		t.Fatalf("expected ServeMux, got %T", customServer.Handler)
+	}
+
+	// Mount /mcp using the same path Run() takes, but with a sentinel
+	// downstream handler so we can distinguish "middleware passed through"
+	// from "middleware blocked".
+	sentinel := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusTeapot)
+	})
+	service.installStreamableMCPHandler(mux, sentinel)
+
+	cases := []struct {
+		name       string
+		host       string
+		origin     string
+		wantStatus int
+	}{
+		{name: "loopback host passes", host: "127.0.0.1:8000", wantStatus: http.StatusTeapot},
+		{name: "foreign host rejected", host: "rebind.example.com:8000", wantStatus: http.StatusForbidden},
+		{name: "loopback host with foreign origin rejected", host: "127.0.0.1:8000", origin: "http://rebind.example.com:8000", wantStatus: http.StatusForbidden},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(""))
+			req.Host = tc.host
+			if tc.origin != "" {
+				req.Header.Set("Origin", tc.origin)
+			}
+			rr := httptest.NewRecorder()
+			customServer.Handler.ServeHTTP(rr, req)
+			if rr.Code != tc.wantStatus {
+				t.Fatalf("status = %d, want %d (body=%s)", rr.Code, tc.wantStatus, rr.Body.String())
+			}
+		})
+	}
+}
+
+// TestSSEHostOriginMiddleware verifies the host/origin security middleware
+// is mounted in front of /sse and /message on the SSE transport.
+func TestSSEHostOriginMiddleware(t *testing.T) {
+	cfg := createTestConfig("readonly", []string{})
+	service := NewService(cfg)
+	if err := service.Initialize(); err != nil {
+		t.Fatalf("Failed to initialize service: %v", err)
+	}
+
+	sseServer := server.NewSSEServer(service.mcpServer)
+	customServer := service.createCustomSSEServerWithHelp404(sseServer, "127.0.0.1:8081")
+
+	for _, path := range []string{"/sse", "/message"} {
+		t.Run(path+" foreign host rejected", func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			req.Host = "rebind.example.com:8081"
+			req.Header.Set("Origin", "http://rebind.example.com:8081")
+			rr := httptest.NewRecorder()
+			customServer.Handler.ServeHTTP(rr, req)
+			if rr.Code != http.StatusForbidden {
+				t.Fatalf("status = %d, want 403 (body=%s)", rr.Code, rr.Body.String())
+			}
+		})
+	}
+}

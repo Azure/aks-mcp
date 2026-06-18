@@ -83,6 +83,20 @@ type ConfigData struct {
 	// DefaultAKSResourceID is the default AKS cluster resource ID used when aks_resource_id is not provided by the caller.
 	// Set via --default-aks-resource-id flag or AZURE_AKS_RESOURCE_ID environment variable.
 	DefaultAKSResourceID string
+
+	// AllowedHosts is the set of HTTP Host header values (with or without port)
+	// that the streamable-http / sse transports will accept. Empty means
+	// loopback-only (the safe default). The literal "*" disables Host
+	// enforcement entirely — only use behind a reverse proxy that validates
+	// Host on the operator's behalf.
+	AllowedHosts []string
+
+	// AllowedOrigins is the set of HTTP Origin header values that the
+	// streamable-http / sse transports will accept on browser-style cross
+	// origin requests. Empty Origin headers (non-browser callers) are always
+	// allowed. Empty list rejects every non-empty Origin. The literal "*"
+	// disables Origin enforcement entirely.
+	AllowedOrigins []string
 }
 
 // NewConfig creates and returns a new configuration instance
@@ -100,6 +114,8 @@ func NewConfig() *ConfigData {
 		LogLevel:          "info",
 		UseLegacyTools:    os.Getenv("USE_LEGACY_TOOLS") == "true",
 		TokenAuthOnly:     false,
+		AllowedHosts:      []string{},
+		AllowedOrigins:    []string{},
 	}
 }
 
@@ -142,6 +158,13 @@ func (cfg *ConfigData) ParseFlags() {
 	// Component configuration
 	enabledComponents := flag.String("enabled-components", "",
 		"Comma-separated list of enabled components (empty means all components enabled). Available: az_cli,monitor,fleet,network,compute,detectors,advisor,inspektorgadget,kubectl,helm,cilium,hubble")
+
+	// HTTP transport security: DNS-rebinding / cross-origin protections
+	// (apply to streamable-http and sse transports only).
+	allowedHosts := flag.String("allowed-host", "",
+		"Comma-separated list of HTTP Host header values to accept on /mcp, /sse and /message. Empty means loopback only (localhost, 127.0.0.1, [::1]). Use '*' as an escape valve when behind a trusted reverse proxy. Required for non-loopback bindings when OAuth is disabled.")
+	trustedOrigins := flag.String("trusted-origin", "",
+		"Comma-separated list of HTTP Origin header values to accept on browser-style cross-origin requests to /mcp, /sse and /message (e.g. https://chat.example.com). Empty Origin headers from non-browser clients are always allowed. Use '*' to disable Origin enforcement entirely.")
 
 	// Kubernetes namespaces configuration
 	flag.StringVar(&cfg.AllowNamespaces, "allow-namespaces", "",
@@ -214,6 +237,29 @@ func (cfg *ConfigData) ParseFlags() {
 			}
 		}
 	}
+
+	// Parse HTTP transport allowlists.
+	cfg.AllowedHosts = splitAndTrim(*allowedHosts)
+	cfg.AllowedOrigins = splitAndTrim(*trustedOrigins)
+}
+
+// splitAndTrim splits raw on commas, trims whitespace, and drops empty entries.
+// Returns nil for empty input so a zero allowlist remains a zero allowlist.
+func splitAndTrim(raw string) []string {
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if v := strings.TrimSpace(p); v != "" {
+			out = append(out, v)
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // parseOAuthConfig parses OAuth-related command line arguments
@@ -357,7 +403,47 @@ func (cfg *ConfigData) ValidateConfig() error {
 		return fmt.Errorf("token-only authentication mode (--token-auth-only) requires unified tools and is not compatible with legacy tools (USE_LEGACY_TOOLS=true)")
 	}
 
+	// Refuse to start a publicly reachable streamable-http / sse listener
+	// with no authentication and no explicit trusted-host allowlist. This
+	// is the DNS-rebinding posture: a browser-origin attacker can otherwise
+	// reach /mcp through the victim's local network. The operator must pick
+	// one of three safe combinations:
+	//   (a) bind to loopback (default --host 127.0.0.1)
+	//   (b) enable OAuth (--oauth-enabled)
+	//   (c) declare an explicit trusted-host allowlist (--allowed-host)
+	if isHTTPTransport(cfg.Transport) &&
+		!isLoopbackBindHost(cfg.Host) &&
+		!cfg.OAuthConfig.Enabled &&
+		len(cfg.AllowedHosts) == 0 {
+		return fmt.Errorf("transport %q bound to non-loopback host %q without OAuth and without --allowed-host: refusing to start to avoid DNS-rebinding exposure; choose one of: (a) bind --host 127.0.0.1, (b) --oauth-enabled, (c) --allowed-host=<your.hostname>",
+			cfg.Transport, cfg.Host)
+	}
+
 	return nil
+}
+
+// isHTTPTransport reports whether transport opens an HTTP listener that
+// browsers can target. stdio is excluded because it has no HTTP attack surface.
+func isHTTPTransport(transport string) bool {
+	switch transport {
+	case "streamable-http", "sse":
+		return true
+	}
+	return false
+}
+
+// isLoopbackBindHost reports whether host (as configured via --host) only
+// binds to a loopback interface and therefore cannot be reached by a remote
+// browser-origin attacker. Used for startup-time safety validation.
+// An empty host is treated as loopback because callers that never invoke
+// ParseFlags (notably unit tests) leave Host at its zero value, and the
+// production default applied by ParseFlags is 127.0.0.1 anyway.
+func isLoopbackBindHost(host string) bool {
+	switch host {
+	case "", "127.0.0.1", "localhost", "::1":
+		return true
+	}
+	return false
 }
 
 // InitializeTelemetry initializes the telemetry service

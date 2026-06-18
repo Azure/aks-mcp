@@ -27,6 +27,7 @@ import (
 	"github.com/Azure/aks-mcp/internal/k8s"
 	"github.com/Azure/aks-mcp/internal/logger"
 	"github.com/Azure/aks-mcp/internal/prompts"
+	"github.com/Azure/aks-mcp/internal/server/httpsecurity"
 	"github.com/Azure/aks-mcp/internal/tools"
 	"github.com/Azure/aks-mcp/internal/version"
 	azapimcp "github.com/Azure/azure-api-mcp/pkg/azcli"
@@ -304,17 +305,21 @@ func (s *Service) createCustomSSEServerWithHelp404(sseServer *server.SSEServer, 
 	}
 
 	// Register SSE and Message handlers with authentication if enabled
+	secMW := httpsecurity.NewMiddleware(httpsecurity.Config{
+		AllowedHosts:   s.cfg.AllowedHosts,
+		AllowedOrigins: s.cfg.AllowedOrigins,
+	})
 	if s.cfg.OAuthConfig.Enabled {
 		if s.authMiddleware == nil {
 			logger.Errorf("OAuth is enabled but auth middleware is not initialized - this indicates a bug in server initialization")
 		}
 		// Apply authentication middleware to SSE and Message endpoints
-		mux.Handle("/sse", s.authMiddleware.Middleware(sseServer.SSEHandler()))
-		mux.Handle("/message", s.authMiddleware.Middleware(sseServer.MessageHandler()))
+		mux.Handle("/sse", secMW(s.authMiddleware.Middleware(sseServer.SSEHandler())))
+		mux.Handle("/message", secMW(s.authMiddleware.Middleware(sseServer.MessageHandler())))
 	} else {
 		// Register without authentication
-		mux.Handle("/sse", sseServer.SSEHandler())
-		mux.Handle("/message", sseServer.MessageHandler())
+		mux.Handle("/sse", secMW(sseServer.SSEHandler()))
+		mux.Handle("/message", secMW(sseServer.MessageHandler()))
 	}
 
 	// Handle all other paths with a helpful 404 response
@@ -422,16 +427,7 @@ func (s *Service) Run() error {
 
 		// Update the mux to use the actual streamable server as the MCP handler
 		if mux, ok := customServer.Handler.(*http.ServeMux); ok {
-			if s.cfg.OAuthConfig.Enabled {
-				if s.authMiddleware == nil {
-					logger.Errorf("OAuth is enabled but auth middleware is not initialized - this indicates a bug in server initialization")
-				}
-				// Apply authentication middleware to MCP endpoint
-				mux.Handle("/mcp", s.authMiddleware.Middleware(streamableServer))
-			} else {
-				// Register without authentication
-				mux.Handle("/mcp", streamableServer)
-			}
+			s.installStreamableMCPHandler(mux, streamableServer)
 		}
 
 		logger.Infof("Streamable HTTP server listening on %s", addr)
@@ -445,6 +441,27 @@ func (s *Service) Run() error {
 		return customServer.ListenAndServe()
 	default:
 		return fmt.Errorf("invalid transport type: %s (must be 'stdio', 'sse' or 'streamable-http')", s.cfg.Transport)
+	}
+}
+
+// installStreamableMCPHandler mounts the streamable-http MCP handler on mux at
+// /mcp, wrapping it in the host/origin security middleware and (when OAuth is
+// enabled) the OAuth auth middleware. Extracted so that tests can exercise the
+// security middleware without binding a TCP listener.
+func (s *Service) installStreamableMCPHandler(mux *http.ServeMux, streamableServer http.Handler) {
+	secMW := httpsecurity.NewMiddleware(httpsecurity.Config{
+		AllowedHosts:   s.cfg.AllowedHosts,
+		AllowedOrigins: s.cfg.AllowedOrigins,
+	})
+	if s.cfg.OAuthConfig.Enabled {
+		if s.authMiddleware == nil {
+			logger.Errorf("OAuth is enabled but auth middleware is not initialized - this indicates a bug in server initialization")
+		}
+		// Apply authentication middleware to MCP endpoint
+		mux.Handle("/mcp", secMW(s.authMiddleware.Middleware(streamableServer)))
+	} else {
+		// Register without authentication
+		mux.Handle("/mcp", secMW(streamableServer))
 	}
 }
 
