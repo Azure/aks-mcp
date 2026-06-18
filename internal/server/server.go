@@ -305,10 +305,7 @@ func (s *Service) createCustomSSEServerWithHelp404(sseServer *server.SSEServer, 
 	}
 
 	// Register SSE and Message handlers with authentication if enabled
-	secMW := httpsecurity.NewMiddleware(httpsecurity.Config{
-		AllowedHosts:   s.cfg.AllowedHosts,
-		AllowedOrigins: s.cfg.AllowedOrigins,
-	})
+	secMW := s.buildHTTPSecurityMiddleware()
 	if s.cfg.OAuthConfig.Enabled {
 		if s.authMiddleware == nil {
 			logger.Errorf("OAuth is enabled but auth middleware is not initialized - this indicates a bug in server initialization")
@@ -449,10 +446,7 @@ func (s *Service) Run() error {
 // enabled) the OAuth auth middleware. Extracted so that tests can exercise the
 // security middleware without binding a TCP listener.
 func (s *Service) installStreamableMCPHandler(mux *http.ServeMux, streamableServer http.Handler) {
-	secMW := httpsecurity.NewMiddleware(httpsecurity.Config{
-		AllowedHosts:   s.cfg.AllowedHosts,
-		AllowedOrigins: s.cfg.AllowedOrigins,
-	})
+	secMW := s.buildHTTPSecurityMiddleware()
 	if s.cfg.OAuthConfig.Enabled {
 		if s.authMiddleware == nil {
 			logger.Errorf("OAuth is enabled but auth middleware is not initialized - this indicates a bug in server initialization")
@@ -463,6 +457,34 @@ func (s *Service) installStreamableMCPHandler(mux *http.ServeMux, streamableServ
 		// Register without authentication
 		mux.Handle("/mcp", secMW(streamableServer))
 	}
+}
+
+// buildHTTPSecurityMiddleware constructs the host/origin middleware used by
+// the streamable-http and sse transports. The defaults compose with OAuth:
+// when OAuth is enabled but the operator has not declared an explicit Host
+// allowlist, the middleware effectively allows any Host. A valid OAuth bearer
+// token is already required for tool dispatch, and DNS rebinding cannot
+// produce one, so Host validation in this configuration would only break
+// legitimate ingress / reverse-proxy deployments that forward the public
+// hostname. The same reasoning applies to Origin: the OAuth check rejects
+// the request before tool dispatch regardless of the Origin header value.
+// Operators who want belt-and-suspenders Host/Origin enforcement on top of
+// OAuth can still set --allowed-host / --trusted-origin (or the Helm chart
+// security.allowedHosts / security.trustedOrigins) to tighten the policy.
+func (s *Service) buildHTTPSecurityMiddleware() func(http.Handler) http.Handler {
+	cfg := httpsecurity.Config{
+		AllowedHosts:   s.cfg.AllowedHosts,
+		AllowedOrigins: s.cfg.AllowedOrigins,
+	}
+	if s.cfg.OAuthConfig.Enabled {
+		if len(cfg.AllowedHosts) == 0 {
+			cfg.AllowedHosts = []string{"*"}
+		}
+		if len(cfg.AllowedOrigins) == 0 {
+			cfg.AllowedOrigins = []string{"*"}
+		}
+	}
+	return httpsecurity.NewMiddleware(cfg)
 }
 
 // registerAzureComponents registers all Azure tools (AKS operations, monitoring, fleet, network, compute, detectors, advisor)

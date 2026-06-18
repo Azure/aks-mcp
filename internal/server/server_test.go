@@ -926,3 +926,68 @@ func TestSSEHostOriginMiddleware(t *testing.T) {
 		})
 	}
 }
+
+// TestStreamableHTTPHostOriginMiddlewareDefaultsWhenOAuthEnabled verifies
+// that with OAuth enabled and no explicit Host/Origin allowlist, the
+// middleware default is to allow any Host/Origin. A valid bearer token is
+// already required for tool dispatch, so the Host/Origin gate would only
+// surprise legitimate ingress / reverse-proxy deployments that forward the
+// public hostname.
+func TestStreamableHTTPHostOriginMiddlewareDefaultsWhenOAuthEnabled(t *testing.T) {
+	cfg := createTestConfig("readonly", []string{})
+	cfg.OAuthConfig.Enabled = true
+	cfg.Host = "0.0.0.0"
+	service := NewService(cfg)
+	if service == nil {
+		t.Fatal("NewService returned nil")
+	}
+	// Don't call Initialize() — it would set up the real OAuth auth middleware,
+	// which is not what this test exercises. We want to isolate the
+	// host/origin gate behavior under OAuth-enabled defaults.
+
+	secMW := service.buildHTTPSecurityMiddleware()
+	sentinel := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusTeapot)
+	})
+	handler := secMW(sentinel)
+
+	req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(""))
+	req.Host = "aks-mcp.ingress.example.com"
+	req.Header.Set("Origin", "https://chat.example.com")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusTeapot {
+		t.Fatalf("OAuth-enabled deployment was blocked by host/origin middleware (status=%d body=%s); "+
+			"middleware should default to allow-any when OAuth is enabled", rr.Code, rr.Body.String())
+	}
+}
+
+// TestStreamableHTTPHostOriginMiddlewareExplicitAllowlistOverridesOAuthDefault
+// verifies that an explicit --allowed-host still takes effect even when OAuth
+// is enabled. OAuth-aware operators who want belt-and-suspenders Host
+// enforcement can opt back in.
+func TestStreamableHTTPHostOriginMiddlewareExplicitAllowlistOverridesOAuthDefault(t *testing.T) {
+	cfg := createTestConfig("readonly", []string{})
+	cfg.OAuthConfig.Enabled = true
+	cfg.Host = "0.0.0.0"
+	cfg.AllowedHosts = []string{"aks-mcp.ingress.example.com"}
+	service := NewService(cfg)
+	if service == nil {
+		t.Fatal("NewService returned nil")
+	}
+
+	secMW := service.buildHTTPSecurityMiddleware()
+	sentinel := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusTeapot)
+	})
+	handler := secMW(sentinel)
+
+	req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(""))
+	req.Host = "rebind.example.com"
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("explicit allowlist should still reject foreign host even with OAuth enabled, got status %d (body=%s)",
+			rr.Code, rr.Body.String())
+	}
+}
