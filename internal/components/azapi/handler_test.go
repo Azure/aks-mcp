@@ -23,8 +23,9 @@ func (m *mockAzClient) ExecuteCommand(ctx context.Context, command string) (*azc
 		return m.executeFunc(ctx, command)
 	}
 	return &azcli.Result{
-		Output: json.RawMessage("mock output"),
-		Error:  "",
+		Output:   json.RawMessage("mock output"),
+		ExitCode: 0,
+		Error:    "",
 	}, nil
 }
 
@@ -51,8 +52,9 @@ func TestAzApiHandler_Success(t *testing.T) {
 				t.Errorf("expected command 'az group list', got '%s'", command)
 			}
 			return &azcli.Result{
-				Output: json.RawMessage(`[{"name":"rg1","location":"eastus"}]`),
-				Error:  "",
+				Output:   json.RawMessage(`[{"name":"rg1","location":"eastus"}]`),
+				ExitCode: 0,
+				Error:    "",
 			}, nil
 		},
 	}
@@ -185,8 +187,9 @@ func TestAzApiHandler_CommandError(t *testing.T) {
 	mockClient := &mockAzClient{
 		executeFunc: func(ctx context.Context, command string) (*azcli.Result, error) {
 			return &azcli.Result{
-				Output: json.RawMessage(""),
-				Error:  "command error: resource not found",
+				Output:   json.RawMessage(""),
+				ExitCode: 2,
+				Error:    "command error: resource not found",
 			}, nil
 		},
 	}
@@ -213,6 +216,56 @@ func TestAzApiHandler_CommandError(t *testing.T) {
 	if !result.IsError {
 		t.Fatal("expected error result")
 	}
+
+	textContent, ok := result.Content[0].(mcp.TextContent)
+	if !ok {
+		t.Fatalf("expected TextContent, got %T", result.Content[0])
+	}
+
+	if !strings.Contains(textContent.Text, "exit code 2") {
+		t.Errorf("expected exit code in error message, got %s", textContent.Text)
+	}
+}
+
+func TestAzApiHandler_WarningOnlyResult(t *testing.T) {
+	mockClient := &mockAzClient{
+		executeFunc: func(ctx context.Context, command string) (*azcli.Result, error) {
+			return &azcli.Result{
+				Output:   json.RawMessage(`["aks-a","aks-b"]`),
+				ExitCode: 0,
+				Error:    "WARNING: The behavior of this command has been altered by the following extension: aks-preview",
+			}, nil
+		},
+	}
+
+	cfg := newTestConfig(30)
+	handler := AzApiHandler(mockClient, cfg)
+
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Name: "call_az",
+			Arguments: map[string]interface{}{
+				"cli_command": "az aks list --query [].name -o tsv",
+			},
+		},
+	}
+
+	result, err := handler(context.Background(), req)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if result.IsError {
+		t.Fatal("expected success result")
+	}
+
+	textContent, ok := result.Content[0].(mcp.TextContent)
+	if !ok {
+		t.Fatalf("expected TextContent, got %T", result.Content[0])
+	}
+
+	if textContent.Text != `["aks-a","aks-b"]` {
+		t.Errorf("unexpected output: %s", textContent.Text)
+	}
 }
 
 func TestAzApiHandler_CustomTimeout(t *testing.T) {
@@ -230,8 +283,9 @@ func TestAzApiHandler_CustomTimeout(t *testing.T) {
 				}
 			}
 			return &azcli.Result{
-				Output: json.RawMessage("success"),
-				Error:  "",
+				Output:   json.RawMessage("success"),
+				ExitCode: 0,
+				Error:    "",
 			}, nil
 		},
 	}
@@ -267,8 +321,9 @@ func TestAzApiHandler_NilTelemetryService(t *testing.T) {
 	mockClient := &mockAzClient{
 		executeFunc: func(ctx context.Context, command string) (*azcli.Result, error) {
 			return &azcli.Result{
-				Output: json.RawMessage(`"ok"`),
-				Error:  "",
+				Output:   json.RawMessage(`"ok"`),
+				ExitCode: 0,
+				Error:    "",
 			}, nil
 		},
 	}

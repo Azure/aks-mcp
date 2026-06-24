@@ -164,13 +164,20 @@ func AzApiHandler(azClient azcli.Client, cfg *config.ConfigData) func(ctx contex
 			return mcp.NewToolResultError(errMsg), nil
 		}
 
-		if result.Error != "" {
-			errMsg := fmt.Sprintf("Azure CLI command failed: %s", result.Error)
+		if result.ExitCode != 0 {
+			errMsg := fmt.Sprintf("Azure CLI command failed with exit code %d", result.ExitCode)
+			if result.Error != "" {
+				errMsg = fmt.Sprintf("%s: %s", errMsg, result.Error)
+			}
 			logger.Errorf("AzApiHandler: %s", errMsg)
 			if cfg.TelemetryService != nil {
 				cfg.TelemetryService.TrackToolInvocation(ctx, req.Params.Name, sanitizeCliCommand(cliCommand), false)
 			}
 			return mcp.NewToolResultError(errMsg), nil
+		}
+
+		if result.Error != "" {
+			logger.Warnf("AzApiHandler: Azure CLI emitted stderr with successful exit code: %s", result.Error)
 		}
 
 		logger.Debugf("AzApiHandler: Command completed successfully")
