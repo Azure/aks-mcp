@@ -57,16 +57,26 @@ func NewMiddleware(cfg Config) func(http.Handler) http.Handler {
 
 // isHostAllowed reports whether the request's Host header satisfies the
 // configured allowlist. With an empty allowlist, only loopback names match.
+//
+// Allowlist entries may be written with or without a port. Each request is
+// compared against both forms of the entry: an entry like
+// "aks-mcp.example.com" matches the request regardless of port, while
+// "aks-mcp.example.com:8000" matches only that port.
 func isHostAllowed(rawHost string, allowed []string) bool {
-	host := strings.ToLower(strings.TrimSpace(stripPort(rawHost)))
-	if host == "" {
+	rawHost = strings.TrimSpace(rawHost)
+	if rawHost == "" {
 		// A missing Host header is suspicious on its own — refuse it rather
 		// than fall through to the default-allow loopback branch.
 		return false
 	}
+	hostNoPort := strings.ToLower(stripPort(rawHost))
+	hostFull := strings.ToLower(rawHost)
+	if hostNoPort == "" {
+		return false
+	}
 
 	if len(allowed) == 0 {
-		return isLoopbackHost(host)
+		return isLoopbackHost(hostNoPort)
 	}
 
 	for _, candidate := range allowed {
@@ -77,8 +87,27 @@ func isHostAllowed(rawHost string, allowed []string) bool {
 		if c == "*" {
 			return true
 		}
-		if c == host {
-			return true
+		// Entry with explicit port: require exact match against full Host header.
+		// Entry without port: match against the port-stripped host.
+		if strings.Contains(c, ":") && !strings.HasPrefix(c, "[") {
+			// IPv4 or hostname with port (e.g. "example.com:8000").
+			if c == hostFull {
+				return true
+			}
+		} else if strings.HasPrefix(c, "[") {
+			// Bracketed IPv6, with or without port (e.g. "[::1]" or "[::1]:8000").
+			if strings.Contains(c, "]:") {
+				if c == hostFull {
+					return true
+				}
+			} else if stripPort(c) == hostNoPort {
+				return true
+			}
+		} else {
+			// Plain hostname or IPv4 with no port — compare host-only form.
+			if c == hostNoPort {
+				return true
+			}
 		}
 	}
 	return false

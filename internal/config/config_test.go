@@ -681,6 +681,7 @@ func TestValidateConfig_PublicHTTPWithoutAuthOrAllowedHost(t *testing.T) {
 		{name: "streamable-http on loopback (127.0.0.1) is allowed", transport: "streamable-http", host: "127.0.0.1", wantErr: false},
 		{name: "streamable-http on loopback (localhost) is allowed", transport: "streamable-http", host: "localhost", wantErr: false},
 		{name: "streamable-http on loopback (::1) is allowed", transport: "streamable-http", host: "::1", wantErr: false},
+		{name: "streamable-http on 127.0.0.0/8 address is allowed", transport: "streamable-http", host: "127.5.5.5", wantErr: false},
 		{name: "sse on loopback is allowed", transport: "sse", host: "127.0.0.1", wantErr: false},
 		{name: "stdio transport is never gated", transport: "stdio", host: "0.0.0.0", wantErr: false},
 	}

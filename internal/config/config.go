@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"regexp"
 	"strings"
@@ -438,9 +439,13 @@ func isHTTPTransport(transport string) bool {
 // An empty host is treated as loopback because callers that never invoke
 // ParseFlags (notably unit tests) leave Host at its zero value, and the
 // production default applied by ParseFlags is 127.0.0.1 anyway.
+// Any address in 127.0.0.0/8 or the IPv6 ::1 loopback is accepted, matching
+// the kernel's notion of "loopback" and the runtime middleware's check.
 func isLoopbackBindHost(host string) bool {
-	switch host {
-	case "", "127.0.0.1", "localhost", "::1":
+	if host == "" || host == "localhost" {
+		return true
+	}
+	if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
 		return true
 	}
 	return false

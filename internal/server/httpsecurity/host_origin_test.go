@@ -38,6 +38,16 @@ func TestIsHostAllowed(t *testing.T) {
 		// Wildcard escape valve.
 		{"wildcard allows anything", "rebind.example.com", []string{"*"}, true},
 		{"wildcard with other entries still allows anything", "rebind.example.com", []string{"aks-mcp.example.com", "*"}, true},
+
+		// Allowlist entries with explicit port: match only that port.
+		{"entry with port matches same port", "aks-mcp.example.com:8000", []string{"aks-mcp.example.com:8000"}, true},
+		{"entry with port rejects different port", "aks-mcp.example.com:9000", []string{"aks-mcp.example.com:8000"}, false},
+		{"entry with port rejects portless request", "aks-mcp.example.com", []string{"aks-mcp.example.com:8000"}, false},
+		{"entry without port matches any port", "aks-mcp.example.com:9000", []string{"aks-mcp.example.com"}, true},
+		{"entry with port case insensitive", "AKS-MCP.EXAMPLE.COM:8000", []string{"aks-mcp.example.com:8000"}, true},
+		{"mixed entries (with and without port) both work", "aks-mcp.example.com:9000", []string{"other.example.com:8000", "aks-mcp.example.com"}, true},
+		{"IPv6 bracketed entry with port matches", "[2001:db8::1]:8000", []string{"[2001:db8::1]:8000"}, true},
+		{"IPv6 bracketed entry without port matches any port", "[2001:db8::1]:9000", []string{"[2001:db8::1]"}, true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

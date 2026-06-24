@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -460,31 +461,65 @@ func (s *Service) installStreamableMCPHandler(mux *http.ServeMux, streamableServ
 }
 
 // buildHTTPSecurityMiddleware constructs the host/origin middleware used by
-// the streamable-http and sse transports. The defaults compose with OAuth:
-// when OAuth is enabled but the operator has not declared an explicit Host
-// allowlist, the middleware effectively allows any Host. A valid OAuth bearer
-// token is already required for tool dispatch, and DNS rebinding cannot
-// produce one, so Host validation in this configuration would only break
-// legitimate ingress / reverse-proxy deployments that forward the public
-// hostname. The same reasoning applies to Origin: the OAuth check rejects
-// the request before tool dispatch regardless of the Origin header value.
-// Operators who want belt-and-suspenders Host/Origin enforcement on top of
-// OAuth can still set --allowed-host / --trusted-origin (or the Helm chart
-// security.allowedHosts / security.trustedOrigins) to tighten the policy.
+// the streamable-http and sse transports. Defaults are chosen so that the
+// gate prevents DNS rebinding without breaking common, demonstrably safe
+// deployments:
+//
+//   - OAuth enabled: a valid bearer token is already required for tool
+//     dispatch, and DNS rebinding cannot produce one. Applying the
+//     Host/Origin allowlist would only break legitimate ingress / reverse-
+//     proxy deployments that forward the public hostname, so both default
+//     to "*". Operators who want belt-and-suspenders enforcement on top of
+//     OAuth can still set --allowed-host / --trusted-origin to tighten.
+//   - OAuth disabled, loopback bind: the listener is unreachable from a
+//     remote network in the first place, so the Origin allowlist would only
+//     reject local browser MCP clients (MCP Inspector etc.) that send an
+//     Origin like http://localhost:6274. The Host gate keeps blocking the
+//     DNS-rebinding shape — a foreign Host header against the loopback
+//     listener — but Origin defaults to "*".
+//   - OAuth disabled, non-loopback bind: ValidateConfig already refused to
+//     start unless --allowed-host was set, so this path requires an explicit
+//     Host allowlist. Origin still defaults to reject-any when unset, since
+//     in this configuration there is no other authentication and the
+//     operator opted into a public-facing listener.
 func (s *Service) buildHTTPSecurityMiddleware() func(http.Handler) http.Handler {
 	cfg := httpsecurity.Config{
 		AllowedHosts:   s.cfg.AllowedHosts,
 		AllowedOrigins: s.cfg.AllowedOrigins,
 	}
-	if s.cfg.OAuthConfig.Enabled {
+	switch {
+	case s.cfg.OAuthConfig.Enabled:
 		if len(cfg.AllowedHosts) == 0 {
 			cfg.AllowedHosts = []string{"*"}
 		}
 		if len(cfg.AllowedOrigins) == 0 {
 			cfg.AllowedOrigins = []string{"*"}
 		}
+	case isLoopbackBindHost(s.cfg.Host):
+		// Host gate still defaults to loopback-only inside the middleware
+		// (cfg.AllowedHosts left empty), which is what we want — DNS-rebinding
+		// requests carry a foreign Host header and are still rejected.
+		// Origin, however, would otherwise reject MCP Inspector / browser
+		// MCP clients running on the same machine.
+		if len(cfg.AllowedOrigins) == 0 {
+			cfg.AllowedOrigins = []string{"*"}
+		}
 	}
 	return httpsecurity.NewMiddleware(cfg)
+}
+
+// isLoopbackBindHost reports whether host (as configured via --host) only
+// binds to a loopback interface. Mirrors internal/config.isLoopbackBindHost
+// so the runtime middleware default can match the startup-time validator
+// without exporting an internal helper.
+func isLoopbackBindHost(host string) bool {
+	if host == "" || host == "localhost" {
+		return true
+	}
+	if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
+		return true
+	}
+	return false
 }
 
 // registerAzureComponents registers all Azure tools (AKS operations, monitoring, fleet, network, compute, detectors, advisor)
