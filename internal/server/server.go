@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -27,6 +28,7 @@ import (
 	"github.com/Azure/aks-mcp/internal/k8s"
 	"github.com/Azure/aks-mcp/internal/logger"
 	"github.com/Azure/aks-mcp/internal/prompts"
+	"github.com/Azure/aks-mcp/internal/server/httpsecurity"
 	"github.com/Azure/aks-mcp/internal/tools"
 	"github.com/Azure/aks-mcp/internal/version"
 	azapimcp "github.com/Azure/azure-api-mcp/pkg/azcli"
@@ -304,17 +306,18 @@ func (s *Service) createCustomSSEServerWithHelp404(sseServer *server.SSEServer, 
 	}
 
 	// Register SSE and Message handlers with authentication if enabled
+	secMW := s.buildHTTPSecurityMiddleware()
 	if s.cfg.OAuthConfig.Enabled {
 		if s.authMiddleware == nil {
 			logger.Errorf("OAuth is enabled but auth middleware is not initialized - this indicates a bug in server initialization")
 		}
 		// Apply authentication middleware to SSE and Message endpoints
-		mux.Handle("/sse", s.authMiddleware.Middleware(sseServer.SSEHandler()))
-		mux.Handle("/message", s.authMiddleware.Middleware(sseServer.MessageHandler()))
+		mux.Handle("/sse", secMW(s.authMiddleware.Middleware(sseServer.SSEHandler())))
+		mux.Handle("/message", secMW(s.authMiddleware.Middleware(sseServer.MessageHandler())))
 	} else {
 		// Register without authentication
-		mux.Handle("/sse", sseServer.SSEHandler())
-		mux.Handle("/message", sseServer.MessageHandler())
+		mux.Handle("/sse", secMW(sseServer.SSEHandler()))
+		mux.Handle("/message", secMW(sseServer.MessageHandler()))
 	}
 
 	// Handle all other paths with a helpful 404 response
@@ -422,16 +425,7 @@ func (s *Service) Run() error {
 
 		// Update the mux to use the actual streamable server as the MCP handler
 		if mux, ok := customServer.Handler.(*http.ServeMux); ok {
-			if s.cfg.OAuthConfig.Enabled {
-				if s.authMiddleware == nil {
-					logger.Errorf("OAuth is enabled but auth middleware is not initialized - this indicates a bug in server initialization")
-				}
-				// Apply authentication middleware to MCP endpoint
-				mux.Handle("/mcp", s.authMiddleware.Middleware(streamableServer))
-			} else {
-				// Register without authentication
-				mux.Handle("/mcp", streamableServer)
-			}
+			s.installStreamableMCPHandler(mux, streamableServer)
 		}
 
 		logger.Infof("Streamable HTTP server listening on %s", addr)
@@ -446,6 +440,86 @@ func (s *Service) Run() error {
 	default:
 		return fmt.Errorf("invalid transport type: %s (must be 'stdio', 'sse' or 'streamable-http')", s.cfg.Transport)
 	}
+}
+
+// installStreamableMCPHandler mounts the streamable-http MCP handler on mux at
+// /mcp, wrapping it in the host/origin security middleware and (when OAuth is
+// enabled) the OAuth auth middleware. Extracted so that tests can exercise the
+// security middleware without binding a TCP listener.
+func (s *Service) installStreamableMCPHandler(mux *http.ServeMux, streamableServer http.Handler) {
+	secMW := s.buildHTTPSecurityMiddleware()
+	if s.cfg.OAuthConfig.Enabled {
+		if s.authMiddleware == nil {
+			logger.Errorf("OAuth is enabled but auth middleware is not initialized - this indicates a bug in server initialization")
+		}
+		// Apply authentication middleware to MCP endpoint
+		mux.Handle("/mcp", secMW(s.authMiddleware.Middleware(streamableServer)))
+	} else {
+		// Register without authentication
+		mux.Handle("/mcp", secMW(streamableServer))
+	}
+}
+
+// buildHTTPSecurityMiddleware constructs the host/origin middleware used by
+// the streamable-http and sse transports. Defaults are chosen so that the
+// gate prevents DNS rebinding without breaking common, demonstrably safe
+// deployments:
+//
+//   - OAuth enabled: a valid bearer token is already required for tool
+//     dispatch, and DNS rebinding cannot produce one. Applying the
+//     Host/Origin allowlist would only break legitimate ingress / reverse-
+//     proxy deployments that forward the public hostname, so both default
+//     to "*". Operators who want belt-and-suspenders enforcement on top of
+//     OAuth can still set --allowed-host / --trusted-origin to tighten.
+//   - OAuth disabled, loopback bind: the listener is unreachable from a
+//     remote network in the first place, so the Origin allowlist would only
+//     reject local browser MCP clients (MCP Inspector etc.) that send an
+//     Origin like http://localhost:6274. The Host gate keeps blocking the
+//     DNS-rebinding shape — a foreign Host header against the loopback
+//     listener — but Origin defaults to "*".
+//   - OAuth disabled, non-loopback bind: ValidateConfig already refused to
+//     start unless --allowed-host was set, so this path requires an explicit
+//     Host allowlist. Origin still defaults to reject-any when unset, since
+//     in this configuration there is no other authentication and the
+//     operator opted into a public-facing listener.
+func (s *Service) buildHTTPSecurityMiddleware() func(http.Handler) http.Handler {
+	cfg := httpsecurity.Config{
+		AllowedHosts:   s.cfg.AllowedHosts,
+		AllowedOrigins: s.cfg.AllowedOrigins,
+	}
+	switch {
+	case s.cfg.OAuthConfig.Enabled:
+		if len(cfg.AllowedHosts) == 0 {
+			cfg.AllowedHosts = []string{"*"}
+		}
+		if len(cfg.AllowedOrigins) == 0 {
+			cfg.AllowedOrigins = []string{"*"}
+		}
+	case isLoopbackBindHost(s.cfg.Host):
+		// Host gate still defaults to loopback-only inside the middleware
+		// (cfg.AllowedHosts left empty), which is what we want — DNS-rebinding
+		// requests carry a foreign Host header and are still rejected.
+		// Origin, however, would otherwise reject MCP Inspector / browser
+		// MCP clients running on the same machine.
+		if len(cfg.AllowedOrigins) == 0 {
+			cfg.AllowedOrigins = []string{"*"}
+		}
+	}
+	return httpsecurity.NewMiddleware(cfg)
+}
+
+// isLoopbackBindHost reports whether host (as configured via --host) only
+// binds to a loopback interface. Mirrors internal/config.isLoopbackBindHost
+// so the runtime middleware default can match the startup-time validator
+// without exporting an internal helper.
+func isLoopbackBindHost(host string) bool {
+	if host == "" || host == "localhost" {
+		return true
+	}
+	if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
+		return true
+	}
+	return false
 }
 
 // registerAzureComponents registers all Azure tools (AKS operations, monitoring, fleet, network, compute, detectors, advisor)

@@ -75,6 +75,30 @@ oauth:
   # Requires azure.clientSecret (or azure.existingSecret with a client-secret key) to be set.
   oboEnabled: false
 
+# HTTP transport security: DNS-rebinding / cross-origin protection.
+# Applies to streamable-http and sse transports only; stdio is unaffected.
+#
+# The chart deployment hard-codes --host 0.0.0.0 so the listener is always
+# routable inside the cluster. When app.transport is streamable-http or sse
+# and oauth.enabled is false, the server REFUSES to start unless
+# security.allowedHosts is set. Pick one of:
+#   (a) enable OAuth (oauth.enabled: true), or
+#   (b) declare an explicit trusted-host allowlist below.
+# A default install with neither set will CrashLoopBackOff on purpose.
+security:
+  # HTTP Host header values to accept on /mcp, /sse and /message.
+  # Entries may include a port (e.g. "aks-mcp.example.com:8000") to match
+  # only that port, or omit it to match any port for that hostname.
+  # Use the literal "*" only when an upstream reverse proxy validates Host
+  # on the operator's behalf.
+  # Example: ["aks-mcp.internal.example.com"]
+  allowedHosts: []
+  # HTTP Origin header values to accept on browser-style cross-origin requests
+  # to /mcp, /sse and /message. Empty Origin (non-browser clients) always allowed.
+  # Use the literal "*" only to disable Origin enforcement entirely.
+  # Example: ["https://chat.internal.example.com"]
+  trustedOrigins: []
+
 # Application configuration
 config:
   # Enabled components (empty means all components enabled)

@@ -67,12 +67,21 @@ func TestContainerNetworkTransport(t *testing.T) {
 		t.Skip("Docker image 'aks-mcp:test' not available, skipping network transport test")
 	}
 
-	// Start container with default CMD (streamable-http transport)
+	// Start container with streamable-http transport. After the DNS-rebinding
+	// fail-closed validator landed, the default CMD (--host 0.0.0.0 with no
+	// auth and no --allowed-host) is intentionally rejected at startup, so
+	// this test supplies --allowed-host=localhost to satisfy the validator
+	// while still exercising the HTTP listener on localhost.
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	// Start container in background
-	cmd := exec.CommandContext(ctx, "docker", "run", "--rm", "-p", "8000:8000", "aks-mcp:test")
+	cmd := exec.CommandContext(ctx, "docker", "run", "--rm", "-p", "8000:8000",
+		"aks-mcp:test",
+		"--transport", "streamable-http",
+		"--host", "0.0.0.0",
+		"--allowed-host", "localhost",
+	)
 
 	// Start the container
 	err := cmd.Start()

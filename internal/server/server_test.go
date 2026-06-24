@@ -847,3 +847,254 @@ func TestJSONResponseFormat(t *testing.T) {
 		})
 	}
 }
+
+// TestStreamableHTTPHostOriginMiddleware verifies the host/origin security
+// middleware is mounted in front of /mcp on the streamable-http transport.
+// A foreign Host (DNS-rebinding shape) must be rejected with 403 before
+// the request reaches MCP session handling. A loopback Host (the default
+// allowlist) must pass the middleware.
+func TestStreamableHTTPHostOriginMiddleware(t *testing.T) {
+	cfg := createTestConfig("readonly", []string{})
+	service := NewService(cfg)
+	if err := service.Initialize(); err != nil {
+		t.Fatalf("Failed to initialize service: %v", err)
+	}
+
+	customServer := service.createCustomHTTPServerWithHelp404("127.0.0.1:8000")
+	mux, ok := customServer.Handler.(*http.ServeMux)
+	if !ok {
+		t.Fatalf("expected ServeMux, got %T", customServer.Handler)
+	}
+
+	// Mount /mcp using the same path Run() takes, but with a sentinel
+	// downstream handler so we can distinguish "middleware passed through"
+	// from "middleware blocked".
+	sentinel := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusTeapot)
+	})
+	service.installStreamableMCPHandler(mux, sentinel)
+
+	cases := []struct {
+		name       string
+		host       string
+		origin     string
+		wantStatus int
+	}{
+		{name: "loopback host passes", host: "127.0.0.1:8000", wantStatus: http.StatusTeapot},
+		{name: "foreign host rejected", host: "rebind.example.com:8000", wantStatus: http.StatusForbidden},
+		// Origin enforcement on a loopback bind without OAuth is exercised by
+		// TestStreamableHTTPHostOriginMiddlewareLoopbackBindRelaxesOrigin and
+		// TestStreamableHTTPHostOriginMiddlewareNonLoopbackBindStillStrict.
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(""))
+			req.Host = tc.host
+			if tc.origin != "" {
+				req.Header.Set("Origin", tc.origin)
+			}
+			rr := httptest.NewRecorder()
+			customServer.Handler.ServeHTTP(rr, req)
+			if rr.Code != tc.wantStatus {
+				t.Fatalf("status = %d, want %d (body=%s)", rr.Code, tc.wantStatus, rr.Body.String())
+			}
+		})
+	}
+}
+
+// TestSSEHostOriginMiddleware verifies the host/origin security middleware
+// is mounted in front of /sse and /message on the SSE transport.
+func TestSSEHostOriginMiddleware(t *testing.T) {
+	cfg := createTestConfig("readonly", []string{})
+	service := NewService(cfg)
+	if err := service.Initialize(); err != nil {
+		t.Fatalf("Failed to initialize service: %v", err)
+	}
+
+	sseServer := server.NewSSEServer(service.mcpServer)
+	customServer := service.createCustomSSEServerWithHelp404(sseServer, "127.0.0.1:8081")
+
+	for _, path := range []string{"/sse", "/message"} {
+		t.Run(path+" foreign host rejected", func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			req.Host = "rebind.example.com:8081"
+			req.Header.Set("Origin", "http://rebind.example.com:8081")
+			rr := httptest.NewRecorder()
+			customServer.Handler.ServeHTTP(rr, req)
+			if rr.Code != http.StatusForbidden {
+				t.Fatalf("status = %d, want 403 (body=%s)", rr.Code, rr.Body.String())
+			}
+		})
+	}
+}
+
+// TestStreamableHTTPHostOriginMiddlewareDefaultsWhenOAuthEnabled verifies
+// that with OAuth enabled and no explicit Host/Origin allowlist, the
+// middleware default is to allow any Host/Origin. A valid bearer token is
+// already required for tool dispatch, so the Host/Origin gate would only
+// surprise legitimate ingress / reverse-proxy deployments that forward the
+// public hostname.
+func TestStreamableHTTPHostOriginMiddlewareDefaultsWhenOAuthEnabled(t *testing.T) {
+	cfg := createTestConfig("readonly", []string{})
+	cfg.OAuthConfig.Enabled = true
+	cfg.Host = "0.0.0.0"
+	service := NewService(cfg)
+	if service == nil {
+		t.Fatal("NewService returned nil")
+	}
+	// Don't call Initialize() — it would set up the real OAuth auth middleware,
+	// which is not what this test exercises. We want to isolate the
+	// host/origin gate behavior under OAuth-enabled defaults.
+
+	secMW := service.buildHTTPSecurityMiddleware()
+	sentinel := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusTeapot)
+	})
+	handler := secMW(sentinel)
+
+	req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(""))
+	req.Host = "aks-mcp.ingress.example.com"
+	req.Header.Set("Origin", "https://chat.example.com")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusTeapot {
+		t.Fatalf("OAuth-enabled deployment was blocked by host/origin middleware (status=%d body=%s); "+
+			"middleware should default to allow-any when OAuth is enabled", rr.Code, rr.Body.String())
+	}
+}
+
+// TestStreamableHTTPHostOriginMiddlewareExplicitAllowlistOverridesOAuthDefault
+// verifies that an explicit --allowed-host still takes effect even when OAuth
+// is enabled. OAuth-aware operators who want belt-and-suspenders Host
+// enforcement can opt back in.
+func TestStreamableHTTPHostOriginMiddlewareExplicitAllowlistOverridesOAuthDefault(t *testing.T) {
+	cfg := createTestConfig("readonly", []string{})
+	cfg.OAuthConfig.Enabled = true
+	cfg.Host = "0.0.0.0"
+	cfg.AllowedHosts = []string{"aks-mcp.ingress.example.com"}
+	service := NewService(cfg)
+	if service == nil {
+		t.Fatal("NewService returned nil")
+	}
+
+	secMW := service.buildHTTPSecurityMiddleware()
+	sentinel := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusTeapot)
+	})
+	handler := secMW(sentinel)
+
+	req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(""))
+	req.Host = "rebind.example.com"
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("explicit allowlist should still reject foreign host even with OAuth enabled, got status %d (body=%s)",
+			rr.Code, rr.Body.String())
+	}
+}
+
+// TestStreamableHTTPHostOriginMiddlewareLoopbackBindRelaxesOrigin verifies
+// that on a loopback bind without OAuth, a local browser MCP client whose
+// Origin does not match the (empty) trusted-origins list is still accepted.
+// The DNS-rebinding shape is still rejected because the Host header gate
+// continues to require a loopback Host on the default policy.
+func TestStreamableHTTPHostOriginMiddlewareLoopbackBindRelaxesOrigin(t *testing.T) {
+	cases := []struct {
+		name string
+		host string
+	}{
+		{"127.0.0.1 bind", "127.0.0.1"},
+		{"localhost bind", "localhost"},
+		{"::1 bind", "::1"},
+		{"empty bind (test default)", ""},
+		{"127.0.0.0/8 bind", "127.5.5.5"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := createTestConfig("readonly", []string{})
+			cfg.OAuthConfig.Enabled = false
+			cfg.Host = tc.host
+
+			service := NewService(cfg)
+			if service == nil {
+				t.Fatal("NewService returned nil")
+			}
+
+			secMW := service.buildHTTPSecurityMiddleware()
+			sentinel := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusTeapot)
+			})
+			handler := secMW(sentinel)
+
+			// MCP Inspector / browser MCP clients hit loopback with an Origin
+			// from a different localhost port. The middleware should accept
+			// this even though AllowedOrigins is empty.
+			req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(""))
+			req.Host = "127.0.0.1:8000"
+			req.Header.Set("Origin", "http://localhost:6274")
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+			if rr.Code != http.StatusTeapot {
+				t.Fatalf("loopback bind without OAuth should accept browser Origin, got status %d (body=%s)",
+					rr.Code, rr.Body.String())
+			}
+
+			// DNS-rebinding shape (foreign Host on the loopback listener) must
+			// still be rejected.
+			req = httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(""))
+			req.Host = "rebind.example.com:8000"
+			req.Header.Set("Origin", "http://rebind.example.com:8000")
+			rr = httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+			if rr.Code != http.StatusForbidden {
+				t.Fatalf("loopback bind without OAuth must still reject foreign Host, got status %d (body=%s)",
+					rr.Code, rr.Body.String())
+			}
+		})
+	}
+}
+
+// TestStreamableHTTPHostOriginMiddlewareNonLoopbackBindStillStrict verifies
+// that with OAuth disabled and a non-loopback bind (the path that requires
+// --allowed-host to start at all), the middleware still rejects unlisted
+// Origins. The loopback Origin relaxation must not leak into this branch.
+func TestStreamableHTTPHostOriginMiddlewareNonLoopbackBindStillStrict(t *testing.T) {
+	cfg := createTestConfig("readonly", []string{})
+	cfg.OAuthConfig.Enabled = false
+	cfg.Host = "0.0.0.0"
+	cfg.AllowedHosts = []string{"aks-mcp.example.com"}
+	// AllowedOrigins intentionally left empty.
+
+	service := NewService(cfg)
+	if service == nil {
+		t.Fatal("NewService returned nil")
+	}
+
+	secMW := service.buildHTTPSecurityMiddleware()
+	sentinel := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusTeapot)
+	})
+	handler := secMW(sentinel)
+
+	req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(""))
+	req.Host = "aks-mcp.example.com"
+	req.Header.Set("Origin", "http://rebind.example.com")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("non-loopback bind without OAuth and empty Origin allowlist must reject foreign Origin, got status %d (body=%s)",
+			rr.Code, rr.Body.String())
+	}
+
+	// A non-browser caller (no Origin) is still allowed.
+	req = httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(""))
+	req.Host = "aks-mcp.example.com"
+	rr = httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusTeapot {
+		t.Fatalf("non-browser caller with matching Host should pass, got status %d (body=%s)",
+			rr.Code, rr.Body.String())
+	}
+}

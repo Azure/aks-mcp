@@ -109,6 +109,14 @@ spec:
             - "--token-auth-only"
             - "true"
             {{- end }}
+            {{- if .Values.security.allowedHosts }}
+            - "--allowed-host"
+            - {{ join "," .Values.security.allowedHosts | quote }}
+            {{- end }}
+            {{- if .Values.security.trustedOrigins }}
+            - "--trusted-origin"
+            - {{ join "," .Values.security.trustedOrigins | quote }}
+            {{- end }}
           env:
             {{- if .Values.azure.subscriptionId }}
             - name: AZURE_SUBSCRIPTION_ID
