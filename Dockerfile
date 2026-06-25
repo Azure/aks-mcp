@@ -1,6 +1,6 @@
 # Linux Dockerfile for aks-mcp
 # Build stage
-FROM golang:1.25-alpine AS builder
+FROM golang:1.26-alpine AS builder
 ARG TARGETOS=linux
 ARG TARGETARCH
 ARG VERSION
@@ -31,7 +31,7 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
     -o aks-mcp ./cmd/aks-mcp
 
 # Runtime stage
-FROM alpine:3.23
+FROM alpine:3.24
 ARG TARGETARCH
 
 # Install required packages for kubectl and helm, plus build tools for Azure CLI
