@@ -40,13 +40,6 @@ const (
 	paramPacketFilter     = "operator.oci.ebpf.pf"
 )
 
-// Inspektor Gadget Helm chart constants
-const (
-	inspektorGadgetChartRelease = "gadget"
-	inspektorGadgetChartURL     = "oci://ghcr.io/inspektor-gadget/inspektor-gadget/charts/gadget"
-	inspektorGadgetReleaseURL   = "https://api.github.com/repos/inspektor-gadget/inspektor-gadget/releases/latest"
-)
-
 // Name of the Inspektor Gadget gadgets
 const (
 	observeDNS              = "observe_dns"
