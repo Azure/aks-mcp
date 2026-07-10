@@ -25,8 +25,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-const maxResultLen = 64 * 1024 // 64 KB
-
 var KubernetesFlags = genericclioptions.NewConfigFlags(false)
 
 // GadgetManager defines the interface for managing Inspektor Gadget gadgets
@@ -106,22 +104,11 @@ func (g *manager) RunGadget(ctx context.Context, image string, params map[string
 		return "", fmt.Errorf("running gadget: %w", err)
 	}
 
-	return truncateResults(results.String(), false), nil
+	return wrapResults(results.String()), nil
 }
 
-func truncateResults(results string, latest bool) string {
-	if len(results) <= maxResultLen {
-		return fmt.Sprintf("\n<results>%s</results>\n", results)
-	}
-
-	var truncated string
-	if latest {
-		truncated = results[len(results)-maxResultLen:]
-	} else {
-		truncated = results[:maxResultLen] + "…"
-	}
-
-	return fmt.Sprintf("\n<isTruncated>true</isTruncated>\n<results>%s</results>\n", truncated)
+func wrapResults(results string) string {
+	return fmt.Sprintf("\n<results>%s</results>\n", results)
 }
 
 func (g *manager) outputDataOperator(cb func(data []byte)) operators.DataOperator {
@@ -262,7 +249,7 @@ func (g *manager) GetResults(ctx context.Context, id string) (string, error) {
 		return "", fmt.Errorf("attaching to gadget: %w", err)
 	}
 
-	return truncateResults(results.String(), true), nil
+	return wrapResults(results.String()), nil
 }
 
 // ListGadgets lists all running gadgets and returns their instances
