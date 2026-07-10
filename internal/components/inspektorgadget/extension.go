@@ -179,13 +179,21 @@ func extensionInstalled(client ExtensionClient, cluster ClusterRef) (bool, error
 }
 
 // isExtensionNotFound reports whether an error from `az k8s-extension show` indicates that
-// the extension does not exist (as opposed to an authentication or transport failure).
+// the Inspektor Gadget extension specifically does not exist on the cluster.
+//
+// It deliberately matches only the "extension instance not found" signal. Other
+// not-found errors (for example a wrong resource group -> ResourceGroupNotFound, or a
+// wrong cluster) must surface as hard errors rather than being misread as "not installed",
+// which would otherwise produce a spurious OSS-conflict message.
 func isExtensionNotFound(err error) bool {
 	if err == nil {
 		return false
 	}
 	msg := strings.ToLower(err.Error())
-	return strings.Contains(msg, "not found") ||
-		strings.Contains(msg, "extensionnotfound") ||
-		strings.Contains(msg, "could not be found")
+	// Extension absent: "(ResourceNotFound) Extension instance with name '...' not found."
+	if strings.Contains(msg, "extension instance with name") && strings.Contains(msg, "not found") {
+		return true
+	}
+	// Older/alternate wording used by the extension backend.
+	return strings.Contains(msg, "extensionnotfound")
 }

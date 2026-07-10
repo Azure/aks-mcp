@@ -123,8 +123,13 @@ func TestExtensionInstalled(t *testing.T) {
 		},
 		{
 			name:   "not found",
-			client: &fakeExtensionClient{showErr: errString("(ExtensionNotFound) The Resource was not found")},
+			client: &fakeExtensionClient{showErr: errString("(ResourceNotFound) Extension instance with name 'inspektor-gadget' not found. Verify that the cluster-type is correct and the resource exists.")},
 			want:   false,
+		},
+		{
+			name:    "wrong resource group is a hard error",
+			client:  &fakeExtensionClient{showErr: errString("(ResourceGroupNotFound) Resource group 'wrong-rg' could not be found.")},
+			wantErr: true,
 		},
 		{
 			name:    "transport error",
