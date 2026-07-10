@@ -95,3 +95,66 @@ func TestClusterArgs(t *testing.T) {
 		}
 	}
 }
+
+type fakeExtensionClient struct {
+	showOut string
+	showErr error
+}
+
+func (f *fakeExtensionClient) Install(ClusterRef, string, string, bool) (string, error) {
+	return "installed", nil
+}
+func (f *fakeExtensionClient) Delete(ClusterRef) (string, error) { return "deleted", nil }
+func (f *fakeExtensionClient) Update(ClusterRef, string, string) (string, error) {
+	return "updated", nil
+}
+func (f *fakeExtensionClient) Show(ClusterRef) (string, error) { return f.showOut, f.showErr }
+
+func TestExtensionInstalled(t *testing.T) {
+	cluster := ClusterRef{SubscriptionID: "s", ResourceGroup: "rg", ClusterName: "c"}
+
+	tests := []struct {
+		name    string
+		client  *fakeExtensionClient
+		want    bool
+		wantErr bool
+	}{
+		{
+			name:   "installed",
+			client: &fakeExtensionClient{showOut: `{"provisioningState":"Succeeded"}`},
+			want:   true,
+		},
+		{
+			name:   "not found",
+			client: &fakeExtensionClient{showErr: errString("(ExtensionNotFound) The Resource was not found")},
+			want:   false,
+		},
+		{
+			name:    "transport error",
+			client:  &fakeExtensionClient{showErr: errString("connection refused")},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := extensionInstalled(tt.client, cluster)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tt.want {
+				t.Fatalf("got %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+type errString string
+
+func (e errString) Error() string { return string(e) }

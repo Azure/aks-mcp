@@ -163,3 +163,29 @@ func parseClusterRef(resourceID string) (ClusterRef, error) {
 		ClusterName:    parsed.Name,
 	}, nil
 }
+
+// extensionInstalled reports whether the Inspektor Gadget cluster extension exists on the
+// cluster, based on `az k8s-extension show`. A "not found" error is treated as not
+// installed rather than a hard failure.
+func extensionInstalled(client ExtensionClient, cluster ClusterRef) (bool, error) {
+	_, err := client.Show(cluster)
+	if err == nil {
+		return true, nil
+	}
+	if isExtensionNotFound(err) {
+		return false, nil
+	}
+	return false, err
+}
+
+// isExtensionNotFound reports whether an error from `az k8s-extension show` indicates that
+// the extension does not exist (as opposed to an authentication or transport failure).
+func isExtensionNotFound(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "not found") ||
+		strings.Contains(msg, "extensionnotfound") ||
+		strings.Contains(msg, "could not be found")
+}
