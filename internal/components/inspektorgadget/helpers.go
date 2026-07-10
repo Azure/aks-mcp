@@ -163,12 +163,12 @@ func gadgetInstanceFromAPI(instance *api.GadgetInstance) *GadgetInstance {
 
 // isValidLifecycleAction checks if the provided action is a valid lifecycle action for Inspektor Gadget.
 func isValidLifecycleAction(action string) bool {
-	return action == deployAction || action == undeployAction || action == isDeployedAction || action == upgradeAction
+	return action == deployAction || action == undeployAction || action == isDeployedAction
 }
 
 // getLifecycleActions returns all valid lifecycle actions for Inspektor Gadget.
 func getLifecycleActions() []string {
-	return []string{deployAction, undeployAction, upgradeAction, isDeployedAction}
+	return []string{deployAction, undeployAction, isDeployedAction}
 }
 
 // isValidAction checks if the provided action is a valid action for Inspektor Gadget.

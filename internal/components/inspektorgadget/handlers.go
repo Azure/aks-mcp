@@ -66,7 +66,7 @@ func InspektorGadgetHandler(mgr GadgetManager, cfg *config.ConfigData) tools.Res
 			return handleGetResultsAction(ctx, mgr, params, cfg)
 		case listGadgetsAction:
 			return handleListGadgetsAction(ctx, mgr, cfg)
-		case isDeployedAction, undeployAction, upgradeAction, deployAction:
+		case isDeployedAction, undeployAction, deployAction:
 			return handleLifecycleAction(mgr, deployed, action, params, cfg)
 		}
 
@@ -224,94 +224,62 @@ func handleLifecycleAction(mgr GadgetManager, deployed bool, action string, para
 		con = false
 	}
 	if cfg.AccessLevel == "readonly" && action != isDeployedAction && !con {
-		return "", fmt.Errorf("confirmation required to deploy/upgrade/undeploy Inspektor Gadget when running server in 'readonly' mode. Note this will create/modify resources in the %s namespace. Should we proceed?", getChartNamespace())
+		return "", fmt.Errorf("confirmation required to deploy/undeploy the Inspektor Gadget cluster extension when running server in 'readonly' mode. Note this will create/modify Azure resources on the cluster. Should we proceed?")
 	}
 
 	installedVersion, err := mgr.GetVersion()
 	if err != nil && deployed {
 		return "", fmt.Errorf("getting installed version: %w", err)
 	}
-	latestVersion, err := getLatestVersionFromGitHub()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to get latest version: %v\n", err)
-	}
 
-	hc, err := newHelmClient(cfg.LogLevel == "debug")
-	if err != nil {
-		return "", fmt.Errorf("creating helm client: %w", err)
-	}
+	client := newExtensionClient(cfg.Timeout)
 
 	switch action {
 	case isDeployedAction:
 		if deployed {
-			return "inspektor gadget is deployed (version: " + installedVersion + ", latest: " + latestVersion + ")", nil
+			return "inspektor gadget is deployed (version: " + installedVersion + ")", nil
 		}
 		return "inspektor gadget is not deployed", nil
 	case undeployAction:
 		if !deployed {
 			return "inspektor gadget is not deployed", nil
 		}
-		return handleUndeployAction(hc)
+		cluster, err := resolveClusterRef(params, cfg)
+		if err != nil {
+			return "", err
+		}
+		return client.Delete(cluster)
 	case deployAction:
+		cluster, err := resolveClusterRef(params, cfg)
+		if err != nil {
+			return "", err
+		}
 		if deployed {
-			return "inspektor gadget is already deployed (version: " + installedVersion + ", latest: " + latestVersion + ")", nil
+			// An install already exists in-cluster. Determine whether it is the
+			// cluster extension or a conflicting OSS (helm/kubectl) install.
+			installed, err := extensionInstalled(client, cluster)
+			if err != nil {
+				return "", fmt.Errorf("checking Inspektor Gadget extension state: %w", err)
+			}
+			if installed {
+				return "inspektor gadget is already deployed via the cluster extension (version: " + installedVersion + ")", nil
+			}
+			return "", fmt.Errorf("an existing non-extension Inspektor Gadget installation was detected on the cluster. Remove it first (e.g. 'kubectl gadget undeploy' or 'helm uninstall gadget -n gadget'), then deploy the cluster extension")
 		}
-		return handleDeployAction(hc, params)
-	case upgradeAction:
-		if !deployed {
-			return "inspektor gadget is not deployed, no upgrade needed", nil
-		}
-		if installedVersion == latestVersion {
-			return fmt.Sprintf("inspektor gadget is already at the latest version (%s), no upgrade needed", installedVersion), nil
-		}
-		return handleUpgradeAction(hc, params)
+		return handleDeployAction(client, cluster, params)
 	}
 
 	return "", fmt.Errorf("unsupported lifecycle action %q, must be one of %v", action, getLifecycleActions())
 }
 
-func handleDeployAction(client HelmClient, params map[string]interface{}) (string, error) {
-	chartVersion, ok := params["chart_version"].(string)
-	if !ok || chartVersion == "" {
-		chartVersion = getChartVersion()
+func handleDeployAction(client ExtensionClient, cluster ClusterRef, params map[string]interface{}) (string, error) {
+	releaseTrain, _ := params["release_train"].(string)
+	version, _ := params["version"].(string)
+	autoUpgradeMinor := true
+	if v, ok := params["auto_upgrade_minor_version"].(bool); ok {
+		autoUpgradeMinor = v
 	}
-	chartUrl := fmt.Sprintf("%s:%s", inspektorGadgetChartURL, chartVersion)
-	return client.InstallChart(chartUrl, inspektorGadgetChartRelease, getChartNamespace())
-}
-
-func handleUndeployAction(client HelmClient) (string, error) {
-	// Verify if the release exists before uninstalling
-	err := verifyRelease(client)
-	if err != nil {
-		return "", fmt.Errorf("verifying release: %w", err)
-	}
-	return client.UninstallChart(inspektorGadgetChartRelease, getChartNamespace())
-}
-
-func verifyRelease(client HelmClient) error {
-	err := client.CheckRelease(inspektorGadgetChartRelease, getChartNamespace())
-	if err != nil {
-		if strings.Contains(err.Error(), "release: not found") {
-			return fmt.Errorf("helm release %q not found. Did you manually deploy Inspektor Gadget?", inspektorGadgetChartRelease)
-		}
-		return fmt.Errorf("getting helm release status: %w", err)
-	}
-	return nil
-}
-
-func handleUpgradeAction(client HelmClient, params map[string]interface{}) (string, error) {
-	// Verify if the release exists before upgrading
-	err := verifyRelease(client)
-	if err != nil {
-		return "", fmt.Errorf("verifying release: %w", err)
-	}
-	// Proceed with upgrade if the release exists
-	chartVersion, ok := params["chart_version"].(string)
-	if !ok || chartVersion == "" {
-		chartVersion = getChartVersion()
-	}
-	chartUrl := fmt.Sprintf("%s:%s", inspektorGadgetChartURL, chartVersion)
-	return client.UpgradeChart(chartUrl, inspektorGadgetChartRelease, getChartNamespace())
+	return client.Install(cluster, releaseTrain, version, autoUpgradeMinor)
 }
 
 func prepareCommonParams(filterParams map[string]interface{}, cfg *config.ConfigData) (map[string]string, error) {

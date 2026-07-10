@@ -105,10 +105,7 @@ func (f *fakeExtensionClient) Install(ClusterRef, string, string, bool) (string,
 	return "installed", nil
 }
 func (f *fakeExtensionClient) Delete(ClusterRef) (string, error) { return "deleted", nil }
-func (f *fakeExtensionClient) Update(ClusterRef, string, string) (string, error) {
-	return "updated", nil
-}
-func (f *fakeExtensionClient) Show(ClusterRef) (string, error) { return f.showOut, f.showErr }
+func (f *fakeExtensionClient) Show(ClusterRef) (string, error)   { return f.showOut, f.showErr }
 
 func TestExtensionInstalled(t *testing.T) {
 	cluster := ClusterRef{SubscriptionID: "s", ResourceGroup: "rg", ClusterName: "c"}
@@ -158,3 +155,46 @@ func TestExtensionInstalled(t *testing.T) {
 type errString string
 
 func (e errString) Error() string { return string(e) }
+
+type recordingExtensionClient struct {
+	fakeExtensionClient
+	installTrain   string
+	installVersion string
+	installAuto    bool
+}
+
+func (r *recordingExtensionClient) Install(_ ClusterRef, releaseTrain, version string, autoUpgradeMinor bool) (string, error) {
+	r.installTrain = releaseTrain
+	r.installVersion = version
+	r.installAuto = autoUpgradeMinor
+	return "installed", nil
+}
+
+func TestHandleDeployAction(t *testing.T) {
+	cluster := ClusterRef{SubscriptionID: "s", ResourceGroup: "rg", ClusterName: "c"}
+
+	t.Run("defaults", func(t *testing.T) {
+		rec := &recordingExtensionClient{}
+		if _, err := handleDeployAction(rec, cluster, map[string]interface{}{}); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if rec.installTrain != "" || rec.installVersion != "" || !rec.installAuto {
+			t.Fatalf("unexpected install args: train=%q version=%q auto=%v", rec.installTrain, rec.installVersion, rec.installAuto)
+		}
+	})
+
+	t.Run("overrides", func(t *testing.T) {
+		rec := &recordingExtensionClient{}
+		params := map[string]interface{}{
+			"release_train":              "stable",
+			"version":                    "1.2.3",
+			"auto_upgrade_minor_version": false,
+		}
+		if _, err := handleDeployAction(rec, cluster, params); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if rec.installTrain != "stable" || rec.installVersion != "1.2.3" || rec.installAuto {
+			t.Fatalf("unexpected install args: train=%q version=%q auto=%v", rec.installTrain, rec.installVersion, rec.installAuto)
+		}
+	})
+}
