@@ -79,6 +79,30 @@ func TestResolveClusterRef(t *testing.T) {
 	}
 }
 
+func TestAzCommandString(t *testing.T) {
+	c := ClusterRef{SubscriptionID: "sub-123", ResourceGroup: "rg-test", ClusterName: "cluster-test"}
+	args := append([]string{"k8s-extension", "delete"}, c.clusterArgs()...)
+	args = append(args, "--yes")
+
+	got := azCommandString(args)
+
+	if !strings.HasPrefix(got, "az k8s-extension delete") {
+		t.Errorf("expected command to start with 'az k8s-extension delete', got %q", got)
+	}
+	for _, want := range []string{
+		"--cluster-type managedClusters",
+		"--cluster-name cluster-test",
+		"--resource-group rg-test",
+		"--subscription sub-123",
+		"--name inspektor-gadget",
+		"--yes",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("command %q missing %q", got, want)
+		}
+	}
+}
+
 func TestClusterArgs(t *testing.T) {
 	c := ClusterRef{SubscriptionID: "sub-123", ResourceGroup: "rg-test", ClusterName: "cluster-test"}
 	args := strings.Join(c.clusterArgs(), " ")

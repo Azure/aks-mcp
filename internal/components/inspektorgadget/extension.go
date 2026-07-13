@@ -72,6 +72,33 @@ func (e *azExtensionClient) run(args []string) (string, error) {
 	return process.Run(strings.Join(args, " "))
 }
 
+// azCommandString renders the equivalent `az` CLI command for a set of arguments so it can
+// be surfaced to the user. This lets AKS customers see exactly how the Inspektor Gadget
+// cluster extension is managed, and lets them run the command manually if a lifecycle
+// operation fails or times out on the server side.
+func azCommandString(args []string) string {
+	return "az " + strings.Join(args, " ")
+}
+
+// deployCommandString renders the `az k8s-extension create` command used to deploy the
+// Inspektor Gadget extension, for surfacing to the user (e.g. in the readonly-mode
+// confirmation prompt).
+func deployCommandString(cluster ClusterRef) string {
+	args := []string{"k8s-extension", "create"}
+	args = append(args, cluster.clusterArgs()...)
+	args = append(args, "--extension-type", extensionType, "--release-train", defaultReleaseTrain)
+	return azCommandString(args)
+}
+
+// undeployCommandString renders the `az k8s-extension delete` command used to undeploy the
+// Inspektor Gadget extension, for surfacing to the user.
+func undeployCommandString(cluster ClusterRef) string {
+	args := []string{"k8s-extension", "delete"}
+	args = append(args, cluster.clusterArgs()...)
+	args = append(args, "--yes")
+	return azCommandString(args)
+}
+
 func (e *azExtensionClient) Install(cluster ClusterRef, releaseTrain, version string, autoUpgradeMinor bool) (string, error) {
 	if releaseTrain == "" {
 		releaseTrain = defaultReleaseTrain
@@ -92,9 +119,9 @@ func (e *azExtensionClient) Install(cluster ClusterRef, releaseTrain, version st
 
 	out, err := e.run(args)
 	if err != nil {
-		return "", fmt.Errorf("creating Inspektor Gadget extension: %w: %s", err, out)
+		return "", fmt.Errorf("creating Inspektor Gadget extension: %w: %s.\nYou can retry manually with: %s", err, out, azCommandString(args))
 	}
-	return fmt.Sprintf("Inspektor Gadget extension %q created successfully on cluster %q (resource group %q)", extensionName, cluster.ClusterName, cluster.ResourceGroup), nil
+	return fmt.Sprintf("Inspektor Gadget extension %q created successfully on cluster %q (resource group %q).\nEquivalent CLI: %s", extensionName, cluster.ClusterName, cluster.ResourceGroup, azCommandString(args)), nil
 }
 
 func (e *azExtensionClient) Delete(cluster ClusterRef) (string, error) {
@@ -104,9 +131,9 @@ func (e *azExtensionClient) Delete(cluster ClusterRef) (string, error) {
 
 	out, err := e.run(args)
 	if err != nil {
-		return "", fmt.Errorf("deleting Inspektor Gadget extension: %w: %s", err, out)
+		return "", fmt.Errorf("deleting Inspektor Gadget extension: %w: %s.\nYou can retry manually with: %s", err, out, azCommandString(args))
 	}
-	return fmt.Sprintf("Inspektor Gadget extension %q deleted successfully from cluster %q (resource group %q)", extensionName, cluster.ClusterName, cluster.ResourceGroup), nil
+	return fmt.Sprintf("Inspektor Gadget extension %q deleted successfully from cluster %q (resource group %q).\nEquivalent CLI: %s", extensionName, cluster.ClusterName, cluster.ResourceGroup, azCommandString(args)), nil
 }
 
 func (e *azExtensionClient) Show(cluster ClusterRef) (string, error) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -68,6 +69,104 @@ func (m *mockGadgetManager) GetVersion() (string, error) {
 }
 
 func (m *mockGadgetManager) SetRuntimeNamespace(namespace string) {}
+
+func TestNotDeployedMessage(t *testing.T) {
+	cfg := &config.ConfigData{}
+
+	t.Run("with cluster identity includes az command and offer", func(t *testing.T) {
+		params := map[string]interface{}{
+			"subscription_id": "sub-123",
+			"resource_group":  "rg-test",
+			"cluster_name":    "cluster-test",
+		}
+		msg := notDeployedMessage(params, cfg)
+		for _, want := range []string{
+			"not deployed",
+			"az k8s-extension create",
+			"--cluster-name cluster-test",
+			"action 'deploy'",
+			"I can deploy it for you",
+		} {
+			if !strings.Contains(msg, want) {
+				t.Errorf("message missing %q, got %q", want, msg)
+			}
+		}
+	})
+
+	t.Run("without cluster identity still offers to deploy", func(t *testing.T) {
+		msg := notDeployedMessage(map[string]interface{}{}, cfg)
+		if !strings.Contains(msg, "action 'deploy'") {
+			t.Errorf("expected deploy offer, got %q", msg)
+		}
+		if !strings.Contains(msg, "not deployed") {
+			t.Errorf("expected not-deployed text, got %q", msg)
+		}
+	})
+}
+
+func TestHandleLifecycleActionReadonlyConfirmation(t *testing.T) {
+	mgr := &mockGadgetManager{version: "0.53.0"}
+	cfg := &config.ConfigData{AccessLevel: "readonly"}
+	params := map[string]interface{}{
+		"subscription_id": "sub-123",
+		"resource_group":  "rg-test",
+		"cluster_name":    "cluster-test",
+	}
+
+	tests := []struct {
+		name     string
+		action   string
+		deployed bool
+		wantCmd  string
+	}{
+		{
+			name:     "deploy surfaces az create command",
+			action:   deployAction,
+			deployed: false,
+			wantCmd:  "az k8s-extension create",
+		},
+		{
+			name:     "undeploy surfaces az delete command",
+			action:   undeployAction,
+			deployed: true,
+			wantCmd:  "az k8s-extension delete",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := handleLifecycleAction(mgr, tt.deployed, tt.action, params, cfg)
+			if err == nil {
+				t.Fatalf("expected confirmation error, got nil")
+			}
+			msg := err.Error()
+			if !strings.Contains(msg, "confirmation required") {
+				t.Errorf("expected confirmation message, got %q", msg)
+			}
+			if !strings.Contains(msg, tt.wantCmd) {
+				t.Errorf("expected message to include %q, got %q", tt.wantCmd, msg)
+			}
+			for _, want := range []string{"--cluster-name cluster-test", "--resource-group rg-test", "--name inspektor-gadget"} {
+				if !strings.Contains(msg, want) {
+					t.Errorf("expected message to include %q, got %q", want, msg)
+				}
+			}
+		})
+	}
+}
+
+func TestHandleLifecycleActionIsDeployed(t *testing.T) {
+	cfg := &config.ConfigData{AccessLevel: "readonly"}
+	// is_deployed must work without cluster identity or confirmation.
+	mgr := &mockGadgetManager{version: "0.53.0"}
+	got, err := handleLifecycleAction(mgr, true, isDeployedAction, map[string]interface{}{}, cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(got, "0.53.0") {
+		t.Errorf("expected version in output, got %q", got)
+	}
+}
 
 func TestInspektorGadgetHandler(t *testing.T) {
 	cfg := &config.ConfigData{}

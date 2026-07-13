@@ -17,8 +17,6 @@ import (
 // Inspektor Gadget Handler
 // =============================================================================
 
-var ErrNotDeployed = fmt.Errorf("inspektor gadget is not deployed, please deploy it first using: 'inspektor_gadget_observability' tool (action: deploy)")
-
 // InspektorGadgetHandler returns a handler to manage gadgets
 func InspektorGadgetHandler(mgr GadgetManager, cfg *config.ConfigData) tools.ResourceHandler {
 	return tools.ResourceHandlerFunc(func(ctx context.Context, params map[string]interface{}, _ *config.ConfigData) (string, error) {
@@ -39,7 +37,7 @@ func InspektorGadgetHandler(mgr GadgetManager, cfg *config.ConfigData) tools.Res
 			return "", fmt.Errorf("checking Inspektor Gadget deployment: %w", err)
 		}
 		if !deployed && !slices.Contains(getLifecycleActions(), action) {
-			return "", ErrNotDeployed
+			return "", fmt.Errorf("%s", notDeployedMessage(params, cfg))
 		}
 
 		// Set namespace for runtime
@@ -72,6 +70,19 @@ func InspektorGadgetHandler(mgr GadgetManager, cfg *config.ConfigData) tools.Res
 
 		return "", fmt.Errorf("unsupported action: %s", action)
 	})
+}
+
+// notDeployedMessage builds a user-facing "Inspektor Gadget is not deployed" message. It
+// includes the equivalent `az k8s-extension create` command and lets the user know the
+// tool can deploy it for them (action: deploy). The cluster identity is best-effort: if it
+// cannot be resolved from params/config, the message omits the concrete command but still
+// explains how to proceed.
+func notDeployedMessage(params map[string]interface{}, cfg *config.ConfigData) string {
+	base := "inspektor gadget is not deployed on the cluster."
+	if cluster, err := resolveClusterRef(params, cfg); err == nil {
+		return fmt.Sprintf("%s\nYou can deploy it with:\n  %s\nOr I can deploy it for you: run this tool with action 'deploy' (provide 'confirm: true' in readonly mode).", base, deployCommandString(cluster))
+	}
+	return base + "\nYou can deploy it by running this tool with action 'deploy' (I can do it for you), or manually via 'az k8s-extension create' (provide subscription_id, resource_group and cluster_name so I can show the exact command)."
 }
 
 func handleRunAction(ctx context.Context, mgr GadgetManager, params map[string]interface{}, filterParams map[string]interface{}, cfg *config.ConfigData) (string, error) {
@@ -219,14 +230,6 @@ func handleListGadgetsAction(ctx context.Context, mgr GadgetManager, cfg *config
 }
 
 func handleLifecycleAction(mgr GadgetManager, deployed bool, action string, params map[string]interface{}, cfg *config.ConfigData) (string, error) {
-	con, ok := params["confirm"].(bool)
-	if !ok {
-		con = false
-	}
-	if cfg.AccessLevel == "readonly" && action != isDeployedAction && !con {
-		return "", fmt.Errorf("confirmation required to deploy/undeploy the Inspektor Gadget cluster extension when running server in 'readonly' mode. Note this will create/modify Azure resources on the cluster. Should we proceed?")
-	}
-
 	installedVersion, err := mgr.GetVersion()
 	if err != nil && deployed {
 		return "", fmt.Errorf("getting installed version: %w", err)
@@ -234,26 +237,42 @@ func handleLifecycleAction(mgr GadgetManager, deployed bool, action string, para
 
 	client := newExtensionClient(cfg.Timeout)
 
-	switch action {
-	case isDeployedAction:
+	// is_deployed is a read-only check and needs no cluster identity or confirmation.
+	if action == isDeployedAction {
 		if deployed {
 			return "inspektor gadget is deployed (version: " + installedVersion + ")", nil
 		}
-		return "inspektor gadget is not deployed", nil
+		return notDeployedMessage(params, cfg), nil
+	}
+
+	// deploy/undeploy mutate Azure resources. Resolve the target cluster so we can both run
+	// and, in readonly mode, tell the user the exact az command before asking to proceed.
+	cluster, err := resolveClusterRef(params, cfg)
+	if err != nil {
+		return "", err
+	}
+
+	con, ok := params["confirm"].(bool)
+	if !ok {
+		con = false
+	}
+	if cfg.AccessLevel == "readonly" && !con {
+		var cmd string
+		if action == undeployAction {
+			cmd = undeployCommandString(cluster)
+		} else {
+			cmd = deployCommandString(cluster)
+		}
+		return "", fmt.Errorf("confirmation required to %s the Inspektor Gadget cluster extension when running server in 'readonly' mode. Note this will create/modify Azure resources on the cluster via the following command:\n  %s\nShould we proceed?", action, cmd)
+	}
+
+	switch action {
 	case undeployAction:
 		if !deployed {
 			return "inspektor gadget is not deployed", nil
 		}
-		cluster, err := resolveClusterRef(params, cfg)
-		if err != nil {
-			return "", err
-		}
 		return client.Delete(cluster)
 	case deployAction:
-		cluster, err := resolveClusterRef(params, cfg)
-		if err != nil {
-			return "", err
-		}
 		if deployed {
 			// An install already exists in-cluster. Determine whether it is the
 			// cluster extension or a conflicting OSS (helm/kubectl) install.
