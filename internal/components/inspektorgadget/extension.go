@@ -69,7 +69,7 @@ func (c ClusterRef) clusterArgs() []string {
 
 func (e *azExtensionClient) run(args []string) (string, error) {
 	process := command.NewShellProcess("az", e.timeout)
-	return process.Run(strings.Join(args, " "))
+	return process.RunArgs(args)
 }
 
 // azCommandString renders the equivalent `az` CLI command for a set of arguments so it can

@@ -23,9 +23,9 @@ func RegisterInspektorGadgetTool() mcp.Tool {
 				startAction+" to start a gadget for continuous (background) observation, "+
 				stopAction+" to stop a running gadget using gadget_id, "+
 				getResultsAction+" to retrieve results of a gadget run using gadget_id (only available before stopping the gadget), "+
-				listGadgetsAction+" to list all running (not available) gadgets"+
+				listGadgetsAction+" to list all running (not available) gadgets, "+
 				deployAction+" to deploy Inspektor Gadget via the AKS cluster extension, "+
-				undeployAction+" to undeploy the Inspektor Gadget cluster extension"+
+				undeployAction+" to undeploy the Inspektor Gadget cluster extension, "+
 				isDeployedAction+" to check if Inspektor Gadget is deployed",
 			),
 			mcp.Enum(getActions()...),

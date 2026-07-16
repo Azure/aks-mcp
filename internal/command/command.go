@@ -40,19 +40,30 @@ func (s *ShellProcess) Run(args string) (string, error) {
 	return s.Exec(commands)
 }
 
+// RunArgs executes the command with pre-tokenized arguments, passing them
+// directly to the process instead of joining and re-parsing via shlex. This
+// avoids argument injection when an argument contains whitespace or quotes.
+func (s *ShellProcess) RunArgs(args []string) (string, error) {
+	return s.ExecArgs(append([]string{s.Command}, args...))
+}
+
 // Exec runs the commands and returns the output
 func (s *ShellProcess) Exec(commands string) (string, error) {
-	// Create a context with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(s.Timeout)*time.Second)
-	defer cancel()
-
-	var cmd *exec.Cmd
-
 	// Parse the command string with proper handling of quotes
 	parts, err := shlex.Split(commands)
 	if err != nil {
 		return "", err
 	}
+	return s.ExecArgs(parts)
+}
+
+// ExecArgs runs the pre-tokenized command and returns the output.
+func (s *ShellProcess) ExecArgs(parts []string) (string, error) {
+	// Create a context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(s.Timeout)*time.Second)
+	defer cancel()
+
+	var cmd *exec.Cmd
 
 	if len(parts) > 1 {
 		// Command with arguments
@@ -72,7 +83,7 @@ func (s *ShellProcess) Exec(commands string) (string, error) {
 	cmd.Stderr = &stderr
 
 	// Execute the command
-	err = cmd.Run()
+	err := cmd.Run()
 
 	// Check for timeout
 	if ctx.Err() == context.DeadlineExceeded {
