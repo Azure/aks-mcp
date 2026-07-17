@@ -1,25 +1,17 @@
 package inspektorgadget
 
 import (
-	"encoding/json"
-	"fmt"
-	"net/http"
 	"os"
 	"regexp"
-	"runtime/debug"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/inspektor-gadget/inspektor-gadget/pkg/gadget-service/api"
 )
 
 var (
-	gadgetVersionRegex  = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
-	githubVersionOnce   sync.Once
-	cachedGithubVersion string
-	githubVersionError  error
+	gadgetVersionRegex = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
 )
 
 // gadgetVersionFor maps the Inspektor Gadget version to a corresponding gadget version.
@@ -31,62 +23,6 @@ func gadgetVersionFor(igVersion string) string {
 	return "latest"
 }
 
-// getChartVersion retrieves the version of the Inspektor Gadget Helm chart.
-// It first attempts to get the version from GitHub releases, and if that fails,
-// it falls back to the version from the build information.
-func getChartVersion() string {
-	if version, err := getLatestVersionFromGitHub(); err == nil {
-		return version
-	}
-	return getChartVersionFromBuild()
-}
-
-// getChartVersionFromBuild retrieves the version of the Inspektor Gadget Helm chart from the build information.
-func getChartVersionFromBuild() string {
-	if info, ok := debug.ReadBuildInfo(); ok {
-		for _, dep := range info.Deps {
-			if dep.Path == "github.com/inspektor-gadget/inspektor-gadget" {
-				if dep.Version != "" {
-					return strings.TrimPrefix(dep.Version, "v")
-				}
-			}
-		}
-	}
-	return "1.0.0-dev"
-}
-
-// getLatestVersionFromGitHub retrieves the version of the latest Inspektor Gadget release from GitHub.
-func getLatestVersionFromGitHub() (string, error) {
-	githubVersionOnce.Do(func() {
-		client := &http.Client{Timeout: 5 * time.Second}
-		resp, err := client.Get(inspektorGadgetReleaseURL)
-		if err != nil {
-			githubVersionError = fmt.Errorf("failed to get latest release: %w", err)
-			return
-		}
-		defer func() {
-			if err = resp.Body.Close(); err != nil {
-				fmt.Fprintf(os.Stderr, "closing response body: %v\n", err)
-			}
-		}()
-
-		if resp.StatusCode != http.StatusOK {
-			githubVersionError = fmt.Errorf("failed to get latest release, status code: %d", resp.StatusCode)
-			return
-		}
-
-		var release struct {
-			TagName string `json:"tag_name"`
-		}
-		if err = json.NewDecoder(resp.Body).Decode(&release); err != nil {
-			githubVersionError = fmt.Errorf("decoding latest release response: %w", err)
-			return
-		}
-		cachedGithubVersion = strings.TrimPrefix(release.TagName, "v")
-	})
-	return cachedGithubVersion, githubVersionError
-}
-
 // getPodNamespace returns the namespace in which the current pod is running.
 func getPodNamespace() string {
 	ns, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
@@ -94,14 +30,6 @@ func getPodNamespace() string {
 		return ""
 	}
 	return strings.TrimSpace(string(ns))
-}
-
-// getChartNamespace returns the namespace in which the Inspektor Gadget Helm chart should be deployed
-func getChartNamespace() string {
-	if ns := getPodNamespace(); ns != "" {
-		return ns
-	}
-	return "gadget"
 }
 
 // gadgetInstanceFromAPI converts an API GadgetInstance to a GadgetInstance struct.
@@ -163,12 +91,12 @@ func gadgetInstanceFromAPI(instance *api.GadgetInstance) *GadgetInstance {
 
 // isValidLifecycleAction checks if the provided action is a valid lifecycle action for Inspektor Gadget.
 func isValidLifecycleAction(action string) bool {
-	return action == deployAction || action == undeployAction || action == isDeployedAction || action == upgradeAction
+	return action == deployAction || action == undeployAction || action == isDeployedAction
 }
 
 // getLifecycleActions returns all valid lifecycle actions for Inspektor Gadget.
 func getLifecycleActions() []string {
-	return []string{deployAction, undeployAction, upgradeAction, isDeployedAction}
+	return []string{deployAction, undeployAction, isDeployedAction}
 }
 
 // isValidAction checks if the provided action is a valid action for Inspektor Gadget.

@@ -23,10 +23,9 @@ func RegisterInspektorGadgetTool() mcp.Tool {
 				startAction+" to start a gadget for continuous (background) observation, "+
 				stopAction+" to stop a running gadget using gadget_id, "+
 				getResultsAction+" to retrieve results of a gadget run using gadget_id (only available before stopping the gadget), "+
-				listGadgetsAction+" to list all running (not available) gadgets"+
-				deployAction+" to deploy Inspektor Gadget, "+
-				undeployAction+" to undeploy Inspektor Gadget"+
-				upgradeAction+" to upgrade Inspektor Gadget, "+
+				listGadgetsAction+" to list all running (not available) gadgets, "+
+				deployAction+" to deploy Inspektor Gadget via the AKS cluster extension, "+
+				undeployAction+" to undeploy the Inspektor Gadget cluster extension, "+
 				isDeployedAction+" to check if Inspektor Gadget is deployed",
 			),
 			mcp.Enum(getActions()...),
@@ -42,11 +41,32 @@ func RegisterInspektorGadgetTool() mcp.Tool {
 		mcp.WithString("gadget_id",
 			mcp.Description("Gadget ID for stop/get_results"),
 		),
-		mcp.WithString("chart_version",
-			mcp.Description("Helm chart version (only set if user explicitly requests)"),
+		// Cluster extension lifecycle parameters
+		mcp.WithString("release_train",
+			mcp.Description("Release train for the Inspektor Gadget cluster extension (deploy). Defaults to 'preview'"),
+		),
+		mcp.WithString("version",
+			mcp.Description("Specific version of the Inspektor Gadget cluster extension (deploy). Only set if the user explicitly requests a version"),
+		),
+		mcp.WithBoolean("auto_upgrade_minor_version",
+			mcp.Description("Whether the extension auto-upgrades its minor version (deploy). Defaults to true"),
+		),
+		// AKS cluster identity for lifecycle actions (deploy/undeploy).
+		// Falls back to the server's default AKS resource ID when not provided.
+		mcp.WithString("aks_resource_id",
+			mcp.Description("Full AKS cluster resource ID (/subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.ContainerService/managedClusters/{name}) used for extension lifecycle actions"),
+		),
+		mcp.WithString("subscription_id",
+			mcp.Description("Azure subscription ID of the AKS cluster (used with resource_group and cluster_name)"),
+		),
+		mcp.WithString("resource_group",
+			mcp.Description("Resource group of the AKS cluster (used with subscription_id and cluster_name)"),
+		),
+		mcp.WithString("cluster_name",
+			mcp.Description("Name of the AKS cluster (used with subscription_id and resource_group)"),
 		),
 		mcp.WithBoolean("confirm",
-			mcp.Description("Confirm deploy/upgrade/undeploy in readonly mode"),
+			mcp.Description("Confirm deploy/undeploy in readonly mode"),
 		),
 		// Common filter parameters (flattened from filter_params)
 		mcp.WithString("namespace",

@@ -6,8 +6,6 @@ const (
 	deployAction = "deploy"
 	// undeployAction is the action to remove Inspektor Gadget from the cluster
 	undeployAction = "undeploy"
-	// upgradeAction is the action to upgrade Inspektor Gadget in the cluster
-	upgradeAction = "upgrade"
 	// isDeployedAction is the action to check if Inspektor Gadget is deployed
 	isDeployedAction = "is_deployed"
 )
@@ -40,13 +38,6 @@ const (
 	paramFilter           = "operator.filter.filter"
 	paramTraceloopSyscall = "operator.oci.wasm.syscall-filters"
 	paramPacketFilter     = "operator.oci.ebpf.pf"
-)
-
-// Inspektor Gadget Helm chart constants
-const (
-	inspektorGadgetChartRelease = "gadget"
-	inspektorGadgetChartURL     = "oci://ghcr.io/inspektor-gadget/inspektor-gadget/charts/gadget"
-	inspektorGadgetReleaseURL   = "https://api.github.com/repos/inspektor-gadget/inspektor-gadget/releases/latest"
 )
 
 // Name of the Inspektor Gadget gadgets

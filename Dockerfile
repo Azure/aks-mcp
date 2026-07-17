@@ -101,7 +101,8 @@ USER mcp
 
 # Install Azure CLI extensions as mcp user
 RUN az extension add --name costmanagement --allow-preview true && \
-    az extension add --name application-insights --allow-preview true
+    az extension add --name application-insights --allow-preview true && \
+    az extension add --name k8s-extension --allow-preview true
 
 # Set environment variables
 ENV HOME=/home/mcp \

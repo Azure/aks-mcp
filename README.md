@@ -394,8 +394,8 @@ eBPF.
 
 **Available Actions:**
 
-- `deploy`: Deploy Inspektor Gadget to cluster
-- `undeploy`: Remove Inspektor Gadget from cluster
+- `deploy`: Deploy Inspektor Gadget to the cluster (via the AKS cluster extension)
+- `undeploy`: Remove the Inspektor Gadget cluster extension from the cluster
 - `is_deployed`: Check deployment status
 - `run`: Run one-shot gadgets
 - `start`: Start continuous gadgets

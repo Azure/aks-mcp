@@ -13,8 +13,8 @@ run diagnostics, collect data, and analyze workloads in a Kubernetes environment
 - **run**: Run a gadget with a specific duration and return the collected data
 - **get_results**: Retrieve results from a previously started gadget
 - **list**: List all running gadgets, can be used to stop or get results for running gadgets.
-- **deploy**: Deploy the Inspektor Gadget in the cluster
-- **undeploy**: Undeploy the Inspektor Gadget from the cluster
+- **deploy**: Deploy Inspektor Gadget in the cluster using the AKS cluster extension
+- **undeploy**: Undeploy the Inspektor Gadget cluster extension from the cluster
 - **is_deployed**: Check the status of the Inspektor Gadget deployment
 
 In terms of the type of data collected, it includes:
@@ -73,13 +73,39 @@ Can you capture network traffic for the pod my-pod in the default namespace for 
 ## Prerequisites
 
 - A kubeconfig file that has access to the AKS cluster.
-- The tool requires Inspektor Gadget to be installed in the cluster. The MCP server will automatically
-  install Inspektor Gadget (action `deploy` ) in the cluster otherwise you can follow the steps to install it manually: [Inspektor Gadget Installation](https://learn.microsoft.com/en-us/troubleshoot/azure/azure-kubernetes/logs/capture-system-insights-from-aks#how-to-install-inspektor-gadget-in-an-aks-cluster) or
-  use the official Helm chart: [Inspektor Gadget Helm Chart](https://inspektor-gadget.io/docs/latest/reference/install-kubernetes#installation-with-the-helm-chart):
+- The Azure CLI with the `k8s-extension` extension installed (bundled in the AKS-MCP
+  container image). To install it locally, run `az extension add --name k8s-extension`.
+- The AKS cluster identity for lifecycle actions (`deploy`, `undeploy`). The
+  tool resolves it from, in order:
+  1. `subscription_id` + `resource_group` + `cluster_name` parameters,
+  2. an `aks_resource_id` parameter, or
+  3. the server's `--default-aks-resource-id` flag / `AZURE_AKS_RESOURCE_ID` environment
+     variable.
+- The tool requires Inspektor Gadget to be installed in the cluster. The MCP server can
+  install it automatically (action `deploy`) using the
+  [Inspektor Gadget cluster extension](https://learn.microsoft.com/en-us/azure/aks/inspektor-gadget-configure).
+  You can also install the extension manually:
 
 ```bash
-IG_VERSION=$(curl -s https://api.github.com/repos/inspektor-gadget/inspektor-gadget/releases/latest | jq -r '.tag_name' | sed 's/^v//')
-helm install gadget --namespace=gadget --create-namespace oci://ghcr.io/inspektor-gadget/inspektor-gadget/charts/gadget --version=$IG_VERSION
+az k8s-extension create \
+    --cluster-type managedClusters \
+    --cluster-name myAKSCluster \
+    --resource-group myResourceGroup \
+    --name inspektor-gadget \
+    --extension-type microsoft.inspektorgadget \
+    --release-train preview
 ```
+
+> [!NOTE]
+> The extension is the only supported install path. If a non-extension (Helm/`kubectl
+> gadget`) installation already exists in the cluster, remove it first (for example
+> `kubectl gadget undeploy` or `helm uninstall gadget -n gadget`) before deploying the
+> extension. The `deploy` action refuses to proceed when it detects a conflicting
+> installation.
+
+> [!NOTE]
+> There is no `upgrade` action. The cluster extension auto-upgrades its minor version by
+> default (`--auto-upgrade-minor-version`), so upgrades are handled by Azure. To manage a
+> specific version manually, use `az k8s-extension update` directly.
 
 This is useful if you want to deploy the AKS-MCP server in the cluster.

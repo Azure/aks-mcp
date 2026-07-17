@@ -26,7 +26,7 @@ func (g *Gadget) getImage(version string) string {
 var gadgets = []Gadget{
 	{
 		Name:        observeDNS,
-		Image:       "ghcr.io/inspektor-gadget/gadget/trace_dns",
+		Image:       "trace_dns",
 		Description: "Observes DNS queries in the cluster",
 		Params: map[string]interface{}{
 			"name": map[string]interface{}{
@@ -79,7 +79,7 @@ var gadgets = []Gadget{
 	},
 	{
 		Name:        observeTCP,
-		Image:       "ghcr.io/inspektor-gadget/gadget/trace_tcp",
+		Image:       "trace_tcp",
 		Description: "Observes TCP traffic in the cluster",
 		Params: map[string]interface{}{
 			"source_port": map[string]interface{}{
@@ -125,7 +125,7 @@ var gadgets = []Gadget{
 	},
 	{
 		Name:        observeFileOpen,
-		Image:       "ghcr.io/inspektor-gadget/gadget/trace_open",
+		Image:       "trace_open",
 		Description: "Observes file open operations in the cluster",
 		Params: map[string]interface{}{
 			"path": map[string]interface{}{
@@ -156,7 +156,7 @@ var gadgets = []Gadget{
 	},
 	{
 		Name:        observeProcessExecution,
-		Image:       "ghcr.io/inspektor-gadget/gadget/trace_exec",
+		Image:       "trace_exec",
 		Description: "Observes process execution in the cluster",
 		Params: map[string]interface{}{
 			"command": map[string]interface{}{
@@ -176,7 +176,7 @@ var gadgets = []Gadget{
 	},
 	{
 		Name:        observeSignal,
-		Image:       "ghcr.io/inspektor-gadget/gadget/trace_signal",
+		Image:       "trace_signal",
 		Description: "Traces signals sent to containers in the cluster",
 		Params: map[string]interface{}{
 			"signal": map[string]interface{}{
@@ -196,7 +196,7 @@ var gadgets = []Gadget{
 	},
 	{
 		Name:        observeSystemCalls,
-		Image:       "ghcr.io/inspektor-gadget/gadget/traceloop",
+		Image:       "traceloop",
 		Description: "Observes system calls in the cluster",
 		Params: map[string]interface{}{
 			"syscall": map[string]interface{}{
@@ -218,7 +218,7 @@ var gadgets = []Gadget{
 	},
 	{
 		Name:        topFile,
-		Image:       "ghcr.io/inspektor-gadget/gadget/top_file",
+		Image:       "top_file",
 		Description: "Shows top files by read/write operations",
 		Params: map[string]interface{}{
 			"max_entries": map[string]interface{}{
@@ -253,7 +253,7 @@ var gadgets = []Gadget{
 	},
 	{
 		Name:        topTCP,
-		Image:       "ghcr.io/inspektor-gadget/gadget/top_tcp",
+		Image:       "top_tcp",
 		Description: "Shows top TCP connections by traffic volume",
 		Params: map[string]interface{}{
 			"max_entries": map[string]interface{}{
@@ -280,7 +280,7 @@ var gadgets = []Gadget{
 	},
 	{
 		Name:        tcpdump,
-		Image:       "ghcr.io/inspektor-gadget/gadget/tcpdump",
+		Image:       "tcpdump",
 		Description: "Captures network traffic in the cluster",
 		Params: map[string]interface{}{
 			"pcap-filter": map[string]interface{}{
@@ -300,14 +300,14 @@ var gadgets = []Gadget{
 	},
 	{
 		Name:        profileBlockIO,
-		Image:       "ghcr.io/inspektor-gadget/gadget/profile_blockio",
+		Image:       "profile_blockio",
 		Description: "Profiles a single node and provides a histogram of block IO (disk) latency for it",
 		Params:      map[string]interface{}{},
 		ParamsFunc:  func(filterParams map[string]interface{}, gadgetParams map[string]string) {},
 	},
 	{
 		Name:        topBlockIO,
-		Image:       "ghcr.io/inspektor-gadget/gadget/top_blockio",
+		Image:       "top_blockio",
 		Description: "Shows top block IO activity by bytes (requires Kernel >=6.6)",
 		Params: map[string]interface{}{
 			"max_entries": map[string]interface{}{
