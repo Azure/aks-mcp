@@ -2,6 +2,34 @@
 
 This Helm chart deploys AKS-MCP (Azure Kubernetes Service Model Context Protocol) server on Kubernetes clusters.
 
+## Read this before deploying
+
+AKS-MCP is designed to be run **locally by a single trusted user** over the
+`stdio` transport. Deploying it into a cluster as a shared, network-reachable
+service is **outside its intended usage** and is not hardened for that scenario.
+
+AKS-MCP runs `az`, `kubectl`, `helm`, and related CLI tools using the identity
+of the pod it runs in, and does not perform per-caller authorization:
+
+> **Anyone who can reach this endpoint effectively holds the full Azure and
+> Kubernetes privileges of the deployed identity** — including reading Secrets,
+> minting service account tokens, and deploying arbitrary workloads.
+> `--access-level readonly` and the Azure CLI credential-command denylist are
+> accident-prevention guardrails, not security boundaries against a malicious
+> caller.
+
+If you still choose to deploy this chart, you must:
+
+- **Enable OAuth.** Never expose an unauthenticated endpoint.
+- **Restrict network reachability** (NetworkPolicy, private/internal Service —
+  do not expose it to the internet or a shared network).
+- **Use a dedicated, least-privileged identity**, scoped as narrowly as
+  possible. Assume every caller inherits it in full.
+- **Not treat it as multi-tenant.** All callers share one server identity.
+
+See [Supported Deployment Model and Security Considerations](../README.md#supported-deployment-model-and-security-considerations)
+for details.
+
 ## Prerequisites
 
 - Kubernetes 1.19+

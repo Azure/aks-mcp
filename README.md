@@ -13,6 +13,76 @@ It allows AI tools to:
 - Retrieve details related to AKS clusters (VNets, Subnets, NSGs, Route Tables, etc.)
 - Manage Azure Fleet operations for multi-cluster scenarios
 
+## Supported Deployment Model and Security Considerations
+
+**AKS-MCP is designed to be run locally, by a single trusted user, as a bridge
+between that user's own AI assistant and their own Azure/AKS resources.** This
+is the only deployment model the project supports and hardens for.
+
+### The trust boundary
+
+AKS-MCP executes command-line tools — including `az`, `kubectl`, `helm`,
+`cilium`, and `hubble` — **using the identity of the process it runs as**. It
+does not perform per-caller authorization, and it does not attempt to sandbox
+the commands it runs. Therefore:
+
+> **Anyone who can invoke AKS-MCP tools effectively has the full Azure and
+> Kubernetes privileges of the identity AKS-MCP is running under.**
+
+This includes the ability to obtain reusable credentials. For example, in
+`readwrite` or `admin` mode a caller can reach Azure Resource Manager and AKS
+with the server identity's full authority, and `kubectl` or `helm` can be used
+to read Secrets, mint service account tokens, or deploy arbitrary workloads
+into the cluster. This is an inherent consequence of exposing a CLI execution
+surface — it is not prevented by `--access-level`.
+
+Specific credential-returning Azure CLI commands (such as
+`az account get-access-token` and `az aks get-credentials`) are rejected by an
+explicit denylist. That denylist reduces accidental exposure — it is **not** a
+security boundary, it does not cover the `kubectl`, `helm`, `cilium`, or
+`hubble` surfaces, and it must not be relied upon to contain an untrusted
+caller.
+
+**Treat the ability to call AKS-MCP as equivalent to handing over a shell that
+is already logged in as the server identity.**
+
+### What `--access-level` is and is not
+
+`--access-level` (`readonly` / `readwrite` / `admin`) is a **guardrail to reduce
+accidental damage** from an AI assistant that misinterprets a request. It is
+**not** a security boundary against a deliberately malicious caller, and it must
+not be relied upon to contain an untrusted party. Do not expose AKS-MCP to
+callers you would not grant the underlying Azure/Kubernetes credentials to
+directly.
+
+### Recommended (supported) setup
+
+- Run with `--transport stdio`, launched on demand by your local MCP client.
+- Authenticate with your own developer identity via `az login`.
+- Grant the identity only the Azure/Kubernetes permissions you actually need.
+
+### If you deploy remotely anyway
+
+The `sse` and `streamable-http` transports and the Helm chart exist for
+specific advanced scenarios, but they move AKS-MCP outside its intended usage.
+If you use them, **you own the resulting risk**, and you must at minimum:
+
+- **Require authentication.** Enable OAuth
+  (see [OAuth Authentication](docs/oauth-authentication.md)). Never expose an
+  unauthenticated endpoint.
+- **Restrict network exposure.** Do not publish the endpoint to the internet or
+  to a shared network. Bind to loopback, or place it behind network policy /
+  private networking so that only intended callers can reach it.
+- **Minimize the server identity's permissions.** Assume every caller inherits
+  them in full. Use a dedicated, least-privileged identity scoped to a single
+  subscription or resource group — never a broadly privileged one.
+- **Do not treat it as multi-tenant.** AKS-MCP cannot separate one caller's
+  authority from another's; all callers share the single server identity.
+
+Browser-originated requests are a particular concern: a malicious web page can
+attempt to reach a locally or privately bound HTTP endpoint. Authentication and
+network isolation are the mitigations.
+
 ## How it works
 
 AKS-MCP connects to Azure using the Azure SDK and provides a set of tools that
@@ -505,6 +575,16 @@ If you see "spawn ENOENT" errors, verify your VS Code environment:
 
 
 ### Deploy the MCP server in-cluster (Remote MCP)
+
+> **Outside the supported deployment model.** In-cluster / remote deployment
+> is not the intended usage of AKS-MCP and is not hardened for it. Every caller
+> that can reach the endpoint inherits the full Azure and Kubernetes privileges
+> of the server identity. `--access-level` and the credential-command denylist
+> reduce accidental damage but are not security boundaries against a malicious
+> caller. If you proceed, you must enable OAuth,
+> restrict network reachability, and use a dedicated least-privileged identity.
+> See [Supported Deployment Model and Security Considerations](#supported-deployment-model-and-security-considerations).
+
 <details>
 <summary> Remote MCP Installation </summary>
 To enable the remote AKS MCP server in your AKS cluster, see the instructions below:
