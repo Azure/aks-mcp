@@ -8,14 +8,15 @@ AKS-MCP is designed to be run **locally by a single trusted user** over the
 `stdio` transport. Deploying it into a cluster as a shared, network-reachable
 service is **outside its intended usage** and is not hardened for that scenario.
 
-AKS-MCP runs Azure CLI and `kubectl` commands using the identity of the pod it
-runs in, and does not perform per-caller authorization:
+AKS-MCP runs `az`, `kubectl`, `helm`, and related CLI tools using the identity
+of the pod it runs in, and does not perform per-caller authorization:
 
 > **Anyone who can reach this endpoint effectively holds the full Azure and
-> Kubernetes privileges of the deployed identity** — including the ability to
-> retrieve reusable ARM bearer tokens and AKS kubeconfig material and use them
-> elsewhere. `--access-level readonly` is an accident-prevention guardrail, not
-> a security boundary against a malicious caller.
+> Kubernetes privileges of the deployed identity** — including reading Secrets,
+> minting service account tokens, and deploying arbitrary workloads.
+> `--access-level readonly` and the Azure CLI credential-command denylist are
+> accident-prevention guardrails, not security boundaries against a malicious
+> caller.
 
 If you still choose to deploy this chart, you must:
 

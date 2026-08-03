@@ -30,12 +30,18 @@ the commands it runs. Therefore:
 > Kubernetes privileges of the identity AKS-MCP is running under.**
 
 This includes the ability to obtain reusable credentials. For example, in
-`readwrite` or `admin` mode a caller can issue Azure CLI commands that return
-Azure Resource Manager bearer tokens or AKS kubeconfig material, and then use
-those credentials outside of AKS-MCP. Similarly, `kubectl` and `helm` can be
-used to read Secrets or deploy arbitrary workloads into the cluster. This is an
-inherent consequence of exposing a CLI execution surface — it is not prevented
-by `--access-level`.
+`readwrite` or `admin` mode a caller can reach Azure Resource Manager and AKS
+with the server identity's full authority, and `kubectl` or `helm` can be used
+to read Secrets, mint service account tokens, or deploy arbitrary workloads
+into the cluster. This is an inherent consequence of exposing a CLI execution
+surface — it is not prevented by `--access-level`.
+
+Specific credential-returning Azure CLI commands (such as
+`az account get-access-token` and `az aks get-credentials`) are rejected by an
+explicit denylist. That denylist reduces accidental exposure — it is **not** a
+security boundary, it does not cover the `kubectl`, `helm`, `cilium`, or
+`hubble` surfaces, and it must not be relied upon to contain an untrusted
+caller.
 
 **Treat the ability to call AKS-MCP as equivalent to handing over a shell that
 is already logged in as the server identity.**
@@ -573,8 +579,9 @@ If you see "spawn ENOENT" errors, verify your VS Code environment:
 > **Outside the supported deployment model.** In-cluster / remote deployment
 > is not the intended usage of AKS-MCP and is not hardened for it. Every caller
 > that can reach the endpoint inherits the full Azure and Kubernetes privileges
-> of the server identity, including the ability to extract reusable credentials.
-> `--access-level` does not prevent this. If you proceed, you must enable OAuth,
+> of the server identity. `--access-level` and the credential-command denylist
+> reduce accidental damage but are not security boundaries against a malicious
+> caller. If you proceed, you must enable OAuth,
 > restrict network reachability, and use a dedicated least-privileged identity.
 > See [Supported Deployment Model and Security Considerations](#supported-deployment-model-and-security-considerations).
 
