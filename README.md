@@ -21,9 +21,10 @@ is the only deployment model the project supports and hardens for.
 
 ### The trust boundary
 
-AKS-MCP executes Azure CLI and `kubectl` commands **using the identity of the
-process it runs as**. It does not perform per-caller authorization, and it does
-not attempt to sandbox the commands it runs. Therefore:
+AKS-MCP executes command-line tools — including `az`, `kubectl`, `helm`,
+`cilium`, and `hubble` — **using the identity of the process it runs as**. It
+does not perform per-caller authorization, and it does not attempt to sandbox
+the commands it runs. Therefore:
 
 > **Anyone who can invoke AKS-MCP tools effectively has the full Azure and
 > Kubernetes privileges of the identity AKS-MCP is running under.**
@@ -31,8 +32,10 @@ not attempt to sandbox the commands it runs. Therefore:
 This includes the ability to obtain reusable credentials. For example, in
 `readwrite` or `admin` mode a caller can issue Azure CLI commands that return
 Azure Resource Manager bearer tokens or AKS kubeconfig material, and then use
-those credentials outside of AKS-MCP. This is an inherent consequence of
-exposing a CLI execution surface — it is not prevented by `--access-level`.
+those credentials outside of AKS-MCP. Similarly, `kubectl` and `helm` can be
+used to read Secrets or deploy arbitrary workloads into the cluster. This is an
+inherent consequence of exposing a CLI execution surface — it is not prevented
+by `--access-level`.
 
 **Treat the ability to call AKS-MCP as equivalent to handing over a shell that
 is already logged in as the server identity.**
