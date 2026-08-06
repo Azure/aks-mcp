@@ -20,7 +20,7 @@ AKS-MCP is a Model Context Protocol (MCP) server that enables AI assistants to i
 ### Key Components
 - **Access Levels**: Three security levels (readonly, readwrite, admin) control available operations
 - **Resource Caching**: Azure resources are cached internally for performance
-- **Transport Support**: Supports stdio, SSE, and streamable-http transports
+- **Transport Support**: Supports stdio transport
 - **Tool Registration**: Tools are dynamically registered based on access level
 
 ## Development Commands
@@ -43,18 +43,9 @@ golangci-lint run                       # Run linter
 golangci-lint run --timeout=5m          # Run with extended timeout
 ```
 
-### Docker
-```bash
-docker build -t aks-mcp:test .          # Build Docker image
-docker run --rm aks-mcp:test --help     # Test Docker image
-```
-
 ## Configuration
 
 ### Command Line Arguments
-- `--transport`: Transport mechanism (stdio, sse, streamable-http)
-- `--host`: Host for server (default: 127.0.0.1)
-- `--port`: Port for server (default: 8000)
 - `--timeout`: Command execution timeout in seconds (default: 600)
 - `--access-level`: Access level (readonly, readwrite, admin)
 
@@ -110,5 +101,5 @@ The project uses GitHub Actions for:
 - **Linting**: golangci-lint across multiple OS platforms
 - **Testing**: Unit tests with coverage reporting
 - **Security**: Gosec security scanning
-- **Building**: Go binary and Docker image builds
+- **Building**: Go binary builds
 - **Publishing**: SLSA3 compliant releases

@@ -16,7 +16,6 @@ Before contributing, ensure you have the following installed:
 - **Azure CLI** - [Install Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli)
 - **Git** - [Install Git](https://git-scm.com/downloads)
 - **GNU Make** `4.x` or later
-- **Docker** _(optional, for container builds and testing)_
 - **Node.js** _(optional, for MCP inspector)_
 
 ### Fork and Clone
@@ -69,26 +68,16 @@ make run
 
    ```bash
    # Run with default settings (readonly access)
-   ./aks-mcp --transport stdio
+   ./aks-mcp
 
    # Run with elevated permissions for testing
-   ./aks-mcp --transport stdio --access-level readwrite
+   ./aks-mcp --access-level readwrite
 
    # Run with admin permissions (full access)
-   ./aks-mcp --transport stdio --access-level admin
+   ./aks-mcp --access-level admin
    ```
 
-2. **Run with HTTP transport for debugging:**
-
-   ```bash
-   # Start HTTP server on localhost:8000
-   ./aks-mcp --transport sse --host 127.0.0.1 --port 8000
-
-   # Or streamable HTTP
-   ./aks-mcp --transport streamable-http --host 127.0.0.1 --port 8000
-   ```
-
-3. **Use MCP Inspector for debugging:**
+2. **Use MCP Inspector for debugging:**
    ```bash
    npx @modelcontextprotocol/inspector ./aks-mcp --access-level=readwrite
    ```
@@ -112,9 +101,7 @@ make run
          "type": "stdio",
          "command": "./aks-mcp",
          "args": [
-           "--transport",
-           "stdio",
-           "--access-level",
+	   "--access-level",
            "readwrite",
            "--verbose"
          ]
@@ -138,7 +125,7 @@ make run
      "mcpServers": {
        "aks-mcp-dev": {
          "command": "/absolute/path/to/your/aks-mcp/aks-mcp",
-         "args": ["--transport", "stdio", "--access-level", "readwrite"]
+         "args": ["--access-level", "readwrite"]
        }
      }
    }
@@ -148,18 +135,6 @@ make run
    - Start a conversation
    - Ask: _"What AKS clusters do I have?"_
    - Verify the MCP tools are working
-
-### Docker Testing
-
-Test the containerized version:
-
-```bash
-# Build Docker image
-make docker-build
-
-# Test with Docker (with streamable HTTP mode)
-make docker-run
-```
 
 ## Making Changes
 
@@ -468,7 +443,6 @@ The project uses GitHub Actions for automated releases:
 
 - **SLSA3 compliant** release artifacts
 - **Multi-platform** binaries (Linux, macOS, Windows)
-- **Docker images** published to GitHub Container Registry
 - **Checksums** and signatures for verification
 
 ## Development Guidelines
