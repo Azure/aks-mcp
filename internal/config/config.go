@@ -389,6 +389,18 @@ func (cfg *ConfigData) parseOAuthConfig(additionalRedirectURIs, allowedCORSOrigi
 
 // ValidateConfig validates the configuration for incompatible settings
 func (cfg *ConfigData) ValidateConfig() error {
+	if cfg.Transport != "stdio" {
+		return fmt.Errorf("unsupported transport %q: only stdio is supported", cfg.Transport)
+	}
+
+	if cfg.OAuthConfig.Enabled {
+		return fmt.Errorf("OAuth authentication is not supported: this server supports stdio only")
+	}
+
+	if cfg.TokenAuthOnly {
+		return fmt.Errorf("token-only authentication is not supported: this server supports stdio only")
+	}
+
 	// Validate OAuth + transport compatibility
 	if cfg.OAuthConfig.Enabled && cfg.Transport == "stdio" {
 		return fmt.Errorf("OAuth authentication is not supported with stdio transport per MCP specification")

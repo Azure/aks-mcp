@@ -1,16 +1,11 @@
 package server
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
-	"net"
-	"net/http"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/Azure/aks-mcp/internal/auth/oauth"
 	"github.com/Azure/aks-mcp/internal/azcli"
 	"github.com/Azure/aks-mcp/internal/azureclient"
 	"github.com/Azure/aks-mcp/internal/components"
@@ -24,11 +19,9 @@ import (
 	"github.com/Azure/aks-mcp/internal/components/monitor"
 	"github.com/Azure/aks-mcp/internal/components/network"
 	"github.com/Azure/aks-mcp/internal/config"
-	"github.com/Azure/aks-mcp/internal/ctx"
 	"github.com/Azure/aks-mcp/internal/k8s"
 	"github.com/Azure/aks-mcp/internal/logger"
 	"github.com/Azure/aks-mcp/internal/prompts"
-	"github.com/Azure/aks-mcp/internal/server/httpsecurity"
 	"github.com/Azure/aks-mcp/internal/tools"
 	"github.com/Azure/aks-mcp/internal/version"
 	azapimcp "github.com/Azure/azure-api-mcp/pkg/azcli"
@@ -45,9 +38,6 @@ type Service struct {
 	mcpServer        *server.MCPServer
 	azClient         *azureclient.AzureClient
 	azcliProcFactory func(timeout int) azcli.Proc
-	oauthProvider    *oauth.AzureOAuthProvider
-	authMiddleware   *oauth.AuthMiddleware
-	endpointManager  *oauth.EndpointManager
 }
 
 // ServiceOption defines a function that configures the AKS MCP service
@@ -95,21 +85,11 @@ func (s *Service) initializeInfrastructure() error {
 	s.azClient = azClient
 	logger.Infof("Azure client initialized successfully")
 
-	// Initialize OAuth components if enabled and transport is not stdio
-	// OAuth is not supported with stdio transport per MCP specification
-	if s.cfg.OAuthConfig.Enabled && s.cfg.Transport != "stdio" {
-		if err := s.initializeOAuth(); err != nil {
-			return fmt.Errorf("failed to initialize OAuth: %w", err)
-		}
-	}
-
 	// Ensure Azure CLI exists and is logged in
 	// Skip this step if token-auth-only mode is enabled, as Azure CLI authentication is not required
 	// Allow service to start even if az CLI is not available or authentication fails
 	// Tools that require az will fail at runtime with appropriate error messages
-	if s.cfg.TokenAuthOnly {
-		logger.Infof("Token-only authentication mode enabled - skipping Azure CLI authentication")
-	} else if s.azcliProcFactory != nil {
+	if s.azcliProcFactory != nil {
 		// Use injected factory to create an azcli.Proc
 		proc := s.azcliProcFactory(s.cfg.Timeout)
 		if loginType, err := azcli.EnsureAzCliLoginWithProc(proc, s.cfg); err != nil {
@@ -139,35 +119,6 @@ func (s *Service) initializeInfrastructure() error {
 	return nil
 }
 
-// initializeOAuth initializes OAuth authentication components
-func (s *Service) initializeOAuth() error {
-	logger.Infof("Initializing OAuth authentication...")
-
-	// Validate OAuth configuration
-	if err := s.cfg.OAuthConfig.Validate(); err != nil {
-		return fmt.Errorf("invalid OAuth configuration: %w", err)
-	}
-
-	// Create OAuth provider
-	provider, err := oauth.NewAzureOAuthProvider(s.cfg.OAuthConfig)
-	if err != nil {
-		return fmt.Errorf("failed to create OAuth provider: %w", err)
-	}
-	s.oauthProvider = provider
-
-	// Create server URL for OAuth metadata
-	serverURL := fmt.Sprintf("http://%s:%d", s.cfg.Host, s.cfg.Port)
-
-	// Create auth middleware
-	s.authMiddleware = oauth.NewAuthMiddleware(provider, serverURL)
-
-	// Create endpoint manager
-	s.endpointManager = oauth.NewEndpointManager(provider, s.cfg)
-
-	logger.Infof("OAuth authentication initialized with tenant: %s", s.cfg.OAuthConfig.TenantID)
-	return nil
-}
-
 // registerAllComponents registers all component tools organized by category
 func (s *Service) registerAllComponents() {
 	// Log enabled components (validation is done in config validator)
@@ -180,15 +131,11 @@ func (s *Service) registerAllComponents() {
 	// Kubernetes Components
 	s.registerKubernetesComponents()
 
-	if s.cfg.TokenAuthOnly {
-		logger.Infof("Token-only authentication mode enabled - skipping Azure component registration because they are not yet supported in token-only authentication mode")
-	} else {
-		// Azure Components
-		s.registerAzureComponents()
+	// Azure Components
+	s.registerAzureComponents()
 
-		// Prompts
-		s.registerPrompts()
-	}
+	// Prompts
+	s.registerPrompts()
 }
 
 // registerPrompts registers all available prompts
@@ -202,324 +149,16 @@ func (s *Service) registerPrompts() {
 	prompts.RegisterHealthPrompts(s.mcpServer, s.cfg)
 }
 
-// healthHandler provides a simple health check endpoint
-func (s *Service) healthHandler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		response := map[string]interface{}{
-			"status":    "healthy",
-			"version":   version.GetVersion(),
-			"transport": s.cfg.Transport,
-			"oauth": map[string]interface{}{
-				"enabled": s.cfg.OAuthConfig.Enabled,
-			},
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(response); err != nil {
-			http.Error(w, "Failed to encode response", http.StatusInternalServerError)
-			return
-		}
-	}
-}
-
-// createCustomHTTPServerWithHelp404 creates a custom HTTP server that provides
-// helpful 404 responses for the MCP server
-func (s *Service) createCustomHTTPServerWithHelp404(addr string) *http.Server {
-	mux := http.NewServeMux()
-
-	// Register health check endpoint (always available)
-	mux.HandleFunc("/health", s.healthHandler())
-
-	// Register OAuth endpoints if OAuth is enabled
-	if s.cfg.OAuthConfig.Enabled {
-		if s.endpointManager == nil {
-			logger.Errorf("OAuth is enabled but endpoint manager is not initialized - this indicates a bug in server initialization")
-		}
-		logger.Infof("Registering OAuth endpoints...")
-		s.endpointManager.RegisterEndpoints(mux)
-	}
-
-	// Handle all other paths with a helpful 404 response
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/mcp" && r.URL.Path != "/health" {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusNotFound)
-
-			response := map[string]interface{}{
-				"error":   "Not Found",
-				"message": "This is an MCP (Model Context Protocol) server. Please send POST requests to /mcp to initialize a session and obtain an Mcp-Session-Id for subsequent requests.",
-				"endpoints": map[string]string{
-					"initialize": "POST /mcp - Initialize MCP session",
-					"requests":   "POST /mcp - Send MCP requests (requires Mcp-Session-Id header)",
-					"listen":     "GET /mcp - Listen for notifications (requires Mcp-Session-Id header)",
-					"terminate":  "DELETE /mcp - Terminate session (requires Mcp-Session-Id header)",
-					"health":     "GET /health - Health check",
-				},
-			}
-
-			// Add OAuth endpoints to the response if enabled
-			if s.cfg.OAuthConfig.Enabled {
-				oauthEndpoints := map[string]string{ // #nosec G101 -- These are endpoint descriptions, not credentials
-					"oauth-metadata":       "GET /.well-known/oauth-protected-resource - OAuth metadata",
-					"auth-server-metadata": "GET /.well-known/oauth-authorization-server - Authorization server metadata",
-					"client-registration":  "POST /oauth/register - Dynamic client registration",
-					"token-introspection":  "POST /oauth/introspect - Token introspection",
-				}
-				for k, v := range oauthEndpoints {
-					response["endpoints"].(map[string]string)[k] = v
-				}
-			}
-
-			if err := json.NewEncoder(w).Encode(response); err != nil {
-				http.Error(w, "Failed to encode response", http.StatusInternalServerError)
-			}
-		}
-	})
-
-	return &http.Server{
-		Addr:              addr,
-		Handler:           mux,
-		ReadHeaderTimeout: 10 * time.Second,
-	}
-}
-
-// createCustomSSEServerWithHelp404 creates a custom HTTP server for SSE that provides
-// helpful 404 responses for non-MCP endpoints
-func (s *Service) createCustomSSEServerWithHelp404(sseServer *server.SSEServer, addr string) *http.Server {
-	mux := http.NewServeMux()
-
-	// Register health check endpoint (always available)
-	mux.HandleFunc("/health", s.healthHandler())
-
-	// Register OAuth endpoints if OAuth is enabled
-	if s.cfg.OAuthConfig.Enabled {
-		if s.endpointManager == nil {
-			logger.Errorf("OAuth is enabled but endpoint manager is not initialized - this indicates a bug in server initialization")
-		}
-		logger.Infof("Registering OAuth endpoints for SSE server...")
-		s.endpointManager.RegisterEndpoints(mux)
-	}
-
-	// Register SSE and Message handlers with authentication if enabled
-	secMW := s.buildHTTPSecurityMiddleware()
-	if s.cfg.OAuthConfig.Enabled {
-		if s.authMiddleware == nil {
-			logger.Errorf("OAuth is enabled but auth middleware is not initialized - this indicates a bug in server initialization")
-		}
-		// Apply authentication middleware to SSE and Message endpoints
-		mux.Handle("/sse", secMW(s.authMiddleware.Middleware(sseServer.SSEHandler())))
-		mux.Handle("/message", secMW(s.authMiddleware.Middleware(sseServer.MessageHandler())))
-	} else {
-		// Register without authentication
-		mux.Handle("/sse", secMW(sseServer.SSEHandler()))
-		mux.Handle("/message", secMW(sseServer.MessageHandler()))
-	}
-
-	// Handle all other paths with a helpful 404 response
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/sse" && r.URL.Path != "/message" && r.URL.Path != "/health" {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusNotFound)
-
-			response := map[string]interface{}{
-				"error":   "Not Found",
-				"message": "This is an MCP (Model Context Protocol) server using SSE transport. Use the SSE endpoint to establish connections and the message endpoint to send requests.",
-				"endpoints": map[string]string{
-					"sse":     "GET /sse - Establish SSE connection for real-time notifications",
-					"message": "POST /message - Send MCP JSON-RPC messages",
-					"health":  "GET /health - Health check",
-				},
-			}
-
-			// Add OAuth endpoints and authentication info if enabled
-			if s.cfg.OAuthConfig.Enabled {
-				response["authentication"] = map[string]interface{}{
-					"required": true,
-					"type":     "Bearer",
-					"note":     "Include 'Authorization: Bearer <token>' header for authenticated endpoints",
-				}
-
-				oauthEndpoints := map[string]string{ // #nosec G101 -- These are endpoint descriptions, not credentials
-					"oauth-metadata":       "GET /.well-known/oauth-protected-resource - OAuth metadata",
-					"auth-server-metadata": "GET /.well-known/oauth-authorization-server - Authorization server metadata",
-					"client-registration":  "POST /oauth/register - Dynamic client registration",
-					"token-introspection":  "POST /oauth/introspect - Token introspection",
-				}
-				for k, v := range oauthEndpoints {
-					response["endpoints"].(map[string]string)[k] = v
-				}
-			}
-
-			if err := json.NewEncoder(w).Encode(response); err != nil {
-				http.Error(w, "Failed to encode response", http.StatusInternalServerError)
-			}
-		}
-	})
-
-	return &http.Server{
-		Addr:              addr,
-		Handler:           mux,
-		ReadHeaderTimeout: 10 * time.Second,
-	}
-}
-
-// Run starts the service with the specified transport
+// Run starts the stdio service.
 func (s *Service) Run() error {
 	logger.Infof("AKS MCP version: %s", version.GetVersion())
 
-	// Start the server
-	switch s.cfg.Transport {
-	case "stdio":
-		logger.Infof("Listening for requests on STDIO...")
-		return server.ServeStdio(s.mcpServer)
-	case "sse":
-		addr := fmt.Sprintf("%s:%d", s.cfg.Host, s.cfg.Port)
-
-		// Create SSE server with context function to extract Azure token from headers
-		sse := server.NewSSEServer(
-			s.mcpServer,
-			server.WithSSEContextFunc(func(c context.Context, r *http.Request) context.Context {
-				if token := r.Header.Get("X-Azure-Token"); token != "" {
-					c = context.WithValue(c, ctx.AzureTokenKey, token)
-				}
-				return c
-			}),
-		)
-
-		// Create custom HTTP server with helpful 404 responses
-		customServer := s.createCustomSSEServerWithHelp404(sse, addr)
-
-		logger.Infof("SSE server listening on %s", addr)
-		logger.Infof("SSE endpoint available at: http://%s/sse", addr)
-		logger.Infof("Message endpoint available at: http://%s/message", addr)
-		logger.Infof("Connect to /sse for real-time events, send JSON-RPC to /message")
-		if s.cfg.OAuthConfig.Enabled {
-			logger.Infof("OAuth authentication enabled - Bearer token required for SSE and Message endpoints")
-			logger.Infof("OAuth metadata available at: http://%s/.well-known/oauth-protected-resource", addr)
-		}
-
-		return customServer.ListenAndServe()
-	case "streamable-http":
-		addr := fmt.Sprintf("%s:%d", s.cfg.Host, s.cfg.Port)
-
-		// Create a custom HTTP server with helpful 404 responses
-		customServer := s.createCustomHTTPServerWithHelp404(addr)
-
-		// Create the streamable HTTP server with the custom HTTP server
-		streamableServer := server.NewStreamableHTTPServer(
-			s.mcpServer,
-			server.WithStreamableHTTPServer(customServer),
-			server.WithHTTPContextFunc(func(c context.Context, r *http.Request) context.Context {
-				// Extract request context from X-Azure-Token header and add to context
-				if token := r.Header.Get("X-Azure-Token"); token != "" {
-					c = context.WithValue(c, ctx.AzureTokenKey, token)
-				}
-				return c
-			}),
-		)
-
-		// Update the mux to use the actual streamable server as the MCP handler
-		if mux, ok := customServer.Handler.(*http.ServeMux); ok {
-			s.installStreamableMCPHandler(mux, streamableServer)
-		}
-
-		logger.Infof("Streamable HTTP server listening on %s", addr)
-		logger.Infof("MCP endpoint available at: http://%s/mcp", addr)
-		logger.Infof("Send POST requests to /mcp to initialize session and obtain Mcp-Session-Id")
-		if s.cfg.OAuthConfig.Enabled {
-			logger.Infof("OAuth authentication enabled - Bearer token required for MCP endpoint")
-			logger.Infof("OAuth metadata available at: http://%s/.well-known/oauth-protected-resource", addr)
-		}
-
-		return customServer.ListenAndServe()
-	default:
-		return fmt.Errorf("invalid transport type: %s (must be 'stdio', 'sse' or 'streamable-http')", s.cfg.Transport)
+	if s.cfg.Transport != "stdio" {
+		return fmt.Errorf("unsupported transport %q: only stdio is supported", s.cfg.Transport)
 	}
-}
 
-// installStreamableMCPHandler mounts the streamable-http MCP handler on mux at
-// /mcp, wrapping it in the host/origin security middleware and (when OAuth is
-// enabled) the OAuth auth middleware. Extracted so that tests can exercise the
-// security middleware without binding a TCP listener.
-func (s *Service) installStreamableMCPHandler(mux *http.ServeMux, streamableServer http.Handler) {
-	secMW := s.buildHTTPSecurityMiddleware()
-	if s.cfg.OAuthConfig.Enabled {
-		if s.authMiddleware == nil {
-			logger.Errorf("OAuth is enabled but auth middleware is not initialized - this indicates a bug in server initialization")
-		}
-		// Apply authentication middleware to MCP endpoint
-		mux.Handle("/mcp", secMW(s.authMiddleware.Middleware(streamableServer)))
-	} else {
-		// Register without authentication
-		mux.Handle("/mcp", secMW(streamableServer))
-	}
-}
-
-// buildHTTPSecurityMiddleware constructs the host/origin middleware used by
-// the streamable-http and sse transports. Defaults are chosen so that the
-// gate prevents DNS rebinding without breaking common, demonstrably safe
-// deployments:
-//
-//   - OAuth enabled: a valid bearer token is already required for tool
-//     dispatch, and DNS rebinding cannot produce one. Applying the
-//     Host/Origin allowlist would only break legitimate ingress / reverse-
-//     proxy deployments that forward the public hostname, so both default
-//     to "*". Operators who want belt-and-suspenders enforcement on top of
-//     OAuth can still set --allowed-host / --trusted-origin to tighten.
-//   - OAuth disabled, loopback bind: the listener is unreachable from a
-//     remote network in the first place, so the Origin allowlist would only
-//     reject local browser MCP clients (MCP Inspector etc.) that send an
-//     Origin like http://localhost:6274. The Host gate keeps blocking the
-//     DNS-rebinding shape — a foreign Host header against the loopback
-//     listener — but Origin defaults to "*".
-//   - OAuth disabled, non-loopback bind: ValidateConfig already refused to
-//     start unless --allowed-host was set, so this path requires an explicit
-//     Host allowlist. Origin still defaults to reject-any when unset, since
-//     in this configuration there is no other authentication and the
-//     operator opted into a public-facing listener.
-func (s *Service) buildHTTPSecurityMiddleware() func(http.Handler) http.Handler {
-	cfg := httpsecurity.Config{
-		AllowedHosts:   s.cfg.AllowedHosts,
-		AllowedOrigins: s.cfg.AllowedOrigins,
-	}
-	switch {
-	case s.cfg.OAuthConfig.Enabled:
-		if len(cfg.AllowedHosts) == 0 {
-			cfg.AllowedHosts = []string{"*"}
-		}
-		if len(cfg.AllowedOrigins) == 0 {
-			cfg.AllowedOrigins = []string{"*"}
-		}
-	case isLoopbackBindHost(s.cfg.Host):
-		// Host gate still defaults to loopback-only inside the middleware
-		// (cfg.AllowedHosts left empty), which is what we want — DNS-rebinding
-		// requests carry a foreign Host header and are still rejected.
-		// Origin, however, would otherwise reject MCP Inspector / browser
-		// MCP clients running on the same machine.
-		if len(cfg.AllowedOrigins) == 0 {
-			cfg.AllowedOrigins = []string{"*"}
-		}
-	}
-	return httpsecurity.NewMiddleware(cfg)
-}
-
-// isLoopbackBindHost reports whether host (as configured via --host) only
-// binds to a loopback interface. Mirrors internal/config.isLoopbackBindHost
-// so the runtime middleware default can match the startup-time validator
-// without exporting an internal helper.
-func isLoopbackBindHost(host string) bool {
-	if host == "" || host == "localhost" {
-		return true
-	}
-	if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
-		return true
-	}
-	return false
+	logger.Infof("Listening for requests on STDIO...")
+	return server.ServeStdio(s.mcpServer)
 }
 
 // registerAzureComponents registers all Azure tools (AKS operations, monitoring, fleet, network, compute, detectors, advisor)
