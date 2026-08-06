@@ -152,10 +152,6 @@ func (s *Service) registerPrompts() {
 func (s *Service) Run() error {
 	logger.Infof("AKS MCP version: %s", version.GetVersion())
 
-	if s.cfg.Transport != "stdio" {
-		return fmt.Errorf("unsupported transport %q: only stdio is supported", s.cfg.Transport)
-	}
-
 	logger.Infof("Listening for requests on STDIO...")
 	return server.ServeStdio(s.mcpServer)
 }
