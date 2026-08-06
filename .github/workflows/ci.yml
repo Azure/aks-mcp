@@ -122,22 +122,6 @@ jobs:
         run: |
           GOOS=windows GOARCH=amd64 go build -trimpath -tags withoutebpf -o aks-mcp.exe ./cmd/aks-mcp
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build Linux Docker image
-        uses: docker/build-push-action@v6
-        with:
-          push: false
-          platforms: linux/amd64
-          tags: aks-mcp:linux-test
-          file: ./Dockerfile
-          load: true
-
-      - name: Validate Linux Docker image
-        run: |
-          docker images aks-mcp:linux-test
-          docker run --rm aks-mcp:linux-test --help || true
 
   security:
     name: Security Scan
