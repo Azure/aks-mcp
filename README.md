@@ -61,27 +61,12 @@ directly.
 - Authenticate with your own developer identity via `az login`.
 - Grant the identity only the Azure/Kubernetes permissions you actually need.
 
-### If you deploy remotely anyway
+### Unsupported deployment models
 
-The `sse` and `streamable-http` transports and the Helm chart exist for
-specific advanced scenarios, but they move AKS-MCP outside its intended usage.
-If you use them, **you own the resulting risk**, and you must at minimum:
-
-- **Require authentication.** Enable OAuth
-  (see [OAuth Authentication](docs/oauth-authentication.md)). Never expose an
-  unauthenticated endpoint.
-- **Restrict network exposure.** Do not publish the endpoint to the internet or
-  to a shared network. Bind to loopback, or place it behind network policy /
-  private networking so that only intended callers can reach it.
-- **Minimize the server identity's permissions.** Assume every caller inherits
-  them in full. Use a dedicated, least-privileged identity scoped to a single
-  subscription or resource group — never a broadly privileged one.
-- **Do not treat it as multi-tenant.** AKS-MCP cannot separate one caller's
-  authority from another's; all callers share the single server identity.
-
-Browser-originated requests are a particular concern: a malicious web page can
-attempt to reach a locally or privately bound HTTP endpoint. Authentication and
-network isolation are the mitigations.
+AKS-MCP supports only stdio and must be launched as a local subprocess by an
+MCP client. Do not expose it through HTTP, SSE, a container service, Helm,
+Kubernetes, a proxy, or a gateway. Any third-party bridge is outside the
+project's security and support boundary.
 
 ## How it works
 
