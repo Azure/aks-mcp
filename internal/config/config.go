@@ -23,6 +23,7 @@ import (
 // Can be disabled via DISABLE_CACHE environment variable
 var EnableCache = os.Getenv("DISABLE_CACHE") != "true"
 
+//nolint:unused // Retained until the follow-on configuration compatibility cleanup.
 func validateGUID(value, name string) error {
 	if value == "" {
 		return nil
@@ -179,6 +180,8 @@ func (cfg *ConfigData) ParseFlags() {
 
 // splitAndTrim splits raw on commas, trims whitespace, and drops empty entries.
 // Returns nil for empty input so a zero allowlist remains a zero allowlist.
+//
+//nolint:unused // Retained until the follow-on configuration compatibility cleanup.
 func splitAndTrim(raw string) []string {
 	if raw == "" {
 		return nil
@@ -197,6 +200,8 @@ func splitAndTrim(raw string) []string {
 }
 
 // parseOAuthConfig parses OAuth-related command line arguments
+//
+//nolint:unused // Retained until the follow-on configuration compatibility cleanup.
 func (cfg *ConfigData) parseOAuthConfig(additionalRedirectURIs, allowedCORSOrigins, oauthScopes string) error {
 	// Parse custom OAuth scopes if provided
 	if oauthScopes != "" {

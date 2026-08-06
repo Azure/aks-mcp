@@ -3,16 +3,16 @@ package auth
 // OAuthConfig is retained temporarily so command-line compatibility checks can
 // reject the removed HTTP-only OAuth options before server initialization.
 type OAuthConfig struct {
-	Enabled                 bool
-	TenantID                string
-	ClientID                string
-	ClientSecret            string
-	ExternalURL             string
-	OBOEnabled              bool
-	RequiredScopes          []string
-	RedirectURIs            []string
-	AllowedOrigins          []string
-	TokenValidation         TokenValidationConfig
+	Enabled         bool
+	TenantID        string
+	ClientID        string
+	ClientSecret    string // #nosec G117 -- retained only for removed HTTP OAuth compatibility code
+	ExternalURL     string
+	OBOEnabled      bool
+	RequiredScopes  []string
+	RedirectURIs    []string
+	AllowedOrigins  []string
+	TokenValidation TokenValidationConfig
 }
 
 type TokenValidationConfig struct {
