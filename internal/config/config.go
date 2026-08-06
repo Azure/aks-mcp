@@ -123,57 +123,19 @@ func NewConfig() *ConfigData {
 // ParseFlags parses command line arguments and updates the configuration
 func (cfg *ConfigData) ParseFlags() {
 	// Server configuration
-	flag.StringVar(&cfg.Transport, "transport", "stdio", "Transport mechanism to use (stdio, sse or streamable-http)")
-	flag.StringVar(&cfg.Host, "host", "127.0.0.1", "Host to listen for the server (only used with transport sse or streamable-http)")
-	flag.IntVar(&cfg.Port, "port", 8000, "Port to listen for the server (only used with transport sse or streamable-http)")
+	flag.StringVar(&cfg.Transport, "transport", "stdio", "Transport mechanism to use (stdio only)")
 	flag.IntVar(&cfg.Timeout, "timeout", 600, "Timeout for command execution in seconds, default is 600s")
 
 	// Security settings
 	flag.StringVar(&cfg.AccessLevel, "access-level", "readonly", "Access level (readonly, readwrite, admin)")
 
-	// OAuth configuration
-	flag.BoolVar(&cfg.OAuthConfig.Enabled, "oauth-enabled", false, "Enable OAuth authentication")
-	flag.StringVar(&cfg.OAuthConfig.TenantID, "oauth-tenant-id", "", "Azure AD tenant ID for OAuth (fallback to AZURE_TENANT_ID env var)")
-	flag.StringVar(&cfg.OAuthConfig.ClientID, "oauth-client-id", "", "Azure AD client ID for OAuth (fallback to AZURE_CLIENT_ID env var)")
-
-	// OAuth redirect URIs configuration
-	additionalRedirectURIs := flag.String("oauth-redirects", "",
-		"Comma-separated list of additional OAuth redirect URIs (e.g. http://localhost:8000/oauth/callback,http://localhost:6274/oauth/callback)")
-
-	// OAuth CORS origins configuration
-	allowedCORSOrigins := flag.String("oauth-cors-origins", "",
-		"Comma-separated list of allowed CORS origins for OAuth endpoints (e.g. http://localhost:6274). If empty, no cross-origin requests are allowed for security")
-
-	// OAuth external URL configuration
-	flag.StringVar(&cfg.OAuthConfig.ExternalURL, "oauth-external-url", "",
-		"External base URL of the server (e.g. https://aks-mcp.example.com). Required when behind a TLS-terminating reverse proxy to ensure OAuth metadata uses https:// URLs. Falls back to OAUTH_EXTERNAL_URL env var.")
-
-	// OAuth scopes configuration
-	oauthScopes := flag.String("oauth-scopes", "",
-		"Comma-separated list of OAuth scopes to require (e.g. api://your-app-id/.default). If empty, defaults to https://management.azure.com/.default")
-
-	// OBO configuration
-	flag.BoolVar(&cfg.OAuthConfig.OBOEnabled, "oauth-obo-enabled", false,
-		"Enable On-Behalf-Of token exchange: trades the user's MCP bearer token for an ARM token so tokenAuthOnly tools run as the calling user (requires AZURE_CLIENT_SECRET)")
-
 	// Component configuration
 	enabledComponents := flag.String("enabled-components", "",
 		"Comma-separated list of enabled components (empty means all components enabled). Available: az_cli,monitor,fleet,network,compute,detectors,advisor,inspektorgadget,kubectl,helm,cilium,hubble")
 
-	// HTTP transport security: DNS-rebinding / cross-origin protections
-	// (apply to streamable-http and sse transports only).
-	allowedHosts := flag.String("allowed-host", "",
-		"Comma-separated list of HTTP Host header values to accept on /mcp, /sse and /message. Empty means loopback only (localhost, 127.0.0.1, [::1]). Use '*' as an escape valve when behind a trusted reverse proxy. Required for non-loopback bindings when OAuth is disabled.")
-	trustedOrigins := flag.String("trusted-origin", "",
-		"Comma-separated list of HTTP Origin header values to accept on browser-style cross-origin requests to /mcp, /sse and /message (e.g. https://chat.example.com). Empty Origin headers from non-browser clients are always allowed. Use '*' to disable Origin enforcement entirely.")
-
 	// Kubernetes namespaces configuration
 	flag.StringVar(&cfg.AllowNamespaces, "allow-namespaces", "",
 		"Comma-separated list of allowed Kubernetes namespaces (empty means all namespaces)")
-
-	// Token-only authentication configuration
-	flag.BoolVar(&cfg.TokenAuthOnly, "token-auth-only", false,
-		"Enable token-only authentication mode for supported tools (e.g., kubectl uses Azure AKS RunCommand API with user-provided tokens instead of local kubeconfig)")
 
 	// Default AKS resource ID
 	flag.StringVar(&cfg.DefaultAKSResourceID, "default-aks-resource-id", "",
@@ -217,12 +179,6 @@ func (cfg *ConfigData) ParseFlags() {
 	cfg.SecurityConfig.AccessLevel = cfg.AccessLevel
 	cfg.SecurityConfig.AllowedNamespaces = cfg.AllowNamespaces
 
-	// Parse OAuth configuration
-	if err := cfg.parseOAuthConfig(*additionalRedirectURIs, *allowedCORSOrigins, *oauthScopes); err != nil {
-		fmt.Printf("OAuth configuration error: %v\n", err)
-		os.Exit(1)
-	}
-
 	// Fall back to environment variable for default AKS resource ID
 	if cfg.DefaultAKSResourceID == "" {
 		cfg.DefaultAKSResourceID = os.Getenv("AZURE_AKS_RESOURCE_ID")
@@ -239,9 +195,6 @@ func (cfg *ConfigData) ParseFlags() {
 		}
 	}
 
-	// Parse HTTP transport allowlists.
-	cfg.AllowedHosts = splitAndTrim(*allowedHosts)
-	cfg.AllowedOrigins = splitAndTrim(*trustedOrigins)
 }
 
 // splitAndTrim splits raw on commas, trims whitespace, and drops empty entries.
