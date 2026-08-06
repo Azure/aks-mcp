@@ -23,16 +23,13 @@ import (
 // Can be disabled via DISABLE_CACHE environment variable
 var EnableCache = os.Getenv("DISABLE_CACHE") != "true"
 
-// validateGUID validates that a value is in valid GUID format
 func validateGUID(value, name string) error {
 	if value == "" {
-		return nil // Empty values are allowed (will be handled by OAuth validation)
+		return nil
 	}
-
-	// GUID pattern: 8-4-4-4-12 hexadecimal digits with hyphens
 	guidRegex := regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 	if !guidRegex.MatchString(value) {
-		return fmt.Errorf("%s must be a valid GUID format (e.g., 12345678-1234-1234-1234-123456789abc), got: %s", name, value)
+		return fmt.Errorf("%s must be a valid GUID format, got: %s", name, value)
 	}
 	return nil
 }
@@ -76,27 +73,11 @@ type ConfigData struct {
 	// This flag is provided for backward compatibility and may be removed in future versions
 	UseLegacyTools bool
 
-	// TokenAuthOnly enables token-only authentication mode for tools that support it
-	// When enabled, supported tools (e.g., kubectl) are executed via Azure AKS RunCommand API using user-provided tokens
-	// When disabled (default), tools are executed locally with default authentication (e.g., kubeconfig for Kubernetes tools)
-	TokenAuthOnly bool
-
 	// DefaultAKSResourceID is the default AKS cluster resource ID used when aks_resource_id is not provided by the caller.
 	// Set via --default-aks-resource-id flag or AZURE_AKS_RESOURCE_ID environment variable.
 	DefaultAKSResourceID string
 
-	// AllowedHosts is the set of HTTP Host header values (with or without port)
-	// that the streamable-http / sse transports will accept. Empty means
-	// loopback-only (the safe default). The literal "*" disables Host
-	// enforcement entirely — only use behind a reverse proxy that validates
-	// Host on the operator's behalf.
-	AllowedHosts []string
-
-	// AllowedOrigins is the set of HTTP Origin header values that the
-	// streamable-http / sse transports will accept on browser-style cross
-	// origin requests. Empty Origin headers (non-browser callers) are always
-	// allowed. Empty list rejects every non-empty Origin. The literal "*"
-	// disables Origin enforcement entirely.
+	AllowedHosts   []string
 	AllowedOrigins []string
 }
 
@@ -114,7 +95,6 @@ func NewConfig() *ConfigData {
 		AllowNamespaces:   "",
 		LogLevel:          "info",
 		UseLegacyTools:    os.Getenv("USE_LEGACY_TOOLS") == "true",
-		TokenAuthOnly:     false,
 		AllowedHosts:      []string{},
 		AllowedOrigins:    []string{},
 	}
@@ -350,23 +330,9 @@ func (cfg *ConfigData) ValidateConfig() error {
 		return fmt.Errorf("OAuth authentication is not supported: this server supports stdio only")
 	}
 
-	if cfg.TokenAuthOnly {
-		return fmt.Errorf("token-only authentication is not supported: this server supports stdio only")
-	}
-
 	// Validate OAuth + transport compatibility
 	if cfg.OAuthConfig.Enabled && cfg.Transport == "stdio" {
 		return fmt.Errorf("OAuth authentication is not supported with stdio transport per MCP specification")
-	}
-
-	// Validate token-only authentication + stdio transport compatibility
-	if cfg.TokenAuthOnly && cfg.Transport == "stdio" {
-		return fmt.Errorf("token-only authentication mode (--token-auth-only) is not supported with stdio transport, use sse or streamable-http instead")
-	}
-
-	// Validate token-only authentication + legacy tools compatibility
-	if cfg.TokenAuthOnly && cfg.UseLegacyTools {
-		return fmt.Errorf("token-only authentication mode (--token-auth-only) requires unified tools and is not compatible with legacy tools (USE_LEGACY_TOOLS=true)")
 	}
 
 	// Refuse to start a publicly reachable streamable-http / sse listener

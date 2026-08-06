@@ -85,8 +85,7 @@ func (s *Service) initializeInfrastructure() error {
 	s.azClient = azClient
 	logger.Infof("Azure client initialized successfully")
 
-	// Ensure Azure CLI exists and is logged in
-	// Skip this step if token-auth-only mode is enabled, as Azure CLI authentication is not required
+	// Ensure Azure CLI exists and is logged in.
 	// Allow service to start even if az CLI is not available or authentication fails
 	// Tools that require az will fail at runtime with appropriate error messages
 	if s.azcliProcFactory != nil {
@@ -221,13 +220,8 @@ func (s *Service) registerKubernetesComponents() {
 	// Core Kubernetes Component (kubectl)
 	s.registerKubectlComponent()
 
-	// Do not register optional components in token-only authentication mode, they are not supported yet.
-	if s.cfg.TokenAuthOnly {
-		logger.Infof("Token-only authentication mode enabled - skipping optional Kubernetes component registration because they are not yet supported in token-only authentication mode")
-	} else {
-		// Optional Kubernetes Components (based on configuration)
-		s.registerOptionalKubernetesComponents()
-	}
+	// Optional Kubernetes Components (based on configuration)
+	s.registerOptionalKubernetesComponents()
 
 	logger.Infof("Kubernetes Components registered successfully")
 }
@@ -245,16 +239,12 @@ func (s *Service) registerKubectlComponent() {
 	}
 
 	// Get kubectl tools filtered by access level and tool type
-	kubectlTools := k8s.RegisterKubectlTools(s.cfg.AccessLevel, useUnifiedTool, s.cfg.TokenAuthOnly, s.cfg.DefaultAKSResourceID)
+	kubectlTools := k8s.RegisterKubectlTools(s.cfg.AccessLevel, useUnifiedTool)
 
 	// Create a kubectl executor
 	kubectlExecutor := kubectl.NewKubectlToolExecutor()
 
-	// Wrap the executor with token-only authentication support if enabled
-	wrappedExecutor := k8s.WrapK8sExecutor(kubectlExecutor, s.cfg.TokenAuthOnly)
-	if s.cfg.TokenAuthOnly {
-		logger.Infof("Token-only authentication mode enabled: supported tools will use Azure AKS RunCommand API with user-provided tokens")
-	}
+	wrappedExecutor := k8s.WrapK8sExecutor(kubectlExecutor)
 
 	// Register each kubectl tool
 	for _, tool := range kubectlTools {
@@ -380,7 +370,7 @@ func (s *Service) registerDetectorComponent() {
 func (s *Service) registerHelmComponent() {
 	logger.Debugf("Registering Kubernetes tool: helm")
 	helmTool := helm.RegisterHelm()
-	helmExecutor := k8s.WrapK8sExecutor(helm.NewExecutor(), false)
+	helmExecutor := k8s.WrapK8sExecutor(helm.NewExecutor())
 	s.mcpServer.AddTool(helmTool, tools.CreateToolHandler(helmExecutor, s.cfg))
 }
 
@@ -388,7 +378,7 @@ func (s *Service) registerHelmComponent() {
 func (s *Service) registerCiliumComponent() {
 	logger.Debugf("Registering Kubernetes tool: cilium")
 	ciliumTool := cilium.RegisterCilium()
-	ciliumExecutor := k8s.WrapK8sExecutor(cilium.NewExecutor(), false)
+	ciliumExecutor := k8s.WrapK8sExecutor(cilium.NewExecutor())
 	s.mcpServer.AddTool(ciliumTool, tools.CreateToolHandler(ciliumExecutor, s.cfg))
 }
 
@@ -396,7 +386,7 @@ func (s *Service) registerCiliumComponent() {
 func (s *Service) registerHubbleComponent() {
 	logger.Debugf("Registering Kubernetes tool: hubble")
 	hubbleTool := hubble.RegisterHubble()
-	hubbleExecutor := k8s.WrapK8sExecutor(hubble.NewExecutor(), false)
+	hubbleExecutor := k8s.WrapK8sExecutor(hubble.NewExecutor())
 	s.mcpServer.AddTool(hubbleTool, tools.CreateToolHandler(hubbleExecutor, s.cfg))
 }
 

@@ -90,12 +90,6 @@ Examples:
 	)
 }
 
-func RegisterKubectlTools(accessLevel string, useUnifiedTool bool, tokenAuthOnly bool, defaultAKSResourceID string) []mcp.Tool {
-	if tokenAuthOnly {
-		return []mcp.Tool{
-			createCallKubectlTool(accessLevel, defaultAKSResourceID),
-		}
-	}
-
+func RegisterKubectlTools(accessLevel string, useUnifiedTool bool) []mcp.Tool {
 	return kubectl.RegisterKubectlTools(accessLevel, useUnifiedTool)
 }
