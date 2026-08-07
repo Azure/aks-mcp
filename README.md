@@ -46,23 +46,18 @@ caller.
 **Treat the ability to call AKS-MCP as equivalent to handing over a shell that
 is already logged in as the server identity.**
 
-### What stdio-only changes — and what it does not
+### Network exposure and local authority
 
 Removing HTTP/SSE transports and the official remote deployment artifacts
 removes the supported network-reachable service and its remote-caller threat
 model. In the supported configuration, AKS-MCP has no listener that accepts
 requests from the network.
 
-This does **not** turn the local MCP client, its prompts, or `--access-level`
-into an authorization boundary. A person or process that can control the local
-MCP client, its server configuration, or the local AKS-MCP process can normally
-run the same `az`, `kubectl`, `helm`, `cilium`, and `hubble` commands under the
-same local identity without AKS-MCP. AKS-MCP does not add authority beyond that
-local CLI identity, and it does not claim to isolate an untrusted local caller
-from that identity.
-
-Protecting the workstation, the MCP client configuration, and the credentials
-available to the local process remains the operator's responsibility.
+This does **not** make the local MCP client, its prompts, or `--access-level`
+an authorization boundary. A person or process that controls the local client,
+its server configuration, or AKS-MCP can normally run the same CLI commands
+under the same identity without AKS-MCP. Protecting the workstation, client
+configuration, and local credentials remains the operator's responsibility.
 
 ### What `--access-level` is and is not
 
