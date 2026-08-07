@@ -46,6 +46,24 @@ caller.
 **Treat the ability to call AKS-MCP as equivalent to handing over a shell that
 is already logged in as the server identity.**
 
+### What stdio-only changes — and what it does not
+
+Removing HTTP/SSE transports and the official remote deployment artifacts
+removes the supported network-reachable service and its remote-caller threat
+model. In the supported configuration, AKS-MCP has no listener that accepts
+requests from the network.
+
+This does **not** turn the local MCP client, its prompts, or `--access-level`
+into an authorization boundary. A person or process that can control the local
+MCP client, its server configuration, or the local AKS-MCP process can normally
+run the same `az`, `kubectl`, `helm`, `cilium`, and `hubble` commands under the
+same local identity without AKS-MCP. AKS-MCP does not add authority beyond that
+local CLI identity, and it does not claim to isolate an untrusted local caller
+from that identity.
+
+Protecting the workstation, the MCP client configuration, and the credentials
+available to the local process remains the operator's responsibility.
+
 ### What `--access-level` is and is not
 
 `--access-level` (`readonly` / `readwrite` / `admin`) is a **guardrail to reduce
@@ -553,28 +571,6 @@ If you see "spawn ENOENT" errors, verify your VS Code environment:
 </details>
 
 > **💡 Benefits**: The AKS extension handles binary downloads, updates, and configuration automatically, ensuring you always have the latest version with optimal settings.
-
-
-### Deploy the MCP server in-cluster (Remote MCP)
-
-> **Outside the supported deployment model.** In-cluster / remote deployment
-> is not the intended usage of AKS-MCP and is not hardened for it. Every caller
-> that can reach the endpoint inherits the full Azure and Kubernetes privileges
-> of the server identity. `--access-level` and the credential-command denylist
-> reduce accidental damage but are not security boundaries against a malicious
-> caller. If you proceed, you must enable OAuth,
-> restrict network reachability, and use a dedicated least-privileged identity.
-> See [Supported Deployment Model and Security Considerations](#supported-deployment-model-and-security-considerations).
-
-<details>
-<summary> Remote MCP Installation </summary>
-To enable the remote AKS MCP server in your AKS cluster, see the instructions below:
-
-1. Helm chart installation with OAuth-based access: [Helm Chart](https://github.com/Azure/aks-mcp/tree/main/chart)
-
-2. Helm chart installation with RBAC (Workload Identity): [Blog Post - Deploy AKS MCP server with Workload Identity](https://blog.aks.azure.com/2025/10/22/deploy-mcp-server-aks-workload-identity)
-   
-</details>
 
 
 ### Alternative Installation Methods
