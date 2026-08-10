@@ -85,9 +85,9 @@ func (s *Service) initializeInfrastructure() error {
 	s.azClient = azClient
 	logger.Infof("Azure client initialized successfully")
 
-	// Ensure Azure CLI exists and is logged in.
-	// Allow service to start even if az CLI is not available or authentication fails
-	// Tools that require az will fail at runtime with appropriate error messages
+	// Validation has already confirmed that the Azure CLI is installed when the
+	// az_cli component is enabled. A failed login is non-fatal so components
+	// that do not require Azure CLI credentials remain available.
 	if s.azcliProcFactory != nil {
 		// Use injected factory to create an azcli.Proc
 		proc := s.azcliProcFactory(s.cfg.Timeout)
