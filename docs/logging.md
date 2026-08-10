@@ -70,7 +70,7 @@ When you run MCP tools through VS Code, logs will appear in:
 ### In Terminal
 If you run the MCP server directly:
 ```bash
-./aks-mcp.exe --transport stdio 2>debug.log
+./aks-mcp.exe 2>debug.log
 ```
 
 ### In Production

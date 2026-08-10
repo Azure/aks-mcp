@@ -533,8 +533,8 @@ The MCP configuration differs depending on whether VS Code is running on Windows
       "command": "wsl",
       "args": [
         "--",
-        "/home/you/.vs-kubernetes/tools/aks-mcp/aks-mcp",
-        ]
+        "/home/you/.vs-kubernetes/tools/aks-mcp/aks-mcp"
+      ]
     }
   }
 }

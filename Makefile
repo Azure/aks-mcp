@@ -167,7 +167,6 @@ info: ## Show build information
 	@echo "Shell: $(SHELL) $(SHELLFLAGS)"
 	@echo "Binary Name: $(BINARY_NAME)"
 	@echo "Main Path: $(MAIN_PATH)"
-	@echo "Docker Image: $(DOCKER_IMAGE):$(DOCKER_TAG)"
 	@echo "CGO Enabled: $(CGO_ENABLED)"
 	@echo "LDFLAGS: $(LDFLAGS)"
 
