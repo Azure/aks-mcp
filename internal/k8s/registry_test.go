@@ -114,34 +114,3 @@ func TestCreateCallKubectlTool_Name(t *testing.T) {
 		t.Errorf("expected tool name call_kubectl, got %q", tool.Name)
 	}
 }
-
-func TestRegisterKubectlTools_TokenAuthOnly(t *testing.T) {
-	tools := RegisterKubectlTools("readonly", true, true, "")
-	if len(tools) != 1 {
-		t.Fatalf("expected 1 tool in tokenAuthOnly mode, got %d", len(tools))
-	}
-	if tools[0].Name != "call_kubectl" {
-		t.Errorf("expected call_kubectl, got %q", tools[0].Name)
-	}
-}
-
-func TestRegisterKubectlTools_TokenAuthOnly_WithDefault(t *testing.T) {
-	defaultID := "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/cluster"
-	tools := RegisterKubectlTools("readonly", true, true, defaultID)
-
-	if len(tools) != 1 {
-		t.Fatalf("expected 1 tool, got %d", len(tools))
-	}
-
-	schemaBytes, _ := json.Marshal(tools[0].InputSchema)
-	var schema struct {
-		Required []string `json:"required"`
-	}
-	_ = json.Unmarshal(schemaBytes, &schema)
-
-	for _, r := range schema.Required {
-		if r == "aks_resource_id" {
-			t.Error("aks_resource_id should be optional when default resource ID is provided")
-		}
-	}
-}

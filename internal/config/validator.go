@@ -96,23 +96,12 @@ func (v *Validator) validateComponents() bool {
 	return true
 }
 
-// validateConfig checks configuration compatibility
-func (v *Validator) validateConfig() bool {
-	if err := v.config.ValidateConfig(); err != nil {
-		v.errors = append(v.errors, err.Error())
-		return false
-	}
-	return true
-}
-
 // Validate runs all validation checks
 func (v *Validator) Validate() bool {
 	// Run all validation checks
 	validComponents := v.validateComponents()
 	validCli := v.validateCli()
-	validConfig := v.validateConfig()
-
-	return validComponents && validCli && validConfig
+	return validComponents && validCli
 }
 
 // GetErrors returns all errors found during validation
