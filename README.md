@@ -46,6 +46,19 @@ caller.
 **Treat the ability to call AKS-MCP as equivalent to handing over a shell that
 is already logged in as the server identity.**
 
+### Network exposure and local authority
+
+Removing HTTP/SSE transports and the official remote deployment artifacts
+removes the supported network-reachable service and its remote-caller threat
+model. In the supported configuration, AKS-MCP has no listener that accepts
+requests from the network.
+
+This does **not** make the local MCP client, its prompts, or `--access-level`
+an authorization boundary. A person or process that controls the local client,
+its server configuration, or AKS-MCP can normally run the same CLI commands
+under the same identity without AKS-MCP. Protecting the workstation, client
+configuration, and local credentials remains the operator's responsibility.
+
 ### What `--access-level` is and is not
 
 `--access-level` (`readonly` / `readwrite` / `admin`) is a **guardrail to reduce
@@ -57,31 +70,16 @@ directly.
 
 ### Recommended (supported) setup
 
-- Run with `--transport stdio`, launched on demand by your local MCP client.
+- Run as a local subprocess, launched on demand by your local MCP client.
 - Authenticate with your own developer identity via `az login`.
 - Grant the identity only the Azure/Kubernetes permissions you actually need.
 
-### If you deploy remotely anyway
+### Unsupported deployment models
 
-The `sse` and `streamable-http` transports and the Helm chart exist for
-specific advanced scenarios, but they move AKS-MCP outside its intended usage.
-If you use them, **you own the resulting risk**, and you must at minimum:
-
-- **Require authentication.** Enable OAuth
-  (see [OAuth Authentication](docs/oauth-authentication.md)). Never expose an
-  unauthenticated endpoint.
-- **Restrict network exposure.** Do not publish the endpoint to the internet or
-  to a shared network. Bind to loopback, or place it behind network policy /
-  private networking so that only intended callers can reach it.
-- **Minimize the server identity's permissions.** Assume every caller inherits
-  them in full. Use a dedicated, least-privileged identity scoped to a single
-  subscription or resource group — never a broadly privileged one.
-- **Do not treat it as multi-tenant.** AKS-MCP cannot separate one caller's
-  authority from another's; all callers share the single server identity.
-
-Browser-originated requests are a particular concern: a malicious web page can
-attempt to reach a locally or privately bound HTTP endpoint. Authentication and
-network isolation are the mitigations.
+AKS-MCP supports only stdio and must be launched as a local subprocess by an
+MCP client. Do not expose it through HTTP, SSE, a container service, Helm,
+Kubernetes, a proxy, or a gateway. Any third-party bridge is outside the
+project's security and support boundary.
 
 ## How it works
 
@@ -136,8 +134,6 @@ Some tools will require read-write or admin permissions to run debugging pods on
 For example:
 ```
 "args": [
-  "--transport",
-  "stdio",
   "--access-level",
   "readwrite"
 ]
@@ -537,9 +533,7 @@ The MCP configuration differs depending on whether VS Code is running on Windows
       "command": "wsl",
       "args": [
         "--",
-        "/home/you/.vs-kubernetes/tools/aks-mcp/aks-mcp",
-        "--transport",
-        "stdio"
+        "/home/you/.vs-kubernetes/tools/aks-mcp/aks-mcp"
       ]
     }
   }
@@ -556,7 +550,7 @@ The MCP configuration differs depending on whether VS Code is running on Windows
       "command": "bash",
       "args": [
         "-c",
-        "/home/you/.vs-kubernetes/tools/aks-mcp/aks-mcp --transport stdio"
+        "/home/you/.vs-kubernetes/tools/aks-mcp/aks-mcp"
       ]
     }
   }
@@ -572,28 +566,6 @@ If you see "spawn ENOENT" errors, verify your VS Code environment:
 </details>
 
 > **💡 Benefits**: The AKS extension handles binary downloads, updates, and configuration automatically, ensuring you always have the latest version with optimal settings.
-
-
-### Deploy the MCP server in-cluster (Remote MCP)
-
-> **Outside the supported deployment model.** In-cluster / remote deployment
-> is not the intended usage of AKS-MCP and is not hardened for it. Every caller
-> that can reach the endpoint inherits the full Azure and Kubernetes privileges
-> of the server identity. `--access-level` and the credential-command denylist
-> reduce accidental damage but are not security boundaries against a malicious
-> caller. If you proceed, you must enable OAuth,
-> restrict network reachability, and use a dedicated least-privileged identity.
-> See [Supported Deployment Model and Security Considerations](#supported-deployment-model-and-security-considerations).
-
-<details>
-<summary> Remote MCP Installation </summary>
-To enable the remote AKS MCP server in your AKS cluster, see the instructions below:
-
-1. Helm chart installation with OAuth-based access: [Helm Chart](https://github.com/Azure/aks-mcp/tree/main/chart)
-
-2. Helm chart installation with RBAC (Workload Identity): [Blog Post - Deploy AKS MCP server with Workload Identity](https://blog.aks.azure.com/2025/10/22/deploy-mcp-server-aks-workload-identity)
-   
-</details>
 
 
 ### Alternative Installation Methods
@@ -627,14 +599,14 @@ and create the configuration:
 
 ```powershell
 # Download binary and create VS Code configuration
-mkdir -p .vscode ; Invoke-WebRequest -Uri "https://github.com/Azure/aks-mcp/releases/latest/download/aks-mcp-windows-amd64.exe" -OutFile "aks-mcp.exe" ; @{servers=@{"aks-mcp-server"=@{type="stdio";command="$PWD\aks-mcp.exe";args=@("--transport","stdio")}}} | ConvertTo-Json -Depth 3 | Out-File ".vscode/mcp.json" -Encoding UTF8
+mkdir -p .vscode ; Invoke-WebRequest -Uri "https://github.com/Azure/aks-mcp/releases/latest/download/aks-mcp-windows-amd64.exe" -OutFile "aks-mcp.exe" ; @{servers=@{"aks-mcp-server"=@{type="stdio";command="$PWD\aks-mcp.exe";args=@()}}} | ConvertTo-Json -Depth 3 | Out-File ".vscode/mcp.json" -Encoding UTF8
 ```
 
 *macOS/Linux (Bash):*
 
 ```bash
 # Download binary and create VS Code configuration
-mkdir -p .vscode && curl -sL https://github.com/Azure/aks-mcp/releases/latest/download/aks-mcp-linux-amd64 -o aks-mcp && chmod +x aks-mcp && echo '{"servers":{"aks-mcp-server":{"type":"stdio","command":"'$PWD'/aks-mcp","args":["--transport","stdio"]}}}' > .vscode/mcp.json
+mkdir -p .vscode && curl -sL https://github.com/Azure/aks-mcp/releases/latest/download/aks-mcp-linux-amd64 -o aks-mcp && chmod +x aks-mcp && echo '{"servers":{"aks-mcp-server":{"type":"stdio","command":"'$PWD'/aks-mcp","args":[]}}}' > .vscode/mcp.json
 ```
 
 ##### Option B: Manual Configuration
@@ -655,9 +627,7 @@ Create a `.vscode/mcp.json` file in your workspace with the path to your downloa
     "aks-mcp-server": {
       "type": "stdio",
       "command": "<enter the file path>",
-      "args": [
-        "--transport", "stdio"
-      ]
+      "args": []
     }
   }
 }
@@ -677,9 +647,7 @@ For a persistent configuration that works across all your VS Code workspaces, ad
     "aks-mcp-server": {
       "type": "stdio",
       "command": "<enter the file path>",
-      "args": [
-        "--transport", "stdio"
-      ]
+      "args": []
     }
   }
 }
@@ -704,7 +672,7 @@ For a persistent configuration that works across all your VS Code workspaces, ad
 ### Other MCP-Compatible Clients
 
 <details>
-<summary>Docker and Custom Client Installation</summary>
+<summary>Custom Client Installation</summary>
 
 For other MCP-compatible AI clients like [Claude Desktop](https://claude.ai/) or [GitHub Copilot CLI](https://docs.github.com/en/copilot/concepts/agents/about-copilot-cli), configure the server in your MCP configuration:
 
@@ -713,120 +681,11 @@ For other MCP-compatible AI clients like [Claude Desktop](https://claude.ai/) or
   "mcpServers": {
     "aks": {
       "command": "<path of binary aks-mcp>",
-      "args": [
-        "--transport", "stdio"
-      ]
+      "args": []
     }
   }
 }
 ```
-
-#### 🐳 Docker MCP Toolkit
-
-You can enable the [AKS-MCP server directly from MCP Toolkit](https://hub.docker.com/mcp/server/aks/overview):
-
-1. Open Docker Desktop
-2. Click "MCP Toolkit" in the left sidebar
-3. Search for "aks" in Catalog tab
-4. Click on the AKS-MCP server card
-5. Enable the server by clicking "+" in the top right corner
-6. Configure the server using "Configuration" tab:
-   - **azure_dir** `[REQUIRED]`: Path to your Azure credentials directory e.g `/home/user/.azure` (must be absolute – without `$HOME` or `~`)
-   - **kubeconfig** `[REQUIRED]`: Path to your kubeconfig file e.g `/home/user/.kube/config` (must be absolute – without `$HOME` or `~`)
-   - **access_level** `[REQUIRED]`: Set to `readonly`, `readwrite`, or `admin` as needed
-   - **container_user** `[OPTIONAL]`: Username or UID to run the container as (default is `mcp`), e.g. use `1000` to match your host user ID (see note below). Only needed if you are using docker engine on Linux.
-7. You are now ready to use the AKS-MCP server with your [preferred MCP client](https://hub.docker.com/mcp/server/aks/manual), see an example [here](https://docs.docker.com/ai/mcp-catalog-and-toolkit/toolkit/#install-an-mcp-client). (requires `>= v0.16.0` for MCP gateway)
-
-> **Note**: When running the MCP gateway using Docker Engine, you have to set the `container_user` to match your host user ID (e.g using `id -u`) to ensure proper file permissions for accessing mounted volumes.
-> On Docker Desktop, this is handled automatically if you use `desktop-*` contexts, confirmed by running `docker context ls`.
-
-On **Windows**, the Azure credentials won't work by default, but you have two options:
-
-1. **Long-lived servers**: Configure the [MCP gateway](https://docs.docker.com/ai/mcp-gateway/) to use long-lived servers using `--long-lived` flag and then authenticate with Azure CLI in the container, see option B in Containerized MCP configuration below on how to fetch credentials inside the container. 
-2. **Custom Azure Directory**: Set up a custom Azure directory:
-    ```powershell
-    # Set custom Azure config directory
-    $env:AZURE_CONFIG_DIR = "$env:USERPROFILE\.azure-for-docker"
-    
-    # Disable token cache encryption (to match behavior with Linux/macOS)
-    $env:AZURE_CORE_ENCRYPT_TOKEN_CACHE = "false"
-    
-    # Login to Azure CLI
-    az login
-    ```
-
-   This will store the credentials in `$env:USERPROFILE\.azure-for-docker` (e.g. `C:\Users\<username>\.azure-for-docker`),
-   use this path in the AKS-MCP server configuration `azure_dir`.
-
-You can also use the [MCP Gateway](https://docs.docker.com/ai/mcp-gateway/) to enable the AKS-MCP server directly using:
-
-```bash
-# Enable AKS-MCP server in Docker MCP Gateway
-docker mcp server enable aks
-```
-
-Note: You still need to configure the server (e.g. using `docker mcp config`) with your Azure credentials, kubeconfig file, and access level.
-
-#### 🐋 Containerized MCP configuration
-
-For containerized deployment, you can run AKS-MCP server using the official Docker image:
-
-Option A: Mount credentials from host (recommended):
-
-```json
-{
-  "mcpServers": {
-    "aks": {
-      "type": "stdio",
-      "command": "docker",
-      "args": [
-          "run",
-          "-i",
-          "--rm",
-          "--user",
-          "<your-user-id (e.g. id -u)>",
-          "-v",
-          "~/.azure:/home/mcp/.azure",
-          "-v",
-          "~/.kube:/home/mcp/.kube",
-          "ghcr.io/azure/aks-mcp:latest",
-          "--transport",
-          "stdio"
-        ]
-    }
-  }
-}
-```
-
-Option B: fetch the credentials inside the container:
-
-```json
-{
-  "mcpServers": {
-    "aks": {
-      "type": "stdio",
-      "command": "docker",
-      "args": [
-          "run",
-          "-i",
-          "--rm",
-          "ghcr.io/azure/aks-mcp:latest",
-          "--transport",
-          "stdio"
-        ]
-    }
-  }
-}
-```
-
-Start the MCP server container first per above command, and then run the following commands to fetch the credentials:
-- Login to Azure CLI: `docker exec -it <container-id> az login --use-device-code`
-- Get kubeconfig: `docker exec -it <container-id> az aks get-credentials -g <resource-group> -n <cluster-name>`
-
-Note that:
-
-- Host Azure CLI logins don’t automatically propagate into containers without mounting `~/.azure`.
-- User ID should be set for option A, orelse the mcp user inside container won't be able to access the mounted files.
 
 ### 🤖 Custom MCP Client Installation
 
@@ -834,7 +693,7 @@ You can configure any MCP-compatible client to use the AKS-MCP server by running
 
 ```bash
 # Run the server directly
-./aks-mcp --transport stdio
+./aks-mcp
 ```
 
 ### 🔧 Manual Binary Installation
@@ -860,11 +719,8 @@ Usage of ./aks-mcp:
       --access-level string       Access level (readonly, readwrite, admin) (default "readonly")
       --enabled-components string Comma-separated list of enabled components (empty means all components enabled). Available: az_cli,monitor,fleet,network,compute,detectors,advisor,inspektorgadget,kubectl,helm,cilium,hubble
       --allow-namespaces string   Comma-separated list of allowed Kubernetes namespaces (empty means all namespaces)
-      --host string               Host to listen for the server (only used with transport sse or streamable-http) (default "127.0.0.1")
-      --otlp-endpoint string      OTLP endpoint for OpenTelemetry traces (e.g. localhost:4317, default "")
-      --port int                  Port to listen for the server (only used with transport sse or streamable-http) (default 8000)
+      --otlp-endpoint string      OTLP endpoint for OpenTelemetry traces (e.g. localhost:4317)
       --timeout int               Timeout for command execution in seconds, default is 600s (default 600)
-      --transport string          Transport mechanism to use (stdio, sse or streamable-http) (default "stdio")
       --log-level string          Log level (debug, info, warn, error) (default "info")
 ```
 
@@ -881,7 +737,6 @@ Usage of ./aks-mcp:
 - **Go** ≥ `1.24.x` installed on your local machine
 - **Bash** available as `/usr/bin/env bash` (Makefile targets use multi-line recipes with fail-fast mode)
 - **GNU Make** `4.x` or later
-- **Docker** *(optional, for container builds and testing)*
 
 > **Note:** If your login shell is different (e.g., `zsh` on **macOS**), you do **not** need to change it — the Makefile sets variables to run all recipes in `bash` for consistent behavior across platforms.
 
@@ -926,16 +781,6 @@ make clean
 
 # Install binary to GOBIN
 make install
-```
-
-#### Docker
-
-```bash
-# Build Docker image
-make docker-build
-
-# Run Docker container
-make docker-run
 ```
 
 ### Manual Build

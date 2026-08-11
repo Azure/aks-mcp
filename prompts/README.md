@@ -57,7 +57,7 @@ The prompts in this folder are designed to test and validate the following AKS-M
 
 #### MCP Server Framework
 - Model Context Protocol server implementation
-- Multiple transport support (stdio, SSE, streamable-http)
+- Stdio transport support
 - Dynamic tool registration based on access level
 - AI assistant integration (VS Code Copilot, Claude, etc.)
 
@@ -99,4 +99,3 @@ When adding new prompt files to this folder:
 3. **Provide expected behaviors**: Document what responses are expected for each prompt
 4. **Add prerequisites**: List any required setup, permissions, or resources
 5. **Update this README**: Add the new file to the "Existing Files" section above
-
