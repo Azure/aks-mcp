@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"os/exec"
 	"strings"
 	"testing"
 )
@@ -47,4 +49,79 @@ func TestParseFlagsRejectsRemoteTransportAndListenerOptions(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestParseFlagsObservableOutcomes(t *testing.T) {
+	tests := []struct {
+		name       string
+		args       []string
+		wantExit   int
+		wantOutput []string
+	}{
+		{
+			name:       "help",
+			args:       []string{"--help"},
+			wantExit:   0,
+			wantOutput: []string{"Usage of aks-mcp:", "--transport string", "stdio only"},
+		},
+		{
+			name:       "version",
+			args:       []string{"--version"},
+			wantExit:   0,
+			wantOutput: []string{"aks-mcp version", "Git commit:", "Platform:"},
+		},
+		{
+			name:       "unsupported transport",
+			args:       []string{"--transport=sse"},
+			wantExit:   1,
+			wantOutput: []string{`unsupported transport "sse": only stdio is supported`, "Usage of aks-mcp:", "--transport string"},
+		},
+		{
+			name:       "removed listener option",
+			args:       []string{"--host=127.0.0.1"},
+			wantExit:   1,
+			wantOutput: []string{"unknown flag: --host", "Usage of aks-mcp:"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			args := append([]string{"-test.run=TestParseFlagsProcess", "--"}, tt.args...)
+			command := exec.Command(os.Args[0], args...)
+			command.Env = append(os.Environ(), "GO_WANT_PARSE_FLAGS_PROCESS=1")
+			output, err := command.CombinedOutput()
+
+			if tt.wantExit == 0 {
+				if err != nil {
+					t.Fatalf("ParseFlags(%q) returned error: %v\n%s", tt.args, err, output)
+				}
+			} else {
+				exitErr, ok := err.(*exec.ExitError)
+				if !ok || exitErr.ExitCode() != tt.wantExit {
+					t.Fatalf("ParseFlags(%q) exit error = %v, want exit code %d\n%s", tt.args, err, tt.wantExit, output)
+				}
+			}
+			for _, want := range tt.wantOutput {
+				if !strings.Contains(string(output), want) {
+					t.Errorf("ParseFlags(%q) output does not contain %q:\n%s", tt.args, want, output)
+				}
+			}
+		})
+	}
+}
+
+func TestParseFlagsProcess(t *testing.T) {
+	if os.Getenv("GO_WANT_PARSE_FLAGS_PROCESS") != "1" {
+		return
+	}
+
+	separator := 0
+	for i, arg := range os.Args {
+		if arg == "--" {
+			separator = i
+			break
+		}
+	}
+	os.Args = append([]string{"aks-mcp"}, os.Args[separator+1:]...)
+	NewConfig().ParseFlags()
 }
