@@ -22,11 +22,9 @@ This guide will help you query AKS cluster metadata (subscriptionID, resourceGro
 
 ### 1. Retrieve the control plane FQDN:
 
-Invoke the kubectl_cluster MCP tool with inputs:
+Invoke the call_kubectl MCP tool with inputs:
 	{
-		"operation": "cluster-info",
-		"resource": "",
-		"args": ""
+		"command": "kubectl cluster-info"
 	}
 
 
@@ -34,10 +32,9 @@ This will show the Kubernetes control plane endpoint URL (FQDN).
 
 ### 2. List available AKS clusters in your subscription
 
-Invoke the az_aks_operations MCP tool with inputs:
+Invoke the call_az MCP tool with inputs:
 	{
-		"operation": "list",
-		"args": "--query "[].{id:id, fqdn:fqdn}" -o json"
+		"cli_command": "az aks list --query \"[].{id:id, fqdn:fqdn}\" -o json"
 	}
 
 This will show all the AKS clusters (in JSON format) in user pre-configured subscription.

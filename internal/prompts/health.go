@@ -21,19 +21,16 @@ This guide performs a thorough health evaluation of your AKS cluster across mult
 ## Steps
 
 ### 1. Retrieve Control Plane FQDN
-Invoke kubectl_cluster tool:
+Invoke call_kubectl tool:
 {
-  "operation": "cluster-info",
-  "resource": "",
-  "args": ""
+  "command": "kubectl cluster-info"
 }
 Extract the Kubernetes control plane endpoint URL (FQDN) for cluster identification.
 
 ### 2. Identify AKS Cluster Metadata
-Invoke az_aks_operations tool:
+Invoke call_az tool:
 {
-  "operation": "list",
-  "args": "--query \"[].{id:id, fqdn:fqdn, resourceGroup:resourceGroup, name:name}\" -o json"
+  "cli_command": "az aks list --query \"[].{id:id, fqdn:fqdn, resourceGroup:resourceGroup, name:name}\" -o json"
 }
 Match the control plane FQDN from Step 1 with the cluster list to determine subscription ID, resource group, and cluster name. Extract the full AKS resource ID for subsequent steps.
 
@@ -49,9 +46,10 @@ Invoke aks_monitoring tool:
 Analyze: Identify any Azure platform incidents, service health issues, or resource degradation events that may impact cluster availability.
 
 ### 4. Run Cluster and Control Plane Availability Detectors
-Invoke run_detectors_by_category tool:
+Invoke aks_detector tool:
 {
-  "cluster_resource_id": "<AKS_RESOURCE_ID>",
+  "operation": "run_by_category",
+  "aks_resource_id": "<AKS_RESOURCE_ID>",
   "category": "Cluster and Control Plane Availability and Performance",
   "start_time": "<ISO8601_START>",
   "end_time": "<ISO8601_END>"
@@ -59,9 +57,10 @@ Invoke run_detectors_by_category tool:
 Analyze: Review API server responsiveness, control plane scaling issues, etcd health, and cluster networking performance problems.
 
 ### 5. Run Node Health Detectors
-Invoke run_detectors_by_category tool:
+Invoke aks_detector tool:
 {
-  "cluster_resource_id": "<AKS_RESOURCE_ID>",
+  "operation": "run_by_category",
+  "aks_resource_id": "<AKS_RESOURCE_ID>",
   "category": "Node Health",
   "start_time": "<ISO8601_START>",
   "end_time": "<ISO8601_END>"
@@ -69,9 +68,10 @@ Invoke run_detectors_by_category tool:
 Analyze: Examine node readiness issues, kubelet problems, container runtime health, disk pressure, memory pressure, and node pool scaling issues.
 
 ### 6. Run Connectivity Issue Detectors
-Invoke run_detectors_by_category tool:
+Invoke aks_detector tool:
 {
-  "cluster_resource_id": "<AKS_RESOURCE_ID>",
+  "operation": "run_by_category",
+  "aks_resource_id": "<AKS_RESOURCE_ID>",
   "category": "Connectivity Issues",
   "start_time": "<ISO8601_START>",
   "end_time": "<ISO8601_END>"

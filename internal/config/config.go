@@ -47,31 +47,44 @@ func NewConfig() *ConfigData {
 
 // ParseFlags parses command line arguments and updates the configuration.
 func (cfg *ConfigData) ParseFlags() {
-	flag.IntVar(&cfg.Timeout, "timeout", 600, "Timeout for command execution in seconds, default is 600s")
-	flag.StringVar(&cfg.AccessLevel, "access-level", "readonly", "Access level (readonly, readwrite, admin)")
-	enabledComponents := flag.String("enabled-components", "", "Comma-separated list of enabled components (empty means all components enabled). Available: az_cli,monitor,fleet,network,compute,detectors,advisor,inspektorgadget,kubectl,helm,cilium,hubble")
-	flag.StringVar(&cfg.AllowNamespaces, "allow-namespaces", "", "Comma-separated list of allowed Kubernetes namespaces (empty means all namespaces)")
-	flag.StringVar(&cfg.DefaultAKSResourceID, "default-aks-resource-id", "", "Default AKS cluster resource ID used when aks_resource_id is not supplied by the caller (e.g. /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.ContainerService/managedClusters/{cluster}). Falls back to AZURE_AKS_RESOURCE_ID env var.")
-	flag.StringVar(&cfg.LogLevel, "log-level", "info", "Log level (debug, info, warn, error)")
-	flag.StringVar(&cfg.OTLPEndpoint, "otlp-endpoint", "", "OTLP endpoint for OpenTelemetry traces (e.g. localhost:4317)")
-
-	var showHelp bool
-	flag.BoolVarP(&showHelp, "help", "h", false, "Show help message")
-	showVersion := flag.Bool("version", false, "Show version information and exit")
-
-	if err := flag.CommandLine.Parse(os.Args[1:]); err != nil {
+	flags, showHelp, showVersion, err := cfg.parseFlags(os.Args[1:])
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
 		fmt.Printf("\nUsage of %s:\n", os.Args[0])
-		flag.PrintDefaults()
+		flags.PrintDefaults()
 		os.Exit(1)
 	}
 	if showHelp {
 		fmt.Printf("Usage of %s:\n", os.Args[0])
-		flag.PrintDefaults()
+		flags.PrintDefaults()
 		os.Exit(0)
 	}
-	if *showVersion {
+	if showVersion {
 		cfg.PrintVersion()
 		os.Exit(0)
+	}
+}
+
+func (cfg *ConfigData) parseFlags(args []string) (*flag.FlagSet, bool, bool, error) {
+	flags := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
+	flags.IntVar(&cfg.Timeout, "timeout", 600, "Timeout for command execution in seconds, default is 600s")
+	flags.StringVar(&cfg.AccessLevel, "access-level", "readonly", "Access level (readonly, readwrite, admin)")
+	enabledComponents := flags.String("enabled-components", "", "Comma-separated list of enabled components (empty means all components enabled). Available: az_cli,monitor,fleet,network,compute,detectors,advisor,inspektorgadget,kubectl,helm,cilium,hubble")
+	flags.StringVar(&cfg.AllowNamespaces, "allow-namespaces", "", "Comma-separated list of allowed Kubernetes namespaces (empty means all namespaces)")
+	flags.StringVar(&cfg.DefaultAKSResourceID, "default-aks-resource-id", "", "Default AKS cluster resource ID used when aks_resource_id is not supplied by the caller (e.g. /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.ContainerService/managedClusters/{cluster}). Falls back to AZURE_AKS_RESOURCE_ID env var.")
+	flags.StringVar(&cfg.LogLevel, "log-level", "info", "Log level (debug, info, warn, error)")
+	flags.StringVar(&cfg.OTLPEndpoint, "otlp-endpoint", "", "OTLP endpoint for OpenTelemetry traces (e.g. localhost:4317)")
+	transport := flags.String("transport", "stdio", "Transport type (stdio only; retained for local client compatibility)")
+
+	var showHelp bool
+	flags.BoolVarP(&showHelp, "help", "h", false, "Show help message")
+	showVersion := flags.Bool("version", false, "Show version information and exit")
+
+	if err := flags.Parse(args); err != nil {
+		return flags, false, false, err
+	}
+	if *transport != "stdio" {
+		return flags, false, false, fmt.Errorf("unsupported transport %q: only stdio is supported", *transport)
 	}
 
 	cfg.SecurityConfig.AccessLevel = cfg.AccessLevel
@@ -86,6 +99,8 @@ func (cfg *ConfigData) ParseFlags() {
 			}
 		}
 	}
+
+	return flags, showHelp, *showVersion, nil
 }
 
 // InitializeTelemetry initializes the telemetry service.
