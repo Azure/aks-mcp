@@ -3,8 +3,6 @@ package azapi
 import (
 	"context"
 	"fmt"
-	"net/url"
-	"regexp"
 	"strings"
 	"time"
 
@@ -30,13 +28,9 @@ func sanitizeCliCommand(cmd string) string {
 	return strings.Join(kept, " ")
 }
 
-// azureHostPattern matches known Azure/Microsoft hostnames.
-var azureHostPattern = regexp.MustCompile(`(?i)(^|\.)(azure\.com|azure\.cn|azure\.us|azure\.de|microsoftonline\.com|microsoft\.com|windows\.net|azure-api\.net|azurecr\.io|azurewebsites\.net|azureedge\.net|msecnd\.net|msftauth\.net|msauth\.net|msftidentity\.com|visualstudio\.com|aka\.ms)$`)
-
-// validateAzCommand provides defense-in-depth validation for az CLI commands.
-// It blocks "az rest" commands where --url points to a non-Azure host,
-// preventing token exfiltration attacks. It also blocks @file arguments across
-// all command types to prevent arbitrary local file reads.
+// validateAzCommand enforces AKS-specific credential restrictions and blocks
+// @file arguments. General Azure CLI validation, including the permanent
+// restriction on az rest, is enforced by azure-api-mcp's client.
 func validateAzCommand(cliCommand string) error {
 	// Block az CLI @file expansion: any token starting with @ triggers file content
 	// substitution in az CLI pre-processing, enabling arbitrary file reads.
@@ -65,49 +59,6 @@ func validateAzCommand(cliCommand string) error {
 		if strings.HasPrefix(normalizedCmd, prefix) {
 			return fmt.Errorf("command returns credential material and is blocked as a security measure")
 		}
-	}
-
-	tokens := strings.Fields(cliCommand)
-
-	// Only inspect "az rest" commands for URL validation
-	if len(tokens) < 2 || tokens[0] != "az" || tokens[1] != "rest" {
-		return nil
-	}
-
-	// Search for --url / -u flag value
-	var urlVal string
-	var hasURL bool
-	for i := 2; i < len(tokens); i++ {
-		t := tokens[i]
-		if (t == "--url" || t == "--uri" || t == "-u") && i+1 < len(tokens) {
-			urlVal = tokens[i+1]
-			hasURL = true
-			break
-		}
-		if strings.HasPrefix(t, "--url=") {
-			urlVal = strings.TrimPrefix(t, "--url=")
-			hasURL = true
-			break
-		}
-		if strings.HasPrefix(t, "--uri=") {
-			urlVal = strings.TrimPrefix(t, "--uri=")
-			hasURL = true
-			break
-		}
-	}
-
-	if !hasURL {
-		return nil
-	}
-
-	parsed, err := url.Parse(urlVal)
-	if err != nil || parsed.Host == "" {
-		return fmt.Errorf("az rest --url must point to a known Azure host; non-Azure URLs are blocked to prevent token exfiltration")
-	}
-
-	hostname := parsed.Hostname()
-	if !azureHostPattern.MatchString(hostname) {
-		return fmt.Errorf("az rest --url must point to a known Azure host; non-Azure URLs are blocked to prevent token exfiltration")
 	}
 
 	return nil

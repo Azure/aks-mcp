@@ -59,6 +59,11 @@ its server configuration, or AKS-MCP can normally run the same CLI commands
 under the same identity without AKS-MCP. Protecting the workstation, client
 configuration, and local credentials remains the operator's responsibility.
 
+The `call_az` tool does not support `az rest`, including GET requests to Azure
+URLs. This restriction is enforced by the `azure-api-mcp` dependency in every
+access mode and cannot be overridden by security policies or read-only patterns.
+Use resource-specific commands such as `az aks show` or `az resource show` instead.
+
 ### What `--access-level` is and is not
 
 `--access-level` (`readonly` / `readwrite` / `admin`) is a **guardrail to reduce
