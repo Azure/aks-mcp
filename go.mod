@@ -3,7 +3,7 @@ module github.com/Azure/aks-mcp
 go 1.25.5
 
 require (
-	github.com/Azure/azure-api-mcp v0.0.7
+	github.com/Azure/azure-api-mcp v0.0.10
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v4 v4.2.1
